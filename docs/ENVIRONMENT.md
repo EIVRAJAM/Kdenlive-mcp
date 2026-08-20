@@ -232,7 +232,7 @@ flatpak run --command=melt org.kde.kdenlive -query consumers
 
 ## Current Limitation
 
-No existing `.kdenlive` files were found in:
+During the initial reconnaissance, no existing `.kdenlive` files were found in:
 
 ```text
 /home/abrahamc
@@ -242,8 +242,8 @@ No existing `.kdenlive` files were found in:
 
 Kdenlive's CLI exposes options to open a project, import clips into the bin, and
 render a project, but it does not expose a verified headless command to create
-and save a new `.kdenlive` project. A real project should be created and saved
-through Kdenlive before implementing any writer for Kdenlive-specific XML.
+and save a new `.kdenlive` project. The first real reference projects were
+therefore created manually through Kdenlive and saved under `examples/recon/`.
 
 ## Kdenlive Save Automation Probe
 
@@ -303,6 +303,32 @@ Conclusion: DBus can be useful later for controlled Kdenlive integration probes,
 such as adding clips to the bin or timeline, but this installation does not
 currently expose a tested headless "save project to path" operation through CLI
 or DBus.
+
+## Manual Kdenlive Project Capture
+
+Manually captured through Kdenlive 26.04.3:
+
+```text
+examples/recon/manual_empty_vertical.kdenlive
+examples/recon/manual_bin_only.kdenlive
+examples/recon/manual_two_clips_timeline.kdenlive
+examples/recon/manual_trim_marker.kdenlive
+```
+
+Validation:
+
+```bash
+xmllint --noout examples/recon/manual_*.kdenlive
+
+flatpak run --command=melt org.kde.kdenlive \
+  examples/recon/manual_two_clips_timeline.kdenlive \
+  -consumer null terminate_on_pause=1
+```
+
+All four reference projects are well-formed XML and load through the Flatpak
+`melt` binary with exit code 0. Kdenlive also created a cache directory named
+after the document id, `examples/recon/1787190383242/`; that directory contains
+thumbnails/audio thumbs and is ignored by Git.
 
 ## Sandbox Mitigation In Phase 1
 

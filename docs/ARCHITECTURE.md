@@ -215,7 +215,7 @@ The rest of the system should use domain objects and services, not raw XML.
 
 ## Required Before Kdenlive Writing
 
-Real Kdenlive 26.04.3 reference files must be captured and compared:
+Real Kdenlive 26.04.3 reference files have been captured:
 
 ```text
 manual_empty_vertical.kdenlive
@@ -224,7 +224,10 @@ manual_two_clips_timeline.kdenlive
 manual_trim_marker.kdenlive
 ```
 
-Until those exist, `.kdenlive` writing remains intentionally blocked.
+They confirm the basic structure of `main_bin`, sequences, tracks, media
+chains, timeline entries, groups, guides, and markers. `.kdenlive` writing
+remains intentionally blocked until a read-only adapter can parse these fixtures
+and additional samples confirm trimmed clips and gaps.
 
 ## Testing Strategy
 
@@ -238,6 +241,7 @@ media scanning and ffprobe metadata
 thumbnail/audio derivation
 path traversal rejection
 manifest creation, inspection, validation, and media scan persistence
+Kdenlive XML fixture parsing
 ```
 
 Tests use small synthetic media under:
