@@ -81,8 +81,10 @@ python3 -m pytest
 
 ```text
 docs/ENVIRONMENT.md
+docs/ARCHITECTURE.md
 docs/KDENLIVE_PROJECT_FORMAT.md
 docs/MCP_TOOLS.md
+docs/SECURITY.md
 ```
 
 ## Known Limitation
