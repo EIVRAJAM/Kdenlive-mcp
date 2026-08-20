@@ -1,10 +1,10 @@
 # MCP Tools
 
-Current phase: Phase 2 media tools.
+Current phase: intermediate manifest layer after Phase 2 media tools.
 
 The server is intentionally narrow. It exposes environment/version inspection
-and non-destructive media tools only; it does not create or modify Kdenlive
-projects yet.
+and non-destructive media/manifest tools only; it does not create or modify
+Kdenlive projects yet.
 
 ## Codex Configuration
 
@@ -282,6 +282,82 @@ Input:
 Extracts a derived WAV file with FFmpeg. The original media file is not
 modified. The tool refuses to overwrite an existing output file and rejects an
 output path that resolves to the input media file.
+
+## Manifest Tools
+
+The manifest layer is an intermediate MCP-owned JSON format. It is not a
+`.kdenlive` project and is not intended to be opened by Kdenlive. It gives the
+agent a safe place to persist media scans, stable media IDs, notes, and future
+planning metadata before Kdenlive project writing is implemented.
+
+Manifest files use this filename convention:
+
+```text
+<name>.kdenlive-mcp.json
+```
+
+They must be created in an allowed output directory.
+
+### create_manifest
+
+Input:
+
+```json
+{
+  "name": "Vlog Santa Marta",
+  "output_directory": "/home/abrahamc/Videos/VlogSantaMarta",
+  "description": "Initial media inventory",
+  "overwrite": false
+}
+```
+
+Creates a JSON manifest with schema/version metadata. Existing files are not
+overwritten unless `overwrite` is true.
+
+### inspect_manifest
+
+Input:
+
+```json
+{
+  "manifest": "/home/abrahamc/Videos/VlogSantaMarta/Vlog_Santa_Marta.kdenlive-mcp.json"
+}
+```
+
+Loads and returns the manifest contents.
+
+### validate_manifest
+
+Input:
+
+```json
+{
+  "manifest": "/home/abrahamc/Videos/VlogSantaMarta/Vlog_Santa_Marta.kdenlive-mcp.json"
+}
+```
+
+Validates manifest structure, duplicate media IDs, and referenced media file
+existence.
+
+### scan_media_to_manifest
+
+Input:
+
+```json
+{
+  "manifest": "/home/abrahamc/Videos/VlogSantaMarta/Vlog_Santa_Marta.kdenlive-mcp.json",
+  "folder": "/home/abrahamc/Videos/VlogSantaMarta",
+  "recursive": true,
+  "replace": true
+}
+```
+
+Runs `scan_media` and stores the resulting media inventory in the manifest. Each
+media item gets a stable ID derived from its absolute path, for example:
+
+```text
+media_4f89c2a613bf
+```
 
 ## Verification Commands
 

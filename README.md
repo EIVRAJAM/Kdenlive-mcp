@@ -7,11 +7,12 @@ goal is to expose safe tools that let an AI agent inspect media, reason about
 editing operations, and eventually produce Kdenlive projects that remain
 editable in Kdenlive.
 
-Current status: reconnaissance, Phase 1 MCP skeleton, and Phase 2 media tools.
-The server exposes environment/version tools plus non-destructive media
-inspection and derivation tools. It does not write `.kdenlive` project files yet
-because real Kdenlive 26.04.3 project samples still need to be captured and
-studied.
+Current status: reconnaissance, Phase 1 MCP skeleton, Phase 2 media tools, and
+an intermediate MCP manifest layer. The server exposes environment/version
+tools, non-destructive media inspection/derivation tools, and a JSON manifest
+used to persist scans before a Kdenlive adapter exists. It does not write
+`.kdenlive` project files yet because real Kdenlive 26.04.3 project samples
+still need to be captured and studied.
 
 ## Install For Local Development
 
@@ -62,6 +63,10 @@ get_media_info
 validate_media
 generate_thumbnail
 extract_audio
+create_manifest
+inspect_manifest
+validate_manifest
+scan_media_to_manifest
 ```
 
 All tools return structured JSON text through MCP `tools/call`.

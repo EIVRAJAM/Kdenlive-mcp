@@ -11,11 +11,12 @@ if __package__ in (None, ""):
 
 from kdenlive_mcp import __version__
 from kdenlive_mcp.tools.environment_tools import TOOLS as ENVIRONMENT_TOOLS
+from kdenlive_mcp.tools.manifest_tools import TOOLS as MANIFEST_TOOLS
 from kdenlive_mcp.tools.media_tools import TOOLS as MEDIA_TOOLS
 
 JSONRPC_VERSION = "2.0"
 MCP_PROTOCOL_VERSION = "2024-11-05"
-TOOLS = {**ENVIRONMENT_TOOLS, **MEDIA_TOOLS}
+TOOLS = {**ENVIRONMENT_TOOLS, **MEDIA_TOOLS, **MANIFEST_TOOLS}
 
 
 class McpError(Exception):
