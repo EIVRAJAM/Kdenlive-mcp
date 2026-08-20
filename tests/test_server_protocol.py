@@ -38,6 +38,7 @@ def test_tools_list_includes_health_check() -> None:
     assert response is not None
     tool_names = {tool["name"] for tool in response["result"]["tools"]}
     assert "health_check" in tool_names
+    assert "scan_media" in tool_names
 
 
 def test_tools_call_health_check() -> None:

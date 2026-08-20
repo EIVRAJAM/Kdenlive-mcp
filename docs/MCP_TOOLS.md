@@ -1,9 +1,10 @@
 # MCP Tools
 
-Current phase: Phase 1 STDIO server.
+Current phase: Phase 2 media tools.
 
-The server is intentionally narrow. It exposes environment and version
-inspection only; it does not create or modify Kdenlive projects yet.
+The server is intentionally narrow. It exposes environment/version inspection
+and non-destructive media tools only; it does not create or modify Kdenlive
+projects yet.
 
 ## Codex Configuration
 
@@ -170,6 +171,117 @@ get_mlt_version -> Flatpak installation scan for libmlt-7.so.*
 The same Flatpak execution commands work when allowed to run outside the
 sandbox. Render and project-load operations will still require a process context
 where `flatpak run` can execute.
+
+## Media Tools
+
+Media tools enforce path allowlists. Configure them before launching the MCP
+server:
+
+```bash
+export KDENLIVE_MCP_ALLOWED_MEDIA_DIRS=/home/abrahamc/Videos
+export KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS=/home/abrahamc/Videos:/tmp
+```
+
+Paths outside these roots, including traversal attempts such as `../outside`,
+return:
+
+```json
+{
+  "success": false,
+  "error": "PERMISSION_DENIED"
+}
+```
+
+Supported extensions currently include:
+
+```text
+.3gp .aac .aiff .flac .m4a .mkv .mov .mp3 .mp4 .ogg .wav .webm
+```
+
+### scan_media
+
+Input:
+
+```json
+{
+  "folder": "/home/abrahamc/Videos/vlog",
+  "recursive": true,
+  "probe": true
+}
+```
+
+Finds supported media files. When `probe` is true, runs `ffprobe` on each file
+and returns duration, format, bitrate, video stream details, audio stream
+details, and metadata.
+
+### list_media
+
+Input:
+
+```json
+{
+  "folder": "/home/abrahamc/Videos/vlog",
+  "recursive": true
+}
+```
+
+Lists supported media files without running `ffprobe`.
+
+### get_media_info
+
+Input:
+
+```json
+{
+  "media": "/home/abrahamc/Videos/vlog/clip.mp4"
+}
+```
+
+Returns structured `ffprobe` metadata for one file.
+
+### validate_media
+
+Input:
+
+```json
+{
+  "media": "/home/abrahamc/Videos/vlog/clip.mp4"
+}
+```
+
+Checks that the file exists, has a supported extension, can be probed, and has
+at least one audio or video stream.
+
+### generate_thumbnail
+
+Input:
+
+```json
+{
+  "media": "/home/abrahamc/Videos/vlog/clip.mp4",
+  "output": "/home/abrahamc/Videos/vlog/thumbs/clip.jpg",
+  "timestamp": 1.0
+}
+```
+
+Generates a derived image with FFmpeg. The original media file is not modified.
+The tool refuses to overwrite an existing output file and rejects an output path
+that resolves to the input media file.
+
+### extract_audio
+
+Input:
+
+```json
+{
+  "media": "/home/abrahamc/Videos/vlog/clip.mp4",
+  "output": "/home/abrahamc/Videos/vlog/audio/clip.wav"
+}
+```
+
+Extracts a derived WAV file with FFmpeg. The original media file is not
+modified. The tool refuses to overwrite an existing output file and rejects an
+output path that resolves to the input media file.
 
 ## Verification Commands
 

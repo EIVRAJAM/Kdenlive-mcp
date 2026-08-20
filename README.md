@@ -7,9 +7,10 @@ goal is to expose safe tools that let an AI agent inspect media, reason about
 editing operations, and eventually produce Kdenlive projects that remain
 editable in Kdenlive.
 
-Current status: reconnaissance plus Phase 1 MCP skeleton. The server exposes
-environment and version tools only. It does not write `.kdenlive` project files
-yet because real Kdenlive 26.04.3 project samples still need to be captured and
+Current status: reconnaissance, Phase 1 MCP skeleton, and Phase 2 media tools.
+The server exposes environment/version tools plus non-destructive media
+inspection and derivation tools. It does not write `.kdenlive` project files yet
+because real Kdenlive 26.04.3 project samples still need to be captured and
 studied.
 
 ## Install For Local Development
@@ -31,6 +32,13 @@ small compatible JSON-RPC STDIO server for Phase 1.
 python3 src/kdenlive_mcp/server.py
 ```
 
+For media tools, configure allowlists before launching the server:
+
+```bash
+export KDENLIVE_MCP_ALLOWED_MEDIA_DIRS=/home/abrahamc/Videos
+export KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS=/home/abrahamc/Videos:/tmp
+```
+
 Codex MCP configuration example:
 
 ```toml
@@ -48,6 +56,12 @@ get_kdenlive_version
 get_ffmpeg_version
 get_ffprobe_version
 get_mlt_version
+scan_media
+list_media
+get_media_info
+validate_media
+generate_thumbnail
+extract_audio
 ```
 
 All tools return structured JSON text through MCP `tools/call`.

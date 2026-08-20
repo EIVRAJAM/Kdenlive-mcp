@@ -10,10 +10,12 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from kdenlive_mcp import __version__
-from kdenlive_mcp.tools.environment_tools import TOOLS
+from kdenlive_mcp.tools.environment_tools import TOOLS as ENVIRONMENT_TOOLS
+from kdenlive_mcp.tools.media_tools import TOOLS as MEDIA_TOOLS
 
 JSONRPC_VERSION = "2.0"
 MCP_PROTOCOL_VERSION = "2024-11-05"
+TOOLS = {**ENVIRONMENT_TOOLS, **MEDIA_TOOLS}
 
 
 class McpError(Exception):
@@ -101,11 +103,10 @@ def _call_tool(params: dict[str, Any]) -> dict[str, Any]:
     arguments = params.get("arguments") or {}
     if not isinstance(arguments, dict):
         raise McpError(-32602, "Tool arguments must be an object")
-    if arguments:
-        raise McpError(-32602, f"Tool {name} does not accept arguments yet")
-
     try:
-        result = TOOLS[name]["handler"]()
+        result = TOOLS[name]["handler"](**arguments)
+    except TypeError as exc:
+        raise McpError(-32602, f"Invalid arguments for {name}: {exc}") from exc
     except Exception as exc:  # pragma: no cover - defensive server boundary
         result = {
             "success": False,
