@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from kdenlive_mcp.adapters.commands import CommandResult
 from kdenlive_mcp.adapters.kdenlive_xml import KdenliveProjectAdapter, parse_timecode_to_frames
 from kdenlive_mcp.tools import project_tools
 
@@ -82,3 +83,61 @@ def test_inspect_project_tool_returns_structured_data(monkeypatch) -> None:
     assert result["success"] is True
     assert result["operation"] == "inspect_project"
     assert result["data"]["bin"]["media_count"] == 2
+
+
+def test_validate_project_static_checks(monkeypatch) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", str(RECON_DIR))
+
+    result = project_tools.validate_project(project=str(TWO_CLIPS_PROJECT))
+
+    assert result["success"] is True
+    assert result["valid"] is True
+    assert result["checks"]["xml_parse"]["valid"] is True
+    assert result["checks"]["media_references"]["valid"] is True
+    assert result["checks"]["mlt_load"]["checked"] is False
+    assert result["summary"]["media_count"] == 2
+
+
+def test_validate_project_with_mlt_success(monkeypatch) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", str(RECON_DIR))
+
+    def fake_run(command, timeout):
+        return CommandResult(
+            command=command,
+            available=True,
+            returncode=0,
+            stdout="",
+            stderr="",
+        )
+
+    monkeypatch.setattr(project_tools, "run_command", fake_run)
+
+    result = project_tools.validate_project(project=str(TWO_CLIPS_PROJECT), check_mlt=True)
+
+    assert result["success"] is True
+    assert result["valid"] is True
+    assert result["checks"]["mlt_load"]["checked"] is True
+    assert result["checks"]["mlt_load"]["status"] == "loaded"
+
+
+def test_validate_project_reports_flatpak_sandbox_without_marking_invalid(monkeypatch) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", str(RECON_DIR))
+
+    def fake_run(command, timeout):
+        return CommandResult(
+            command=command,
+            available=True,
+            returncode=1,
+            stdout="",
+            stderr="error: Unable to allocate instance id",
+            error="Command failed",
+        )
+
+    monkeypatch.setattr(project_tools, "run_command", fake_run)
+
+    result = project_tools.validate_project(project=str(TWO_CLIPS_PROJECT), check_mlt=True)
+
+    assert result["success"] is True
+    assert result["valid"] is True
+    assert result["checks"]["mlt_load"]["status"] == "unavailable"
+    assert result["checks"]["mlt_load"]["error"] == "FLATPAK_EXECUTION_UNAVAILABLE_IN_SANDBOX"

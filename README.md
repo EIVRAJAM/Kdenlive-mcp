@@ -68,6 +68,7 @@ inspect_manifest
 validate_manifest
 scan_media_to_manifest
 inspect_project
+validate_project
 ```
 
 All tools return structured JSON text through MCP `tools/call`.

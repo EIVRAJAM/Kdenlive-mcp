@@ -423,6 +423,50 @@ basic missing-media validation
 
 It does not write, normalize, or save XML.
 
+### validate_project
+
+Input:
+
+```json
+{
+  "project": "/home/abrahamc/Videos/Vlog/vlog_ai_001.kdenlive",
+  "check_mlt": false,
+  "timeout": 20
+}
+```
+
+Performs read-only validation:
+
+```text
+XML parse
+Kdenlive project shape
+media reference existence
+optional MLT load through Flatpak melt
+```
+
+When `check_mlt` is true, the tool runs:
+
+```bash
+flatpak run --command=melt org.kde.kdenlive \
+  /path/to/project.kdenlive \
+  -consumer null terminate_on_pause=1
+```
+
+If Flatpak execution is blocked by the Codex sandbox, the MLT check is reported
+as unavailable:
+
+```json
+{
+  "checked": true,
+  "valid": null,
+  "status": "unavailable",
+  "error": "FLATPAK_EXECUTION_UNAVAILABLE_IN_SANDBOX"
+}
+```
+
+That specific sandbox condition does not mark the project invalid; static XML
+and media-reference checks still determine the result.
+
 ## Verification Commands
 
 ```bash

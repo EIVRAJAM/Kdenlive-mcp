@@ -250,6 +250,7 @@ thumbnail/audio derivation
 path traversal rejection
 manifest creation, inspection, validation, and media scan persistence
 Kdenlive XML fixture parsing
+read-only Kdenlive project validation
 ```
 
 Tests use small synthetic media under:
