@@ -44,3 +44,8 @@ def ensure_media_path(path: str | Path, settings: Settings | None = None) -> Pat
 def ensure_output_path(path: str | Path, settings: Settings | None = None) -> Path:
     settings = settings or get_settings()
     return ensure_within_allowed(path, settings.allowed_output_directories, "output")
+
+
+def ensure_project_path(path: str | Path, settings: Settings | None = None) -> Path:
+    settings = settings or get_settings()
+    return ensure_within_allowed(path, settings.allowed_project_directories, "project")

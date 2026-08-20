@@ -12,10 +12,12 @@ Codex / AI agent
     -> Environment tools
     -> Media tools
     -> MCP project manifest
+    -> Read-only Kdenlive project inspector
       -> FFmpeg / ffprobe
+      -> Kdenlive XML
 ```
 
-Planned scope after real `.kdenlive` samples are captured:
+Planned write/editing scope:
 
 ```text
 Codex / AI agent
@@ -35,7 +37,7 @@ extracted WAV files must be written to allowed output directories and must not
 overwrite existing files.
 
 The domain layer must not manipulate Kdenlive XML directly. Kdenlive-specific
-format behavior belongs behind a future `KdenliveProjectAdapter`.
+format behavior belongs behind `KdenliveProjectAdapter`.
 
 The current manifest format is MCP-owned JSON. It is not a `.kdenlive` file and
 is not meant to be opened by Kdenlive.
@@ -75,6 +77,7 @@ Locations:
 src/kdenlive_mcp/tools/environment_tools.py
 src/kdenlive_mcp/tools/media_tools.py
 src/kdenlive_mcp/tools/manifest_tools.py
+src/kdenlive_mcp/tools/project_tools.py
 ```
 
 Tool modules expose dictionaries with:
@@ -96,6 +99,7 @@ Locations:
 src/kdenlive_mcp/adapters/commands.py
 src/kdenlive_mcp/adapters/ffmpeg.py
 src/kdenlive_mcp/adapters/ffprobe.py
+src/kdenlive_mcp/adapters/kdenlive_xml.py
 ```
 
 Adapters own subprocess interaction. Commands must use:
@@ -105,6 +109,10 @@ subprocess.run([...], shell=False)
 ```
 
 No shell command strings should be assembled from user input.
+
+`kdenlive_xml.py` is currently read-only. It parses Kdenlive-generated
+`.kdenlive` files into structured project summaries and does not serialize or
+modify XML yet.
 
 ### Security
 
@@ -194,13 +202,13 @@ manifest media ID <-> Kdenlive producer/bin ID
 
 ## Kdenlive Adapter Boundary
 
-Future location:
+Location:
 
 ```text
 src/kdenlive_mcp/adapters/kdenlive_xml.py
 ```
 
-The adapter should own:
+The adapter owns read-only parsing now and should own writing later:
 
 ```text
 XML parsing
@@ -226,8 +234,8 @@ manual_trim_marker.kdenlive
 
 They confirm the basic structure of `main_bin`, sequences, tracks, media
 chains, timeline entries, groups, guides, and markers. `.kdenlive` writing
-remains intentionally blocked until a read-only adapter can parse these fixtures
-and additional samples confirm trimmed clips and gaps.
+remains intentionally blocked until additional samples confirm trimmed clips and
+gaps, and until round-trip preservation tests exist.
 
 ## Testing Strategy
 

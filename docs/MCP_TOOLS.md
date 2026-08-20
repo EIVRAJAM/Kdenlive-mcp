@@ -1,10 +1,11 @@
 # MCP Tools
 
-Current phase: intermediate manifest layer after Phase 2 media tools.
+Current phase: intermediate manifest layer plus read-only Kdenlive project
+inspection.
 
 The server is intentionally narrow. It exposes environment/version inspection
-and non-destructive media/manifest tools only; it does not create or modify
-Kdenlive projects yet.
+and non-destructive media/manifest/project inspection tools only; it does not
+create or modify Kdenlive projects yet.
 
 ## Codex Configuration
 
@@ -179,6 +180,7 @@ server:
 
 ```bash
 export KDENLIVE_MCP_ALLOWED_MEDIA_DIRS=/home/abrahamc/Videos
+export KDENLIVE_MCP_ALLOWED_PROJECT_DIRS=/home/abrahamc/Videos
 export KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS=/home/abrahamc/Videos:/tmp
 ```
 
@@ -358,6 +360,68 @@ media item gets a stable ID derived from its absolute path, for example:
 ```text
 media_4f89c2a613bf
 ```
+
+## Project Tools
+
+Project tools enforce `KDENLIVE_MCP_ALLOWED_PROJECT_DIRS`. They are read-only in
+the current phase.
+
+### inspect_project
+
+Input:
+
+```json
+{
+  "project": "/home/abrahamc/Videos/Vlog/vlog_ai_001.kdenlive"
+}
+```
+
+Reads one `.kdenlive` file and returns a structured summary:
+
+```json
+{
+  "success": true,
+  "operation": "inspect_project",
+  "project": "/home/abrahamc/Videos/Vlog/vlog_ai_001.kdenlive",
+  "data": {
+    "profile": {
+      "width": 1080,
+      "height": 1920,
+      "frame_rate_num": 30,
+      "frame_rate_den": 1
+    },
+    "document": {
+      "kdenlive_version": "26.04.3",
+      "profile": "vertical_hd_30"
+    },
+    "bin": {
+      "media_count": 2,
+      "media": []
+    },
+    "sequences": [],
+    "validation": {
+      "well_formed_xml": true,
+      "missing_media_count": 0
+    }
+  }
+}
+```
+
+The parser currently extracts:
+
+```text
+profile
+document properties
+main_bin media entries
+active sequence
+track branches
+timeline clips
+guides
+markers
+basic missing-media validation
+```
+
+It does not write, normalize, or save XML.
 
 ## Verification Commands
 
