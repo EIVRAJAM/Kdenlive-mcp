@@ -14,6 +14,7 @@ Codex / AI agent
     -> MCP project manifest
     -> Read-only Kdenlive project inspector
     -> Project backup/clone service
+    -> Project lock service
       -> FFmpeg / ffprobe
       -> Kdenlive XML
 ```
@@ -159,6 +160,7 @@ Location:
 ```text
 src/kdenlive_mcp/services/manifest_service.py
 src/kdenlive_mcp/services/backup_service.py
+src/kdenlive_mcp/services/lock_service.py
 ```
 
 Services coordinate domain models, security validation, and tool/adapters.
@@ -172,11 +174,18 @@ validate manifest
 scan media into manifest
 backup project
 clone project
+lock project
+unlock project
+get project lock
 ```
 
 `backup_service.py` implements copy-on-write preparation. It validates the
 source project, creates timestamped backups, creates `_ai_001` style working
 copies, and validates clones after copying. It does not modify XML.
+
+`lock_service.py` implements JSON lock files for project-level concurrency. It
+uses owner-scoped locks, refuses conflicting owners, supports forced unlock, and
+keeps lock files in allowed output directories.
 
 ## Data Flow: Media Scan To Manifest
 
@@ -260,6 +269,7 @@ manifest creation, inspection, validation, and media scan persistence
 Kdenlive XML fixture parsing
 read-only Kdenlive project validation
 non-destructive project backup and clone generation
+project lock lifecycle
 ```
 
 Tests use small synthetic media under:

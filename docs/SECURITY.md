@@ -16,6 +16,7 @@ extract_audio refuses to write to the input media path
 derived output tools refuse to overwrite existing files
 backup_project creates timestamped copies only
 clone_project creates next-version copies only
+lock_project refuses conflicting owners
 ```
 
 Timeline/project edits must use copy-on-write project files and backups.
@@ -131,7 +132,6 @@ errors, but avoid media content or secrets.
 Before any `.kdenlive` XML mutation exists, implement:
 
 ```text
-lock files
 XML validation
 reference validation
 negative duration checks
@@ -139,5 +139,5 @@ gap/timing validation
 dry_run support for timeline mutations
 ```
 
-Copy-on-write project handling and backup creation already exist as separate
-tools. Never edit the user's active project in place.
+Copy-on-write project handling, backup creation, and lock files already exist
+as separate tools. Never edit the user's active project in place.

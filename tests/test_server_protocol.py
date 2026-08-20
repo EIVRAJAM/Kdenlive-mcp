@@ -44,6 +44,9 @@ def test_tools_list_includes_health_check() -> None:
     assert "validate_project" in tool_names
     assert "backup_project" in tool_names
     assert "clone_project" in tool_names
+    assert "get_project_lock" in tool_names
+    assert "lock_project" in tool_names
+    assert "unlock_project" in tool_names
 
 
 def test_tools_call_health_check() -> None:

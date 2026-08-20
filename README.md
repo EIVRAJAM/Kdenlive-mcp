@@ -72,6 +72,9 @@ inspect_project
 validate_project
 backup_project
 clone_project
+get_project_lock
+lock_project
+unlock_project
 ```
 
 All tools return structured JSON text through MCP `tools/call`.

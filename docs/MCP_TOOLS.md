@@ -1,7 +1,7 @@
 # MCP Tools
 
 Current phase: intermediate manifest layer, read-only Kdenlive project
-inspection, and non-destructive project backup/clone operations.
+inspection, non-destructive project backup/clone operations, and project locks.
 
 The server is intentionally narrow. It exposes environment/version inspection
 and non-destructive media/manifest/project tools only. It can copy `.kdenlive`
@@ -518,6 +518,58 @@ When `create_backup` is true, it also creates a backup under:
 The clone is validated after copying. Current clone behavior copies the project
 file as-is; it does not rewrite the Kdenlive XML `root` attribute or media
 paths.
+
+### get_project_lock
+
+Input:
+
+```json
+{
+  "project": "/home/abrahamc/Videos/Vlog/vlog_ai_001.kdenlive",
+  "lock_directory": "/home/abrahamc/Videos/Vlog/.locks"
+}
+```
+
+Returns whether a lock exists and, when present, its owner and metadata.
+
+### lock_project
+
+Input:
+
+```json
+{
+  "project": "/home/abrahamc/Videos/Vlog/vlog_ai_001.kdenlive",
+  "owner": "codex",
+  "lock_directory": "/home/abrahamc/Videos/Vlog/.locks",
+  "stale_after_seconds": 86400
+}
+```
+
+Creates an owner-scoped JSON lock. Calling it again with the same owner is
+idempotent. Calling it with a different owner returns:
+
+```json
+{
+  "success": false,
+  "error": "PROJECT_LOCKED"
+}
+```
+
+### unlock_project
+
+Input:
+
+```json
+{
+  "project": "/home/abrahamc/Videos/Vlog/vlog_ai_001.kdenlive",
+  "owner": "codex",
+  "lock_directory": "/home/abrahamc/Videos/Vlog/.locks",
+  "force": false
+}
+```
+
+Unlocks only when the owner matches unless `force` is true. Lock directories
+must be inside `KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS`.
 
 ## Verification Commands
 

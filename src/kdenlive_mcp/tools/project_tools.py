@@ -7,6 +7,7 @@ from kdenlive_mcp.adapters.kdenlive_xml import KdenliveProjectAdapter, KdenliveP
 from kdenlive_mcp.config import get_settings
 from kdenlive_mcp.security import SecurityError, ensure_project_path
 from kdenlive_mcp.services.backup_service import backup_project, clone_project
+from kdenlive_mcp.services.lock_service import get_project_lock, lock_project, unlock_project
 
 
 def _error(code: str, message: str, **extra: Any) -> dict[str, Any]:
@@ -177,5 +178,48 @@ TOOLS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "handler": clone_project,
+    },
+    "get_project_lock": {
+        "description": "Return lock status for a .kdenlive project.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project": {"type": "string"},
+                "lock_directory": {"type": "string"},
+            },
+            "required": ["project"],
+            "additionalProperties": False,
+        },
+        "handler": get_project_lock,
+    },
+    "lock_project": {
+        "description": "Create an owner-scoped lock for a .kdenlive project.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project": {"type": "string"},
+                "owner": {"type": "string", "default": "codex"},
+                "lock_directory": {"type": "string"},
+                "stale_after_seconds": {"type": "integer"},
+            },
+            "required": ["project"],
+            "additionalProperties": False,
+        },
+        "handler": lock_project,
+    },
+    "unlock_project": {
+        "description": "Release an owner-scoped lock for a .kdenlive project.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project": {"type": "string"},
+                "owner": {"type": "string", "default": "codex"},
+                "lock_directory": {"type": "string"},
+                "force": {"type": "boolean", "default": False},
+            },
+            "required": ["project"],
+            "additionalProperties": False,
+        },
+        "handler": unlock_project,
     },
 }
