@@ -13,6 +13,7 @@ Codex / AI agent
     -> Media tools
     -> MCP project manifest
     -> Read-only Kdenlive project inspector
+    -> Project backup/clone service
       -> FFmpeg / ffprobe
       -> Kdenlive XML
 ```
@@ -157,6 +158,7 @@ Location:
 
 ```text
 src/kdenlive_mcp/services/manifest_service.py
+src/kdenlive_mcp/services/backup_service.py
 ```
 
 Services coordinate domain models, security validation, and tool/adapters.
@@ -168,7 +170,13 @@ create manifest
 inspect manifest
 validate manifest
 scan media into manifest
+backup project
+clone project
 ```
+
+`backup_service.py` implements copy-on-write preparation. It validates the
+source project, creates timestamped backups, creates `_ai_001` style working
+copies, and validates clones after copying. It does not modify XML.
 
 ## Data Flow: Media Scan To Manifest
 
@@ -251,6 +259,7 @@ path traversal rejection
 manifest creation, inspection, validation, and media scan persistence
 Kdenlive XML fixture parsing
 read-only Kdenlive project validation
+non-destructive project backup and clone generation
 ```
 
 Tests use small synthetic media under:

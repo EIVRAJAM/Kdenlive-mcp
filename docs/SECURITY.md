@@ -14,9 +14,11 @@ Current enforcement:
 generate_thumbnail refuses to write to the input media path
 extract_audio refuses to write to the input media path
 derived output tools refuse to overwrite existing files
+backup_project creates timestamped copies only
+clone_project creates next-version copies only
 ```
 
-Future timeline/project edits must use copy-on-write project files and backups.
+Timeline/project edits must use copy-on-write project files and backups.
 
 ## Filesystem Allowlists
 
@@ -32,6 +34,7 @@ Example:
 
 ```bash
 export KDENLIVE_MCP_ALLOWED_MEDIA_DIRS=/home/abrahamc/Videos
+export KDENLIVE_MCP_ALLOWED_PROJECT_DIRS=/home/abrahamc/Videos
 export KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS=/home/abrahamc/Videos:/tmp
 ```
 
@@ -125,11 +128,9 @@ errors, but avoid media content or secrets.
 
 ## Future Project Editing Requirements
 
-Before any `.kdenlive` write operation exists, implement:
+Before any `.kdenlive` XML mutation exists, implement:
 
 ```text
-copy-on-write project handling
-backup creation
 lock files
 XML validation
 reference validation
@@ -138,4 +139,5 @@ gap/timing validation
 dry_run support for timeline mutations
 ```
 
-Never edit the user's active project in place.
+Copy-on-write project handling and backup creation already exist as separate
+tools. Never edit the user's active project in place.

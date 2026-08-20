@@ -10,9 +10,9 @@ editable in Kdenlive.
 Current status: reconnaissance, Phase 1 MCP skeleton, Phase 2 media tools, an
 intermediate MCP manifest layer, and real Kdenlive 26.04.3 reference fixtures.
 The server exposes environment/version tools, non-destructive media
-inspection/derivation tools, and a JSON manifest used to persist scans before a
-Kdenlive adapter exists. It does not write `.kdenlive` project files yet; the
-next safe step is a read-only Kdenlive project inspector.
+inspection/derivation tools, read-only Kdenlive project inspection/validation,
+and non-destructive project backup/clone tools. It does not mutate `.kdenlive`
+XML yet.
 
 ## Install For Local Development
 
@@ -37,6 +37,7 @@ For media tools, configure allowlists before launching the server:
 
 ```bash
 export KDENLIVE_MCP_ALLOWED_MEDIA_DIRS=/home/abrahamc/Videos
+export KDENLIVE_MCP_ALLOWED_PROJECT_DIRS=/home/abrahamc/Videos
 export KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS=/home/abrahamc/Videos:/tmp
 ```
 
@@ -69,6 +70,8 @@ validate_manifest
 scan_media_to_manifest
 inspect_project
 validate_project
+backup_project
+clone_project
 ```
 
 All tools return structured JSON text through MCP `tools/call`.

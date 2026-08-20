@@ -1,11 +1,11 @@
 # MCP Tools
 
-Current phase: intermediate manifest layer plus read-only Kdenlive project
-inspection.
+Current phase: intermediate manifest layer, read-only Kdenlive project
+inspection, and non-destructive project backup/clone operations.
 
 The server is intentionally narrow. It exposes environment/version inspection
-and non-destructive media/manifest/project inspection tools only; it does not
-create or modify Kdenlive projects yet.
+and non-destructive media/manifest/project tools only. It can copy `.kdenlive`
+files, but it does not mutate Kdenlive XML yet.
 
 ## Codex Configuration
 
@@ -363,8 +363,8 @@ media_4f89c2a613bf
 
 ## Project Tools
 
-Project tools enforce `KDENLIVE_MCP_ALLOWED_PROJECT_DIRS`. They are read-only in
-the current phase.
+Project tools enforce `KDENLIVE_MCP_ALLOWED_PROJECT_DIRS` for source projects.
+Tools that create files also enforce `KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS`.
 
 ### inspect_project
 
@@ -466,6 +466,58 @@ as unavailable:
 
 That specific sandbox condition does not mark the project invalid; static XML
 and media-reference checks still determine the result.
+
+### backup_project
+
+Input:
+
+```json
+{
+  "project": "/home/abrahamc/Videos/Vlog/vlog.kdenlive",
+  "backup_directory": "/home/abrahamc/Videos/Vlog/.backups",
+  "label": "before_ai_edit"
+}
+```
+
+Creates a timestamped copy after validating the source project:
+
+```text
+.backups/vlog_before_ai_edit_2026-08-20_143022_001.kdenlive
+```
+
+The tool refuses paths outside allowlists and never overwrites an existing
+backup.
+
+### clone_project
+
+Input:
+
+```json
+{
+  "project": "/home/abrahamc/Videos/Vlog/vlog.kdenlive",
+  "output_directory": "/home/abrahamc/Videos/Vlog",
+  "suffix": "_ai",
+  "create_backup": true
+}
+```
+
+Creates the next available AI working copy:
+
+```text
+vlog_ai_001.kdenlive
+vlog_ai_002.kdenlive
+vlog_ai_003.kdenlive
+```
+
+When `create_backup` is true, it also creates a backup under:
+
+```text
+<output_directory>/.backups/
+```
+
+The clone is validated after copying. Current clone behavior copies the project
+file as-is; it does not rewrite the Kdenlive XML `root` attribute or media
+paths.
 
 ## Verification Commands
 

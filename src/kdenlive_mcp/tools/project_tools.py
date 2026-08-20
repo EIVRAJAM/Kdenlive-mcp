@@ -6,6 +6,7 @@ from kdenlive_mcp.adapters.commands import run_command
 from kdenlive_mcp.adapters.kdenlive_xml import KdenliveProjectAdapter, KdenliveProjectError
 from kdenlive_mcp.config import get_settings
 from kdenlive_mcp.security import SecurityError, ensure_project_path
+from kdenlive_mcp.services.backup_service import backup_project, clone_project
 
 
 def _error(code: str, message: str, **extra: Any) -> dict[str, Any]:
@@ -146,5 +147,35 @@ TOOLS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "handler": validate_project,
+    },
+    "backup_project": {
+        "description": "Create a timestamped copy of a validated .kdenlive project.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project": {"type": "string"},
+                "backup_directory": {"type": "string"},
+                "label": {"type": "string"},
+            },
+            "required": ["project"],
+            "additionalProperties": False,
+        },
+        "handler": backup_project,
+    },
+    "clone_project": {
+        "description": "Create the next non-destructive AI working copy of a validated .kdenlive project.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project": {"type": "string"},
+                "output_directory": {"type": "string"},
+                "suffix": {"type": "string", "default": "_ai"},
+                "create_backup": {"type": "boolean", "default": True},
+                "backup_directory": {"type": "string"},
+            },
+            "required": ["project"],
+            "additionalProperties": False,
+        },
+        "handler": clone_project,
     },
 }
