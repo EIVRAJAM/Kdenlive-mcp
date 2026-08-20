@@ -58,3 +58,57 @@ def detect_silence(input_path: Path, threshold_db: float = -35.0, minimum_durati
         ],
         timeout=300.0,
     )
+
+
+def extract_frames(
+    input_path: Path,
+    output_pattern: Path,
+    every_seconds: float = 1.0,
+    max_frames: int = 12,
+) -> CommandResult:
+    fps = 1 / every_seconds
+    return run_command(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-y",
+            "-i",
+            str(input_path),
+            "-vf",
+            f"fps={fps:.6f}",
+            "-frames:v",
+            str(max_frames),
+            "-q:v",
+            "2",
+            str(output_pattern),
+        ],
+        timeout=300.0,
+    )
+
+
+def generate_contact_sheet(
+    input_path: Path,
+    output_path: Path,
+    every_seconds: float = 1.0,
+    columns: int = 3,
+    rows: int = 3,
+    thumb_width: int = 320,
+) -> CommandResult:
+    fps = 1 / every_seconds
+    return run_command(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-y",
+            "-i",
+            str(input_path),
+            "-vf",
+            f"fps={fps:.6f},scale={thumb_width}:-1,tile={columns}x{rows}",
+            "-frames:v",
+            "1",
+            "-q:v",
+            "3",
+            str(output_path),
+        ],
+        timeout=300.0,
+    )

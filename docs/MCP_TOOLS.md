@@ -361,6 +361,54 @@ The tool preserves padding around each detected silent range by cutting from
 `silence_start + padding_before` to `silence_end - padding_after`. It does not
 modify media or projects.
 
+## Analysis Tools
+
+Analysis tools enforce media and output allowlists. They create derived visual
+artifacts only and never modify the original media.
+
+### extract_frames
+
+Input:
+
+```json
+{
+  "media": "/home/abrahamc/Videos/vlog/clip.mp4",
+  "output_directory": "/home/abrahamc/Videos/vlog/frames",
+  "every_seconds": 1.0,
+  "max_frames": 12,
+  "prefix": "clip"
+}
+```
+
+Extracts periodic JPEG frames:
+
+```text
+clip_0001.jpg
+clip_0002.jpg
+clip_0003.jpg
+```
+
+The tool refuses to run when files with the selected prefix already exist in
+the output directory.
+
+### generate_contact_sheet
+
+Input:
+
+```json
+{
+  "media": "/home/abrahamc/Videos/vlog/clip.mp4",
+  "output": "/home/abrahamc/Videos/vlog/contact.jpg",
+  "every_seconds": 1.0,
+  "columns": 3,
+  "rows": 3,
+  "thumb_width": 320
+}
+```
+
+Generates a single contact sheet image using FFmpeg `tile`. Existing output
+files are not overwritten.
+
 ## Manifest Tools
 
 The manifest layer is an intermediate MCP-owned JSON format. It is not a

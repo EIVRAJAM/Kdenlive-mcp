@@ -12,6 +12,7 @@ Codex / AI agent
     -> Environment tools
     -> Media tools
     -> Audio analysis tools
+    -> Video analysis tools
     -> MCP project manifest
     -> Read-only Kdenlive project inspector
     -> Project backup/clone service
@@ -80,6 +81,7 @@ Locations:
 src/kdenlive_mcp/tools/environment_tools.py
 src/kdenlive_mcp/tools/media_tools.py
 src/kdenlive_mcp/tools/audio_tools.py
+src/kdenlive_mcp/tools/analysis_tools.py
 src/kdenlive_mcp/tools/manifest_tools.py
 src/kdenlive_mcp/tools/project_tools.py
 ```
@@ -278,6 +280,7 @@ media scanning and ffprobe metadata
 thumbnail/audio derivation
 FFmpeg silence detection
 dry-run silence removal planning
+visual frame extraction and contact sheets
 path traversal rejection
 manifest creation, inspection, validation, and media scan persistence
 Kdenlive XML fixture parsing

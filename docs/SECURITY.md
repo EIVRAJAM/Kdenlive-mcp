@@ -16,6 +16,7 @@ extract_audio refuses to write to the input media path
 derived output tools refuse to overwrite existing files
 detect_silence is read-only analysis
 plan_silence_removal is read-only dry-run planning
+extract_frames and generate_contact_sheet create derived outputs only
 backup_project creates timestamped copies only
 clone_project creates next-version copies only
 list_project_versions is read-only

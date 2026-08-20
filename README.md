@@ -66,6 +66,8 @@ generate_thumbnail
 extract_audio
 detect_silence
 plan_silence_removal
+extract_frames
+generate_contact_sheet
 create_manifest
 inspect_manifest
 validate_manifest
