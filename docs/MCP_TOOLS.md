@@ -83,6 +83,12 @@ Attempts:
 flatpak run --command=kdenlive org.kde.kdenlive --version
 ```
 
+If Flatpak execution is unavailable inside the command sandbox, falls back to:
+
+```bash
+flatpak info org.kde.kdenlive
+```
+
 Falls back to:
 
 ```bash
@@ -137,6 +143,13 @@ Falls back to Kdenlive Flatpak MLT:
 flatpak run --command=melt org.kde.kdenlive -version
 ```
 
+If Flatpak execution is unavailable inside the command sandbox, it attempts to
+infer the installed MLT version from the Flatpak installation location:
+
+```bash
+flatpak info --show-location org.kde.kdenlive
+```
+
 ## Sandbox Note
 
 Inside the Codex command sandbox, `flatpak run` may fail with:
@@ -145,10 +158,18 @@ Inside the Codex command sandbox, `flatpak run` may fail with:
 error: Unable to allocate instance id
 ```
 
-This was observed during reconnaissance. The same Flatpak commands work when
-allowed to run outside the sandbox. A registered MCP server launched by Codex as
-a normal local process should be validated separately from sandboxed command
-execution.
+This was observed during reconnaissance. The server now treats this as
+`FLATPAK_EXECUTION_UNAVAILABLE_IN_SANDBOX` and uses read-only Flatpak metadata
+fallbacks where possible:
+
+```text
+get_kdenlive_version -> flatpak info
+get_mlt_version -> Flatpak installation scan for libmlt-7.so.*
+```
+
+The same Flatpak execution commands work when allowed to run outside the
+sandbox. Render and project-load operations will still require a process context
+where `flatpak run` can execute.
 
 ## Verification Commands
 

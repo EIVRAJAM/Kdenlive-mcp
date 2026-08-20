@@ -303,3 +303,31 @@ Conclusion: DBus can be useful later for controlled Kdenlive integration probes,
 such as adding clips to the bin or timeline, but this installation does not
 currently expose a tested headless "save project to path" operation through CLI
 or DBus.
+
+## Sandbox Mitigation In Phase 1
+
+The MCP environment tools now distinguish Flatpak metadata access from Flatpak
+execution.
+
+Inside the Codex command sandbox, `flatpak run` can fail with:
+
+```text
+error: Unable to allocate instance id
+```
+
+The server reports this as:
+
+```text
+FLATPAK_EXECUTION_UNAVAILABLE_IN_SANDBOX
+```
+
+and falls back to read-only metadata where possible:
+
+```text
+get_kdenlive_version -> flatpak info org.kde.kdenlive
+get_mlt_version -> scan libmlt-7.so.* under flatpak info --show-location
+```
+
+This does not make render or GUI operations possible inside the sandbox. It does
+make environment discovery deterministic and prevents version tools from failing
+when only Flatpak execution is blocked.
