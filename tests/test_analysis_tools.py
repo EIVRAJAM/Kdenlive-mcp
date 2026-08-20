@@ -55,6 +55,42 @@ def _make_black_color_black_video(path: Path) -> None:
         pytest.fail(completed.stderr.decode("utf-8", errors="replace"))
 
 
+def _make_scene_change_video(path: Path) -> None:
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg is required for scene detection integration test")
+    command = [
+        "ffmpeg",
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=black:size=160x90:rate=30:duration=1",
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc2=size=160x90:rate=30:duration=1",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=red:size=160x90:rate=30:duration=1",
+        "-filter_complex",
+        "[0:v][1:v][2:v]concat=n=3:v=1:a=0[out]",
+        "-map",
+        "[out]",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        str(path),
+    ]
+    completed = subprocess.run(command, shell=False, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if completed.returncode != 0:
+        pytest.fail(completed.stderr.decode("utf-8", errors="replace"))
+
+
 def test_extract_frames(monkeypatch, tmp_path: Path) -> None:
     _allow(monkeypatch, tmp_path)
     output_dir = tmp_path / "frames"
@@ -165,6 +201,45 @@ def test_detect_black_frames_rejects_invalid_ratio(monkeypatch, tmp_path: Path) 
     monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_MEDIA_DIRS", str(tmp_path))
 
     result = analysis_tools.detect_black_frames(str(media), picture_black_ratio=1.5)
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_ARGUMENT"
+
+
+def test_parse_scene_change_output() -> None:
+    output = """
+    [Parsed_showinfo_1 @ 0x123] n:   0 pts:     30 pts_time:1
+    [Parsed_showinfo_1 @ 0x123] n:   1 pts:     60 pts_time:2.000000
+    """
+
+    assert analysis_tools._parse_scene_change_output(output) == [
+        {"time": 1.0},
+        {"time": 2.0},
+    ]
+
+
+def test_detect_scene_changes_with_ffmpeg(monkeypatch, tmp_path: Path) -> None:
+    media = tmp_path / "scene_changes.mp4"
+    _make_scene_change_video(media)
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_MEDIA_DIRS", str(tmp_path))
+
+    result = analysis_tools.detect_scene_changes(
+        media=str(media),
+        threshold=0.2,
+    )
+
+    assert result["success"] is True
+    assert result["scene_change_count"] >= 1
+    times = [item["time"] for item in result["scene_changes"]]
+    assert any(time == pytest.approx(1.0, abs=0.15) for time in times)
+
+
+def test_detect_scene_changes_rejects_invalid_threshold(monkeypatch, tmp_path: Path) -> None:
+    media = tmp_path / "placeholder.mp4"
+    media.write_bytes(b"not a real video")
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_MEDIA_DIRS", str(tmp_path))
+
+    result = analysis_tools.detect_scene_changes(str(media), threshold=1.2)
 
     assert result["success"] is False
     assert result["error"] == "INVALID_ARGUMENT"

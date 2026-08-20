@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from kdenlive_mcp.adapters.ffmpeg import detect_black_frames as ffmpeg_detect_black_frames
+from kdenlive_mcp.adapters.ffmpeg import detect_scene_changes as ffmpeg_detect_scene_changes
 from kdenlive_mcp.adapters.ffmpeg import extract_frames as ffmpeg_extract_frames
 from kdenlive_mcp.adapters.ffmpeg import generate_contact_sheet as ffmpeg_generate_contact_sheet
 from kdenlive_mcp.security import SecurityError, ensure_media_path, ensure_output_path
@@ -42,6 +43,7 @@ BLACKDETECT_RE = re.compile(
     r"black_end:(?P<end>-?\d+(?:\.\d+)?)\s+"
     r"black_duration:(?P<duration>-?\d+(?:\.\d+)?)"
 )
+SHOWINFO_PTS_RE = re.compile(r"pts_time:(?P<time>-?\d+(?:\.\d+)?)")
 
 
 def _parse_blackdetect_output(output: str) -> list[dict[str, float]]:
@@ -58,6 +60,21 @@ def _parse_blackdetect_output(output: str) -> list[dict[str, float]]:
             }
         )
     return intervals
+
+
+def _parse_scene_change_output(output: str) -> list[dict[str, float]]:
+    changes: list[dict[str, float]] = []
+    seen: set[float] = set()
+    for line in output.splitlines():
+        match = SHOWINFO_PTS_RE.search(line)
+        if not match:
+            continue
+        timestamp = round(float(match.group("time")), 6)
+        if timestamp in seen:
+            continue
+        seen.add(timestamp)
+        changes.append({"time": timestamp})
+    return changes
 
 
 def extract_frames(
@@ -203,6 +220,41 @@ def detect_black_frames(
     }
 
 
+def detect_scene_changes(
+    media: str,
+    threshold: float = 0.35,
+) -> dict[str, Any]:
+    try:
+        input_path = ensure_media_path(media)
+    except SecurityError as exc:
+        return _security_error(exc)
+    if not 0 < threshold < 1:
+        return _error("INVALID_ARGUMENT", "threshold must be greater than 0 and less than 1.")
+    validation_error = _validate_video_media(input_path)
+    if validation_error:
+        return validation_error
+
+    result = ffmpeg_detect_scene_changes(input_path=input_path, threshold=threshold)
+    output = f"{result.stdout}\n{result.stderr}"
+    if not (result.available and result.returncode == 0):
+        return _error(
+            "FFMPEG_ERROR",
+            "FFmpeg scene change detection failed.",
+            media=str(input_path),
+            ffmpeg=result.to_dict(),
+        )
+    changes = _parse_scene_change_output(output)
+    return {
+        "success": True,
+        "operation": "detect_scene_changes",
+        "media": str(input_path),
+        "threshold": threshold,
+        "scene_change_count": len(changes),
+        "scene_changes": changes,
+        "ffmpeg": result.to_dict(),
+    }
+
+
 TOOLS: dict[str, dict[str, Any]] = {
     "extract_frames": {
         "description": "Extract periodic frames from an allowed video into an allowed output directory.",
@@ -251,5 +303,18 @@ TOOLS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "handler": detect_black_frames,
+    },
+    "detect_scene_changes": {
+        "description": "Detect scene change timestamps using FFmpeg scene score selection.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "media": {"type": "string"},
+                "threshold": {"type": "number", "default": 0.35},
+            },
+            "required": ["media"],
+            "additionalProperties": False,
+        },
+        "handler": detect_scene_changes,
     },
 }

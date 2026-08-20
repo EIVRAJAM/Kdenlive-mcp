@@ -44,6 +44,7 @@ def test_tools_list_includes_health_check() -> None:
     assert "extract_frames" in tool_names
     assert "generate_contact_sheet" in tool_names
     assert "detect_black_frames" in tool_names
+    assert "detect_scene_changes" in tool_names
     assert "create_manifest" in tool_names
     assert "inspect_project" in tool_names
     assert "validate_project" in tool_names

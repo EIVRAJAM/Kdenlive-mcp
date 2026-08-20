@@ -140,3 +140,22 @@ def detect_black_frames(
         ],
         timeout=300.0,
     )
+
+
+def detect_scene_changes(input_path: Path, threshold: float = 0.35) -> CommandResult:
+    return run_command(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-nostats",
+            "-i",
+            str(input_path),
+            "-vf",
+            f"select='gt(scene,{threshold})',showinfo",
+            "-an",
+            "-f",
+            "null",
+            "-",
+        ],
+        timeout=300.0,
+    )

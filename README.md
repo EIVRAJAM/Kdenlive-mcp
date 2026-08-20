@@ -69,6 +69,7 @@ plan_silence_removal
 extract_frames
 generate_contact_sheet
 detect_black_frames
+detect_scene_changes
 create_manifest
 inspect_manifest
 validate_manifest

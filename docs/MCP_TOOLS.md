@@ -442,6 +442,34 @@ Runs FFmpeg `blackdetect` and returns black intervals:
 This is read-only analysis. It helps detect black screens, accidental lens
 covers, or unusable sections before building a timeline.
 
+### detect_scene_changes
+
+Input:
+
+```json
+{
+  "media": "/home/abrahamc/Videos/vlog/clip.mp4",
+  "threshold": 0.35
+}
+```
+
+Runs FFmpeg scene-score selection and returns timestamps:
+
+```json
+{
+  "success": true,
+  "operation": "detect_scene_changes",
+  "scene_change_count": 2,
+  "scene_changes": [
+    {"time": 1.0},
+    {"time": 2.0}
+  ]
+}
+```
+
+This is read-only analysis. Lower thresholds detect more cuts; higher
+thresholds detect only stronger visual changes.
+
 ## Manifest Tools
 
 The manifest layer is an intermediate MCP-owned JSON format. It is not a
