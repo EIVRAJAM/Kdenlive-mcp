@@ -211,3 +211,68 @@ def list_project_versions(
         "backups": backups,
         "related_projects": related_projects,
     }
+
+
+def restore_project_version(
+    project: str,
+    version: str,
+    output_directory: str | None = None,
+    suffix: str = "_restored",
+    create_backup: bool = True,
+    backup_directory: str | None = None,
+) -> dict[str, Any]:
+    try:
+        current = ensure_project_path(project)
+        source_version = ensure_project_path(version)
+        destination_dir = ensure_output_path(output_directory or str(current.parent))
+    except SecurityError as exc:
+        return _security_error(exc)
+
+    current_validation_error = _validate_project_file(current)
+    if current_validation_error:
+        return current_validation_error
+    version_validation_error = _validate_project_file(source_version)
+    if version_validation_error:
+        return version_validation_error
+
+    backup: dict[str, Any] | None = None
+    if create_backup:
+        backup_result = backup_project(
+            project=str(current),
+            backup_directory=backup_directory or str(destination_dir / ".backups"),
+            label="before_restore",
+        )
+        if not backup_result.get("success"):
+            return backup_result
+        backup = backup_result
+
+    restore_suffix = _slug(suffix)
+    if not restore_suffix.startswith("_"):
+        restore_suffix = f"_{restore_suffix}"
+    destination = _next_available_path(destination_dir, f"{_base_stem(current.stem)}{restore_suffix}")
+    if destination.resolve(strict=False) in {
+        current.resolve(strict=False),
+        source_version.resolve(strict=False),
+    }:
+        return _error("INVALID_OUTPUT", "Restore destination resolves to an existing source project.")
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source_version, destination)
+
+    restored_validation_error = _validate_project_file(destination)
+    if restored_validation_error:
+        return _error(
+            "INVALID_RESTORE",
+            "Restored project did not validate after copy.",
+            validation=restored_validation_error,
+        )
+
+    return {
+        "success": True,
+        "operation": "restore_project_version",
+        "project": str(current),
+        "version": str(source_version),
+        "restored_project": str(destination),
+        "backup": backup["backup"] if backup else None,
+        "bytes": destination.stat().st_size,
+    }

@@ -6,7 +6,12 @@ from kdenlive_mcp.adapters.commands import run_command
 from kdenlive_mcp.adapters.kdenlive_xml import KdenliveProjectAdapter, KdenliveProjectError
 from kdenlive_mcp.config import get_settings
 from kdenlive_mcp.security import SecurityError, ensure_project_path
-from kdenlive_mcp.services.backup_service import backup_project, clone_project, list_project_versions
+from kdenlive_mcp.services.backup_service import (
+    backup_project,
+    clone_project,
+    list_project_versions,
+    restore_project_version,
+)
 from kdenlive_mcp.services.lock_service import get_project_lock, lock_project, unlock_project
 from kdenlive_mcp.services.project_workflow_service import prepare_working_project
 
@@ -193,6 +198,23 @@ TOOLS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "handler": list_project_versions,
+    },
+    "restore_project_version": {
+        "description": "Copy a selected .kdenlive version into a new restored project file.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project": {"type": "string"},
+                "version": {"type": "string"},
+                "output_directory": {"type": "string"},
+                "suffix": {"type": "string", "default": "_restored"},
+                "create_backup": {"type": "boolean", "default": True},
+                "backup_directory": {"type": "string"},
+            },
+            "required": ["project", "version"],
+            "additionalProperties": False,
+        },
+        "handler": restore_project_version,
     },
     "get_project_lock": {
         "description": "Return lock status for a .kdenlive project.",

@@ -73,6 +73,7 @@ validate_project
 backup_project
 clone_project
 list_project_versions
+restore_project_version
 get_project_lock
 lock_project
 unlock_project

@@ -175,6 +175,7 @@ scan media into manifest
 backup project
 clone project
 list project versions
+restore project version
 lock project
 unlock project
 get project lock
@@ -184,7 +185,9 @@ prepare working project
 `backup_service.py` implements copy-on-write preparation. It validates the
 source project, creates timestamped backups, creates `_ai_001` style working
 copies, validates clones after copying, and lists related working copies and
-backups for history/undo planning. It does not modify XML.
+backups for history/undo planning. Restores are also copy-on-write: selected
+versions are copied into new `_restored_001` style files rather than overwriting
+active projects. It does not modify XML.
 
 `lock_service.py` implements JSON lock files for project-level concurrency. It
 uses owner-scoped locks, refuses conflicting owners, supports forced unlock, and

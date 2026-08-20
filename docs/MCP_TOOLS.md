@@ -543,6 +543,32 @@ other related .kdenlive files sharing the same base stem
 This is read-only and intended for history/undo planning. It does not restore
 or overwrite any project.
 
+### restore_project_version
+
+Input:
+
+```json
+{
+  "project": "/home/abrahamc/Videos/Vlog/vlog.kdenlive",
+  "version": "/home/abrahamc/Videos/Vlog/vlog_ai_002.kdenlive",
+  "output_directory": "/home/abrahamc/Videos/Vlog",
+  "suffix": "_restored",
+  "create_backup": true,
+  "backup_directory": "/home/abrahamc/Videos/Vlog/.backups"
+}
+```
+
+Creates a new restored copy, for example:
+
+```text
+vlog_restored_001.kdenlive
+```
+
+It validates the current project and selected version, optionally backs up the
+current project, copies the selected version to the new restored file, and
+validates the restored copy. It never overwrites the current project or the
+selected version.
+
 ### get_project_lock
 
 Input:

@@ -1,6 +1,11 @@
 from pathlib import Path
 
-from kdenlive_mcp.services.backup_service import backup_project, clone_project, list_project_versions
+from kdenlive_mcp.services.backup_service import (
+    backup_project,
+    clone_project,
+    list_project_versions,
+    restore_project_version,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -110,6 +115,66 @@ def test_list_project_versions_requires_project_directory_allowlist(monkeypatch,
     result = list_project_versions(
         project=str(SOURCE_PROJECT),
         project_directory=str(project_dir),
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "PERMISSION_DENIED"
+
+
+def test_restore_project_version_creates_restored_copy_and_backup(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", f"{RECON_DIR}:{tmp_path}")
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS", str(tmp_path))
+    version = clone_project(
+        project=str(SOURCE_PROJECT),
+        output_directory=str(tmp_path),
+        create_backup=False,
+    )["clone"]
+
+    result = restore_project_version(
+        project=str(SOURCE_PROJECT),
+        version=version,
+        output_directory=str(tmp_path),
+    )
+
+    assert result["success"] is True
+    assert Path(result["restored_project"]).name == "manual_two_clips_timeline_restored_001.kdenlive"
+    assert Path(result["restored_project"]).exists()
+    assert Path(result["backup"]).exists()
+    assert Path(result["restored_project"]).read_bytes() == Path(version).read_bytes()
+    assert Path(result["restored_project"]) != Path(version)
+
+
+def test_restore_project_version_can_skip_backup(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", f"{RECON_DIR}:{tmp_path}")
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS", str(tmp_path))
+    version = clone_project(
+        project=str(SOURCE_PROJECT),
+        output_directory=str(tmp_path),
+        create_backup=False,
+    )["clone"]
+
+    result = restore_project_version(
+        project=str(SOURCE_PROJECT),
+        version=version,
+        output_directory=str(tmp_path),
+        create_backup=False,
+    )
+
+    assert result["success"] is True
+    assert result["backup"] is None
+    assert Path(result["restored_project"]).exists()
+
+
+def test_restore_project_version_requires_version_allowlist(monkeypatch, tmp_path: Path) -> None:
+    version = tmp_path / "version.kdenlive"
+    version.write_bytes(SOURCE_PROJECT.read_bytes())
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", str(RECON_DIR))
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS", str(tmp_path))
+
+    result = restore_project_version(
+        project=str(SOURCE_PROJECT),
+        version=str(version),
+        output_directory=str(tmp_path),
     )
 
     assert result["success"] is False
