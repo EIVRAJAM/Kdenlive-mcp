@@ -75,6 +75,7 @@ clone_project
 get_project_lock
 lock_project
 unlock_project
+prepare_working_project
 ```
 
 All tools return structured JSON text through MCP `tools/call`.

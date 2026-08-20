@@ -571,6 +571,36 @@ Input:
 Unlocks only when the owner matches unless `force` is true. Lock directories
 must be inside `KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS`.
 
+### prepare_working_project
+
+Input:
+
+```json
+{
+  "project": "/home/abrahamc/Videos/Vlog/vlog.kdenlive",
+  "output_directory": "/home/abrahamc/Videos/Vlog",
+  "suffix": "_ai",
+  "owner": "codex",
+  "create_backup": true,
+  "backup_directory": "/home/abrahamc/Videos/Vlog/.backups",
+  "lock_directory": "/home/abrahamc/Videos/Vlog/.locks"
+}
+```
+
+This is the recommended pre-edit workflow. It performs:
+
+```text
+validate source project
+create backup
+create next working copy, e.g. vlog_ai_001.kdenlive
+validate working copy
+lock working copy
+```
+
+The output directory must be allowed both as an output directory and as a
+project directory, because the resulting working copy becomes the next project
+to inspect or edit.
+
 ## Verification Commands
 
 ```bash

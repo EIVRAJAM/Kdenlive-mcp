@@ -8,6 +8,7 @@ from kdenlive_mcp.config import get_settings
 from kdenlive_mcp.security import SecurityError, ensure_project_path
 from kdenlive_mcp.services.backup_service import backup_project, clone_project
 from kdenlive_mcp.services.lock_service import get_project_lock, lock_project, unlock_project
+from kdenlive_mcp.services.project_workflow_service import prepare_working_project
 
 
 def _error(code: str, message: str, **extra: Any) -> dict[str, Any]:
@@ -221,5 +222,23 @@ TOOLS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "handler": unlock_project,
+    },
+    "prepare_working_project": {
+        "description": "Clone a .kdenlive project to an AI working copy and lock the clone.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project": {"type": "string"},
+                "output_directory": {"type": "string"},
+                "suffix": {"type": "string", "default": "_ai"},
+                "owner": {"type": "string", "default": "codex"},
+                "create_backup": {"type": "boolean", "default": True},
+                "backup_directory": {"type": "string"},
+                "lock_directory": {"type": "string"},
+            },
+            "required": ["project"],
+            "additionalProperties": False,
+        },
+        "handler": prepare_working_project,
     },
 }

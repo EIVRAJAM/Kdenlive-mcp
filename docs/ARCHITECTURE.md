@@ -177,6 +177,7 @@ clone project
 lock project
 unlock project
 get project lock
+prepare working project
 ```
 
 `backup_service.py` implements copy-on-write preparation. It validates the
@@ -186,6 +187,10 @@ copies, and validates clones after copying. It does not modify XML.
 `lock_service.py` implements JSON lock files for project-level concurrency. It
 uses owner-scoped locks, refuses conflicting owners, supports forced unlock, and
 keeps lock files in allowed output directories.
+
+`project_workflow_service.py` composes clone, backup, and lock into the
+recommended pre-edit flow: create a working copy, preserve a backup, then lock
+the working copy for the current owner.
 
 ## Data Flow: Media Scan To Manifest
 

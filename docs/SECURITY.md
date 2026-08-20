@@ -17,6 +17,7 @@ derived output tools refuse to overwrite existing files
 backup_project creates timestamped copies only
 clone_project creates next-version copies only
 lock_project refuses conflicting owners
+prepare_working_project clones, backs up, and locks before edits
 ```
 
 Timeline/project edits must use copy-on-write project files and backups.
