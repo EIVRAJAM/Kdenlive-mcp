@@ -470,6 +470,39 @@ Runs FFmpeg scene-score selection and returns timestamps:
 This is read-only analysis. Lower thresholds detect more cuts; higher
 thresholds detect only stronger visual changes.
 
+### detect_freeze_frames
+
+Input:
+
+```json
+{
+  "media": "/home/abrahamc/Videos/vlog/clip.mp4",
+  "noise_db": -60,
+  "minimum_duration": 0.5
+}
+```
+
+Runs FFmpeg `freezedetect` and returns frozen intervals:
+
+```json
+{
+  "success": true,
+  "operation": "detect_freeze_frames",
+  "freeze_interval_count": 1,
+  "freeze_intervals": [
+    {
+      "start": 0.0,
+      "end": 2.0,
+      "duration": 2.0
+    }
+  ]
+}
+```
+
+If FFmpeg reports a freeze that continues to the end of the file without a
+`freeze_end` event, the tool closes the interval using the media duration from
+`ffprobe`.
+
 ## Manifest Tools
 
 The manifest layer is an intermediate MCP-owned JSON format. It is not a

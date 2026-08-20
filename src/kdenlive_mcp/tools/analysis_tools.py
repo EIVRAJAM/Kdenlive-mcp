@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from kdenlive_mcp.adapters.ffmpeg import detect_black_frames as ffmpeg_detect_black_frames
+from kdenlive_mcp.adapters.ffmpeg import detect_freeze_frames as ffmpeg_detect_freeze_frames
 from kdenlive_mcp.adapters.ffmpeg import detect_scene_changes as ffmpeg_detect_scene_changes
 from kdenlive_mcp.adapters.ffmpeg import extract_frames as ffmpeg_extract_frames
 from kdenlive_mcp.adapters.ffmpeg import generate_contact_sheet as ffmpeg_generate_contact_sheet
@@ -44,6 +45,9 @@ BLACKDETECT_RE = re.compile(
     r"black_duration:(?P<duration>-?\d+(?:\.\d+)?)"
 )
 SHOWINFO_PTS_RE = re.compile(r"pts_time:(?P<time>-?\d+(?:\.\d+)?)")
+FREEZE_START_RE = re.compile(r"freeze_start:\s*(?P<start>-?\d+(?:\.\d+)?)")
+FREEZE_DURATION_RE = re.compile(r"freeze_duration:\s*(?P<duration>-?\d+(?:\.\d+)?)")
+FREEZE_END_RE = re.compile(r"freeze_end:\s*(?P<end>-?\d+(?:\.\d+)?)")
 
 
 def _parse_blackdetect_output(output: str) -> list[dict[str, float]]:
@@ -75,6 +79,55 @@ def _parse_scene_change_output(output: str) -> list[dict[str, float]]:
         seen.add(timestamp)
         changes.append({"time": timestamp})
     return changes
+
+
+def _parse_freezedetect_output(output: str, media_duration: float | None = None) -> list[dict[str, float]]:
+    intervals: list[dict[str, float]] = []
+    current_start: float | None = None
+    current_duration: float | None = None
+    for line in output.splitlines():
+        start_match = FREEZE_START_RE.search(line)
+        if start_match:
+            current_start = float(start_match.group("start"))
+            current_duration = None
+            continue
+
+        duration_match = FREEZE_DURATION_RE.search(line)
+        if duration_match:
+            current_duration = float(duration_match.group("duration"))
+            continue
+
+        end_match = FREEZE_END_RE.search(line)
+        if not end_match:
+            continue
+        end = float(end_match.group("end"))
+        duration = current_duration if current_duration is not None else None
+        start = current_start
+        if start is None and duration is not None:
+            start = end - duration
+        if start is None:
+            continue
+        if duration is None:
+            duration = end - start
+        intervals.append(
+            {
+                "start": round(start, 6),
+                "end": round(end, 6),
+                "duration": round(duration, 6),
+            }
+        )
+        current_start = None
+        current_duration = None
+    if current_start is not None and media_duration is not None and media_duration > current_start:
+        duration = media_duration - current_start
+        intervals.append(
+            {
+                "start": round(current_start, 6),
+                "end": round(media_duration, 6),
+                "duration": round(duration, 6),
+            }
+        )
+    return intervals
 
 
 def extract_frames(
@@ -255,6 +308,51 @@ def detect_scene_changes(
     }
 
 
+def detect_freeze_frames(
+    media: str,
+    noise_db: float = -60.0,
+    minimum_duration: float = 0.5,
+) -> dict[str, Any]:
+    try:
+        input_path = ensure_media_path(media)
+    except SecurityError as exc:
+        return _security_error(exc)
+    if noise_db >= 0:
+        return _error("INVALID_ARGUMENT", "noise_db must be below 0 dB.")
+    if minimum_duration <= 0:
+        return _error("INVALID_ARGUMENT", "minimum_duration must be greater than zero.")
+    validation_error = _validate_video_media(input_path)
+    if validation_error:
+        return validation_error
+    validation = validate_media(str(input_path))
+    media_duration = validation["media"].get("duration_seconds") if validation.get("success") else None
+
+    result = ffmpeg_detect_freeze_frames(
+        input_path=input_path,
+        noise_db=noise_db,
+        minimum_duration=minimum_duration,
+    )
+    output = f"{result.stdout}\n{result.stderr}"
+    if not (result.available and result.returncode == 0):
+        return _error(
+            "FFMPEG_ERROR",
+            "FFmpeg freezedetect failed.",
+            media=str(input_path),
+            ffmpeg=result.to_dict(),
+        )
+    intervals = _parse_freezedetect_output(output, media_duration=media_duration)
+    return {
+        "success": True,
+        "operation": "detect_freeze_frames",
+        "media": str(input_path),
+        "noise_db": noise_db,
+        "minimum_duration": minimum_duration,
+        "freeze_interval_count": len(intervals),
+        "freeze_intervals": intervals,
+        "ffmpeg": result.to_dict(),
+    }
+
+
 TOOLS: dict[str, dict[str, Any]] = {
     "extract_frames": {
         "description": "Extract periodic frames from an allowed video into an allowed output directory.",
@@ -316,5 +414,19 @@ TOOLS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "handler": detect_scene_changes,
+    },
+    "detect_freeze_frames": {
+        "description": "Detect frozen video intervals using FFmpeg freezedetect.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "media": {"type": "string"},
+                "noise_db": {"type": "number", "default": -60.0},
+                "minimum_duration": {"type": "number", "default": 0.5},
+            },
+            "required": ["media"],
+            "additionalProperties": False,
+        },
+        "handler": detect_freeze_frames,
     },
 }

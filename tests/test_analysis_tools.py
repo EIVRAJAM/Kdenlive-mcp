@@ -91,6 +91,30 @@ def _make_scene_change_video(path: Path) -> None:
         pytest.fail(completed.stderr.decode("utf-8", errors="replace"))
 
 
+def _make_freeze_video(path: Path) -> None:
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg is required for freezedetect integration test")
+    command = [
+        "ffmpeg",
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=blue:size=160x90:rate=30:duration=2",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        str(path),
+    ]
+    completed = subprocess.run(command, shell=False, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if completed.returncode != 0:
+        pytest.fail(completed.stderr.decode("utf-8", errors="replace"))
+
+
 def test_extract_frames(monkeypatch, tmp_path: Path) -> None:
     _allow(monkeypatch, tmp_path)
     output_dir = tmp_path / "frames"
@@ -240,6 +264,55 @@ def test_detect_scene_changes_rejects_invalid_threshold(monkeypatch, tmp_path: P
     monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_MEDIA_DIRS", str(tmp_path))
 
     result = analysis_tools.detect_scene_changes(str(media), threshold=1.2)
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_ARGUMENT"
+
+
+def test_parse_freezedetect_output() -> None:
+    output = """
+    [freezedetect @ 0x123] freeze_start: 0
+    [freezedetect @ 0x123] freeze_duration: 1.5
+    [freezedetect @ 0x123] freeze_end: 1.5
+    """
+
+    assert analysis_tools._parse_freezedetect_output(output) == [
+        {"start": 0.0, "end": 1.5, "duration": 1.5}
+    ]
+
+
+def test_parse_freezedetect_output_closes_freeze_at_eof() -> None:
+    output = "[freezedetect @ 0x123] lavfi.freezedetect.freeze_start: 0\n"
+
+    assert analysis_tools._parse_freezedetect_output(output, media_duration=2.0) == [
+        {"start": 0.0, "end": 2.0, "duration": 2.0}
+    ]
+
+
+def test_detect_freeze_frames_with_ffmpeg(monkeypatch, tmp_path: Path) -> None:
+    media = tmp_path / "freeze.mp4"
+    _make_freeze_video(media)
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_MEDIA_DIRS", str(tmp_path))
+
+    result = analysis_tools.detect_freeze_frames(
+        media=str(media),
+        noise_db=-60,
+        minimum_duration=0.5,
+    )
+
+    assert result["success"] is True
+    assert result["freeze_interval_count"] >= 1
+    first = result["freeze_intervals"][0]
+    assert first["start"] == pytest.approx(0.0, abs=0.1)
+    assert first["duration"] >= 1.0
+
+
+def test_detect_freeze_frames_rejects_invalid_noise(monkeypatch, tmp_path: Path) -> None:
+    media = tmp_path / "placeholder.mp4"
+    media.write_bytes(b"not a real video")
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_MEDIA_DIRS", str(tmp_path))
+
+    result = analysis_tools.detect_freeze_frames(str(media), noise_db=0)
 
     assert result["success"] is False
     assert result["error"] == "INVALID_ARGUMENT"

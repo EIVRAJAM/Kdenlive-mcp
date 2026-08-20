@@ -159,3 +159,22 @@ def detect_scene_changes(input_path: Path, threshold: float = 0.35) -> CommandRe
         ],
         timeout=300.0,
     )
+
+
+def detect_freeze_frames(input_path: Path, noise_db: float = -60.0, minimum_duration: float = 0.5) -> CommandResult:
+    return run_command(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-nostats",
+            "-i",
+            str(input_path),
+            "-vf",
+            f"freezedetect=n={noise_db}dB:d={minimum_duration}",
+            "-an",
+            "-f",
+            "null",
+            "-",
+        ],
+        timeout=300.0,
+    )
