@@ -10,6 +10,7 @@ from kdenlive_mcp.adapters.ffmpeg import detect_scene_changes as ffmpeg_detect_s
 from kdenlive_mcp.adapters.ffmpeg import extract_frames as ffmpeg_extract_frames
 from kdenlive_mcp.adapters.ffmpeg import generate_contact_sheet as ffmpeg_generate_contact_sheet
 from kdenlive_mcp.security import SecurityError, ensure_media_path, ensure_output_path
+from kdenlive_mcp.tools.audio_tools import detect_silence as audio_detect_silence
 from kdenlive_mcp.tools.media_tools import SUPPORTED_MEDIA_EXTENSIONS, validate_media
 
 
@@ -353,6 +354,94 @@ def detect_freeze_frames(
     }
 
 
+def _compact_result(result: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in result.items() if key != "ffmpeg"}
+
+
+def analyze_media(
+    media: str,
+    include_silence: bool = True,
+    include_black: bool = True,
+    include_freeze: bool = True,
+    include_scenes: bool = True,
+    silence_threshold_db: float = -35.0,
+    silence_minimum_duration: float = 0.8,
+    black_minimum_duration: float = 0.5,
+    freeze_minimum_duration: float = 0.5,
+    scene_threshold: float = 0.35,
+) -> dict[str, Any]:
+    try:
+        input_path = ensure_media_path(media)
+    except SecurityError as exc:
+        return _security_error(exc)
+
+    validation = validate_media(str(input_path))
+    if not validation.get("success"):
+        return validation
+    if not validation.get("valid"):
+        return _error("INVALID_MEDIA", f"Media has no audio or video streams: {input_path}")
+
+    analyses: dict[str, Any] = {}
+    failure_count = 0
+    if include_silence:
+        if validation.get("has_audio"):
+            result = audio_detect_silence(
+                media=str(input_path),
+                threshold_db=silence_threshold_db,
+                minimum_duration=silence_minimum_duration,
+            )
+            analyses["silence"] = _compact_result(result)
+            failure_count += 0 if result.get("success") else 1
+        else:
+            analyses["silence"] = {"success": True, "skipped": True, "reason": "NO_AUDIO_STREAM"}
+
+    if include_black:
+        if validation.get("has_video"):
+            result = detect_black_frames(
+                media=str(input_path),
+                minimum_duration=black_minimum_duration,
+            )
+            analyses["black"] = _compact_result(result)
+            failure_count += 0 if result.get("success") else 1
+        else:
+            analyses["black"] = {"success": True, "skipped": True, "reason": "NO_VIDEO_STREAM"}
+
+    if include_freeze:
+        if validation.get("has_video"):
+            result = detect_freeze_frames(
+                media=str(input_path),
+                minimum_duration=freeze_minimum_duration,
+            )
+            analyses["freeze"] = _compact_result(result)
+            failure_count += 0 if result.get("success") else 1
+        else:
+            analyses["freeze"] = {"success": True, "skipped": True, "reason": "NO_VIDEO_STREAM"}
+
+    if include_scenes:
+        if validation.get("has_video"):
+            result = detect_scene_changes(
+                media=str(input_path),
+                threshold=scene_threshold,
+            )
+            analyses["scenes"] = _compact_result(result)
+            failure_count += 0 if result.get("success") else 1
+        else:
+            analyses["scenes"] = {"success": True, "skipped": True, "reason": "NO_VIDEO_STREAM"}
+
+    return {
+        "success": failure_count == 0,
+        "operation": "analyze_media",
+        "media": str(input_path),
+        "summary": {
+            "has_audio": validation.get("has_audio"),
+            "has_video": validation.get("has_video"),
+            "duration_seconds": validation["media"].get("duration_seconds"),
+            "failure_count": failure_count,
+        },
+        "analyses": analyses,
+    }
+
+
 TOOLS: dict[str, dict[str, Any]] = {
     "extract_frames": {
         "description": "Extract periodic frames from an allowed video into an allowed output directory.",
@@ -428,5 +517,26 @@ TOOLS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "handler": detect_freeze_frames,
+    },
+    "analyze_media": {
+        "description": "Run selected read-only audio/video analyses for one media file.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "media": {"type": "string"},
+                "include_silence": {"type": "boolean", "default": True},
+                "include_black": {"type": "boolean", "default": True},
+                "include_freeze": {"type": "boolean", "default": True},
+                "include_scenes": {"type": "boolean", "default": True},
+                "silence_threshold_db": {"type": "number", "default": -35.0},
+                "silence_minimum_duration": {"type": "number", "default": 0.8},
+                "black_minimum_duration": {"type": "number", "default": 0.5},
+                "freeze_minimum_duration": {"type": "number", "default": 0.5},
+                "scene_threshold": {"type": "number", "default": 0.35},
+            },
+            "required": ["media"],
+            "additionalProperties": False,
+        },
+        "handler": analyze_media,
     },
 }

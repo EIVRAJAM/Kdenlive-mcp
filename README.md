@@ -71,6 +71,7 @@ generate_contact_sheet
 detect_black_frames
 detect_scene_changes
 detect_freeze_frames
+analyze_media
 create_manifest
 inspect_manifest
 validate_manifest

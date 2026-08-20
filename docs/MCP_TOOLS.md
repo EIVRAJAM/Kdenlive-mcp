@@ -503,6 +503,53 @@ If FFmpeg reports a freeze that continues to the end of the file without a
 `freeze_end` event, the tool closes the interval using the media duration from
 `ffprobe`.
 
+### analyze_media
+
+Input:
+
+```json
+{
+  "media": "/home/abrahamc/Videos/vlog/clip.mp4",
+  "include_silence": true,
+  "include_black": true,
+  "include_freeze": true,
+  "include_scenes": true,
+  "silence_threshold_db": -35,
+  "silence_minimum_duration": 0.8,
+  "black_minimum_duration": 0.5,
+  "freeze_minimum_duration": 0.5,
+  "scene_threshold": 0.35
+}
+```
+
+Runs selected read-only analyses and returns compact subresults without the full
+FFmpeg logs:
+
+```json
+{
+  "success": true,
+  "operation": "analyze_media",
+  "summary": {
+    "has_audio": true,
+    "has_video": true,
+    "duration_seconds": 3.0,
+    "failure_count": 0
+  },
+  "analyses": {
+    "silence": {
+      "success": true,
+      "silence_count": 0
+    },
+    "black": {
+      "success": true,
+      "black_interval_count": 0
+    }
+  }
+}
+```
+
+Audio-only files skip visual analyses with an explicit `skipped` result.
+
 ## Manifest Tools
 
 The manifest layer is an intermediate MCP-owned JSON format. It is not a

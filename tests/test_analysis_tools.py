@@ -115,6 +115,26 @@ def _make_freeze_video(path: Path) -> None:
         pytest.fail(completed.stderr.decode("utf-8", errors="replace"))
 
 
+def _make_audio_only(path: Path) -> None:
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg is required for aggregate analysis integration test")
+    command = [
+        "ffmpeg",
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:sample_rate=48000:duration=1",
+        str(path),
+    ]
+    completed = subprocess.run(command, shell=False, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if completed.returncode != 0:
+        pytest.fail(completed.stderr.decode("utf-8", errors="replace"))
+
+
 def test_extract_frames(monkeypatch, tmp_path: Path) -> None:
     _allow(monkeypatch, tmp_path)
     output_dir = tmp_path / "frames"
@@ -316,3 +336,45 @@ def test_detect_freeze_frames_rejects_invalid_noise(monkeypatch, tmp_path: Path)
 
     assert result["success"] is False
     assert result["error"] == "INVALID_ARGUMENT"
+
+
+def test_analyze_media_runs_selected_analyses(monkeypatch) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_MEDIA_DIRS", str(RECON_DIR))
+
+    result = analysis_tools.analyze_media(
+        media=str(SAMPLE_VIDEO),
+        include_silence=True,
+        include_black=True,
+        include_freeze=False,
+        include_scenes=False,
+    )
+
+    assert result["success"] is True
+    assert result["operation"] == "analyze_media"
+    assert result["summary"]["has_audio"] is True
+    assert result["summary"]["has_video"] is True
+    assert result["summary"]["failure_count"] == 0
+    assert set(result["analyses"]) == {"silence", "black"}
+    assert "ffmpeg" not in result["analyses"]["silence"]
+    assert "ffmpeg" not in result["analyses"]["black"]
+
+
+def test_analyze_media_skips_video_analyses_for_audio_only(monkeypatch, tmp_path: Path) -> None:
+    media = tmp_path / "audio.wav"
+    _make_audio_only(media)
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_MEDIA_DIRS", str(tmp_path))
+
+    result = analysis_tools.analyze_media(
+        media=str(media),
+        include_silence=False,
+        include_black=True,
+        include_freeze=True,
+        include_scenes=True,
+    )
+
+    assert result["success"] is True
+    assert result["summary"]["has_audio"] is True
+    assert result["summary"]["has_video"] is False
+    assert result["analyses"]["black"]["skipped"] is True
+    assert result["analyses"]["freeze"]["reason"] == "NO_VIDEO_STREAM"
+    assert result["analyses"]["scenes"]["reason"] == "NO_VIDEO_STREAM"

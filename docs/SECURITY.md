@@ -20,6 +20,7 @@ extract_frames and generate_contact_sheet create derived outputs only
 detect_black_frames is read-only analysis
 detect_scene_changes is read-only analysis
 detect_freeze_frames is read-only analysis
+analyze_media is read-only aggregate analysis
 backup_project creates timestamped copies only
 clone_project creates next-version copies only
 list_project_versions is read-only
