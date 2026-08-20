@@ -40,3 +40,21 @@ def extract_audio(input_path: Path, output_path: Path) -> CommandResult:
         ],
         timeout=300.0,
     )
+
+
+def detect_silence(input_path: Path, threshold_db: float = -35.0, minimum_duration: float = 0.8) -> CommandResult:
+    return run_command(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-nostats",
+            "-i",
+            str(input_path),
+            "-af",
+            f"silencedetect=noise={threshold_db}dB:d={minimum_duration}",
+            "-f",
+            "null",
+            "-",
+        ],
+        timeout=300.0,
+    )

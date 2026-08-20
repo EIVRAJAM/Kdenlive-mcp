@@ -10,6 +10,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from kdenlive_mcp import __version__
+from kdenlive_mcp.tools.audio_tools import TOOLS as AUDIO_TOOLS
 from kdenlive_mcp.tools.environment_tools import TOOLS as ENVIRONMENT_TOOLS
 from kdenlive_mcp.tools.manifest_tools import TOOLS as MANIFEST_TOOLS
 from kdenlive_mcp.tools.media_tools import TOOLS as MEDIA_TOOLS
@@ -17,7 +18,7 @@ from kdenlive_mcp.tools.project_tools import TOOLS as PROJECT_TOOLS
 
 JSONRPC_VERSION = "2.0"
 MCP_PROTOCOL_VERSION = "2024-11-05"
-TOOLS = {**ENVIRONMENT_TOOLS, **MEDIA_TOOLS, **MANIFEST_TOOLS, **PROJECT_TOOLS}
+TOOLS = {**ENVIRONMENT_TOOLS, **MEDIA_TOOLS, **AUDIO_TOOLS, **MANIFEST_TOOLS, **PROJECT_TOOLS}
 
 
 class McpError(Exception):

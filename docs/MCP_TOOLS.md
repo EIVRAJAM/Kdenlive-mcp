@@ -285,6 +285,43 @@ Extracts a derived WAV file with FFmpeg. The original media file is not
 modified. The tool refuses to overwrite an existing output file and rejects an
 output path that resolves to the input media file.
 
+## Audio Tools
+
+Audio tools enforce `KDENLIVE_MCP_ALLOWED_MEDIA_DIRS` and do not modify the
+input media.
+
+### detect_silence
+
+Input:
+
+```json
+{
+  "media": "/home/abrahamc/Videos/vlog/clip.mp4",
+  "threshold_db": -35,
+  "minimum_duration": 0.8
+}
+```
+
+Runs FFmpeg `silencedetect` and returns structured intervals:
+
+```json
+{
+  "success": true,
+  "operation": "detect_silence",
+  "silence_count": 1,
+  "silences": [
+    {
+      "start": 12.4,
+      "end": 15.8,
+      "duration": 3.4
+    }
+  ]
+}
+```
+
+This is analysis only. It does not remove timeline sections; future timeline
+tools will consume these intervals with explicit padding and dry-run support.
+
 ## Manifest Tools
 
 The manifest layer is an intermediate MCP-owned JSON format. It is not a
