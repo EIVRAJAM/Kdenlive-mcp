@@ -409,6 +409,39 @@ Input:
 Generates a single contact sheet image using FFmpeg `tile`. Existing output
 files are not overwritten.
 
+### detect_black_frames
+
+Input:
+
+```json
+{
+  "media": "/home/abrahamc/Videos/vlog/clip.mp4",
+  "minimum_duration": 0.5,
+  "picture_black_ratio": 0.98,
+  "pixel_black_threshold": 0.1
+}
+```
+
+Runs FFmpeg `blackdetect` and returns black intervals:
+
+```json
+{
+  "success": true,
+  "operation": "detect_black_frames",
+  "black_interval_count": 2,
+  "black_intervals": [
+    {
+      "start": 0.0,
+      "end": 1.0,
+      "duration": 1.0
+    }
+  ]
+}
+```
+
+This is read-only analysis. It helps detect black screens, accidental lens
+covers, or unusable sections before building a timeline.
+
 ## Manifest Tools
 
 The manifest layer is an intermediate MCP-owned JSON format. It is not a

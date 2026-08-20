@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from kdenlive_mcp.adapters.ffmpeg import detect_black_frames as ffmpeg_detect_black_frames
 from kdenlive_mcp.adapters.ffmpeg import extract_frames as ffmpeg_extract_frames
 from kdenlive_mcp.adapters.ffmpeg import generate_contact_sheet as ffmpeg_generate_contact_sheet
 from kdenlive_mcp.security import SecurityError, ensure_media_path, ensure_output_path
@@ -34,6 +35,29 @@ def _validate_video_media(path: Path) -> dict[str, Any] | None:
     if not validation.get("has_video"):
         return _error("NO_VIDEO_STREAM", f"Media file has no video stream: {path}")
     return None
+
+
+BLACKDETECT_RE = re.compile(
+    r"black_start:(?P<start>-?\d+(?:\.\d+)?)\s+"
+    r"black_end:(?P<end>-?\d+(?:\.\d+)?)\s+"
+    r"black_duration:(?P<duration>-?\d+(?:\.\d+)?)"
+)
+
+
+def _parse_blackdetect_output(output: str) -> list[dict[str, float]]:
+    intervals: list[dict[str, float]] = []
+    for line in output.splitlines():
+        match = BLACKDETECT_RE.search(line)
+        if not match:
+            continue
+        intervals.append(
+            {
+                "start": round(float(match.group("start")), 6),
+                "end": round(float(match.group("end")), 6),
+                "duration": round(float(match.group("duration")), 6),
+            }
+        )
+    return intervals
 
 
 def extract_frames(
@@ -131,6 +155,54 @@ def generate_contact_sheet(
     }
 
 
+def detect_black_frames(
+    media: str,
+    minimum_duration: float = 0.5,
+    picture_black_ratio: float = 0.98,
+    pixel_black_threshold: float = 0.1,
+) -> dict[str, Any]:
+    try:
+        input_path = ensure_media_path(media)
+    except SecurityError as exc:
+        return _security_error(exc)
+    if minimum_duration <= 0:
+        return _error("INVALID_ARGUMENT", "minimum_duration must be greater than zero.")
+    if not 0 < picture_black_ratio <= 1:
+        return _error("INVALID_ARGUMENT", "picture_black_ratio must be greater than 0 and at most 1.")
+    if not 0 <= pixel_black_threshold <= 1:
+        return _error("INVALID_ARGUMENT", "pixel_black_threshold must be between 0 and 1.")
+    validation_error = _validate_video_media(input_path)
+    if validation_error:
+        return validation_error
+
+    result = ffmpeg_detect_black_frames(
+        input_path=input_path,
+        minimum_duration=minimum_duration,
+        picture_black_ratio=picture_black_ratio,
+        pixel_black_threshold=pixel_black_threshold,
+    )
+    output = f"{result.stdout}\n{result.stderr}"
+    if not (result.available and result.returncode == 0):
+        return _error(
+            "FFMPEG_ERROR",
+            "FFmpeg blackdetect failed.",
+            media=str(input_path),
+            ffmpeg=result.to_dict(),
+        )
+    intervals = _parse_blackdetect_output(output)
+    return {
+        "success": True,
+        "operation": "detect_black_frames",
+        "media": str(input_path),
+        "minimum_duration": minimum_duration,
+        "picture_black_ratio": picture_black_ratio,
+        "pixel_black_threshold": pixel_black_threshold,
+        "black_interval_count": len(intervals),
+        "black_intervals": intervals,
+        "ffmpeg": result.to_dict(),
+    }
+
+
 TOOLS: dict[str, dict[str, Any]] = {
     "extract_frames": {
         "description": "Extract periodic frames from an allowed video into an allowed output directory.",
@@ -164,5 +236,20 @@ TOOLS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "handler": generate_contact_sheet,
+    },
+    "detect_black_frames": {
+        "description": "Detect black video intervals using FFmpeg blackdetect.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "media": {"type": "string"},
+                "minimum_duration": {"type": "number", "default": 0.5},
+                "picture_black_ratio": {"type": "number", "default": 0.98},
+                "pixel_black_threshold": {"type": "number", "default": 0.1},
+            },
+            "required": ["media"],
+            "additionalProperties": False,
+        },
+        "handler": detect_black_frames,
     },
 }

@@ -112,3 +112,31 @@ def generate_contact_sheet(
         ],
         timeout=300.0,
     )
+
+
+def detect_black_frames(
+    input_path: Path,
+    minimum_duration: float = 0.5,
+    picture_black_ratio: float = 0.98,
+    pixel_black_threshold: float = 0.1,
+) -> CommandResult:
+    return run_command(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-nostats",
+            "-i",
+            str(input_path),
+            "-vf",
+            (
+                f"blackdetect=d={minimum_duration}:"
+                f"pic_th={picture_black_ratio}:"
+                f"pix_th={pixel_black_threshold}"
+            ),
+            "-an",
+            "-f",
+            "null",
+            "-",
+        ],
+        timeout=300.0,
+    )
