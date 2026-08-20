@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from kdenlive_mcp.services.backup_service import backup_project, clone_project
+from kdenlive_mcp.services.backup_service import backup_project, clone_project, list_project_versions
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -70,6 +70,46 @@ def test_backup_project_requires_output_allowlist(monkeypatch, tmp_path: Path) -
     result = backup_project(
         project=str(SOURCE_PROJECT),
         backup_directory=str(tmp_path / "denied"),
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "PERMISSION_DENIED"
+
+
+def test_list_project_versions_reports_working_copies_and_backups(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", f"{RECON_DIR}:{tmp_path}")
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS", str(tmp_path))
+
+    clone_project(project=str(SOURCE_PROJECT), output_directory=str(tmp_path))
+    clone_project(project=str(SOURCE_PROJECT), output_directory=str(tmp_path))
+
+    result = list_project_versions(
+        project=str(SOURCE_PROJECT),
+        project_directory=str(tmp_path),
+        backup_directory=str(tmp_path / ".backups"),
+    )
+
+    assert result["success"] is True
+    assert result["base_stem"] == "manual_two_clips_timeline"
+    assert result["working_copy_count"] == 2
+    assert result["backup_count"] == 2
+    assert [item["filename"] for item in result["working_copies"]] == [
+        "manual_two_clips_timeline_ai_001.kdenlive",
+        "manual_two_clips_timeline_ai_002.kdenlive",
+    ]
+    assert all(item["label"] == "ai" for item in result["working_copies"])
+    assert result["original"] is None
+
+
+def test_list_project_versions_requires_project_directory_allowlist(monkeypatch, tmp_path: Path) -> None:
+    project_dir = tmp_path / "projects"
+    project_dir.mkdir()
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", str(RECON_DIR))
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS", str(tmp_path))
+
+    result = list_project_versions(
+        project=str(SOURCE_PROJECT),
+        project_directory=str(project_dir),
     )
 
     assert result["success"] is False

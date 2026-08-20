@@ -72,6 +72,7 @@ inspect_project
 validate_project
 backup_project
 clone_project
+list_project_versions
 get_project_lock
 lock_project
 unlock_project

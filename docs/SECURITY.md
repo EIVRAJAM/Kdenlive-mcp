@@ -16,6 +16,7 @@ extract_audio refuses to write to the input media path
 derived output tools refuse to overwrite existing files
 backup_project creates timestamped copies only
 clone_project creates next-version copies only
+list_project_versions is read-only
 lock_project refuses conflicting owners
 prepare_working_project clones, backs up, and locks before edits
 ```

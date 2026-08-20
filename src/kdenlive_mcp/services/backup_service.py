@@ -46,6 +46,24 @@ def _next_available_path(directory: Path, stem: str, suffix: str = ".kdenlive") 
         index += 1
 
 
+def _base_stem(stem: str) -> str:
+    return re.sub(r"_(?:ai|restored)_\d{3}$", "", stem)
+
+
+def _project_file_summary(path: Path, base: str) -> dict[str, Any]:
+    stat = path.stat()
+    version_match = re.match(rf"^{re.escape(base)}_(?P<label>[A-Za-z0-9._-]+)_(?P<index>\d{{3}})$", path.stem)
+    return {
+        "path": str(path),
+        "filename": path.name,
+        "stem": path.stem,
+        "size_bytes": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+        "label": version_match.group("label") if version_match else None,
+        "index": int(version_match.group("index")) if version_match else None,
+    }
+
+
 def backup_project(
     project: str,
     backup_directory: str | None = None,
@@ -133,4 +151,63 @@ def clone_project(
         "clone": str(destination),
         "backup": backup["backup"] if backup else None,
         "bytes": destination.stat().st_size,
+    }
+
+
+def list_project_versions(
+    project: str,
+    project_directory: str | None = None,
+    backup_directory: str | None = None,
+) -> dict[str, Any]:
+    try:
+        source = ensure_project_path(project)
+        directory = (
+            ensure_project_path(Path(project_directory) / "__kdenlive_mcp_probe__.kdenlive").parent
+            if project_directory
+            else source.parent
+        )
+        backups_dir = ensure_output_path(backup_directory or str(directory / ".backups"))
+    except SecurityError as exc:
+        return _security_error(exc)
+
+    validation_error = _validate_project_file(source)
+    if validation_error:
+        return validation_error
+
+    base = _base_stem(source.stem)
+    candidates = sorted(directory.glob(f"{base}*.kdenlive"))
+    original: dict[str, Any] | None = None
+    working_copies: list[dict[str, Any]] = []
+    related_projects: list[dict[str, Any]] = []
+    for candidate in candidates:
+        if candidate.resolve(strict=False) == source.resolve(strict=False):
+            original = _project_file_summary(candidate, base)
+            continue
+        summary = _project_file_summary(candidate, base)
+        if summary["index"] is not None:
+            working_copies.append(summary)
+        else:
+            related_projects.append(summary)
+
+    backup_files = sorted(backups_dir.glob(f"{base}*.kdenlive")) if backups_dir.exists() else []
+    backups = [_project_file_summary(path, base) for path in backup_files]
+
+    working_copies.sort(key=lambda item: (item["label"] or "", item["index"] or 0, item["filename"]))
+    related_projects.sort(key=lambda item: item["filename"])
+    backups.sort(key=lambda item: (item["mtime_ns"], item["filename"]))
+
+    return {
+        "success": True,
+        "operation": "list_project_versions",
+        "project": str(source),
+        "base_stem": base,
+        "project_directory": str(directory),
+        "backup_directory": str(backups_dir),
+        "original": original,
+        "working_copy_count": len(working_copies),
+        "backup_count": len(backups),
+        "related_count": len(related_projects),
+        "working_copies": working_copies,
+        "backups": backups,
+        "related_projects": related_projects,
     }

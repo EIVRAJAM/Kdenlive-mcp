@@ -519,6 +519,30 @@ The clone is validated after copying. Current clone behavior copies the project
 file as-is; it does not rewrite the Kdenlive XML `root` attribute or media
 paths.
 
+### list_project_versions
+
+Input:
+
+```json
+{
+  "project": "/home/abrahamc/Videos/Vlog/vlog.kdenlive",
+  "project_directory": "/home/abrahamc/Videos/Vlog",
+  "backup_directory": "/home/abrahamc/Videos/Vlog/.backups"
+}
+```
+
+Lists related project files:
+
+```text
+original project, when present in the scanned directory
+working copies such as vlog_ai_001.kdenlive
+timestamped backups
+other related .kdenlive files sharing the same base stem
+```
+
+This is read-only and intended for history/undo planning. It does not restore
+or overwrite any project.
+
 ### get_project_lock
 
 Input:
