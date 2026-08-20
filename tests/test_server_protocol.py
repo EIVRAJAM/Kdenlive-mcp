@@ -40,6 +40,7 @@ def test_tools_list_includes_health_check() -> None:
     assert "health_check" in tool_names
     assert "scan_media" in tool_names
     assert "detect_silence" in tool_names
+    assert "plan_silence_removal" in tool_names
     assert "create_manifest" in tool_names
     assert "inspect_project" in tool_names
     assert "validate_project" in tool_names

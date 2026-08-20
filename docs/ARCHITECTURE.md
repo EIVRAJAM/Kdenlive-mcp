@@ -277,6 +277,7 @@ Flatpak sandbox fallbacks
 media scanning and ffprobe metadata
 thumbnail/audio derivation
 FFmpeg silence detection
+dry-run silence removal planning
 path traversal rejection
 manifest creation, inspection, validation, and media scan persistence
 Kdenlive XML fixture parsing

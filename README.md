@@ -65,6 +65,7 @@ validate_media
 generate_thumbnail
 extract_audio
 detect_silence
+plan_silence_removal
 create_manifest
 inspect_manifest
 validate_manifest

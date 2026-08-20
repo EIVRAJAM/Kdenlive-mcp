@@ -322,6 +322,45 @@ Runs FFmpeg `silencedetect` and returns structured intervals:
 This is analysis only. It does not remove timeline sections; future timeline
 tools will consume these intervals with explicit padding and dry-run support.
 
+### plan_silence_removal
+
+Input:
+
+```json
+{
+  "media": "/home/abrahamc/Videos/vlog/clip.mp4",
+  "threshold_db": -35,
+  "minimum_duration": 0.8,
+  "padding_before": 0.15,
+  "padding_after": 0.15
+}
+```
+
+Performs a dry-run cut plan from detected silence intervals:
+
+```json
+{
+  "success": true,
+  "dry_run": true,
+  "cut_count": 17,
+  "original_duration": 94.2,
+  "removed_duration": 31.4,
+  "resulting_duration": 62.8,
+  "cuts": [
+    {
+      "cut_id": "silence_cut_001",
+      "start": 12.55,
+      "end": 15.65,
+      "duration": 3.1
+    }
+  ]
+}
+```
+
+The tool preserves padding around each detected silent range by cutting from
+`silence_start + padding_before` to `silence_end - padding_after`. It does not
+modify media or projects.
+
 ## Manifest Tools
 
 The manifest layer is an intermediate MCP-owned JSON format. It is not a

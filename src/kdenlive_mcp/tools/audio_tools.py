@@ -96,6 +96,83 @@ def detect_silence(
     }
 
 
+def _build_silence_cut_plan(
+    silences: list[dict[str, float]],
+    media_duration: float,
+    padding_before: float,
+    padding_after: float,
+) -> list[dict[str, float]]:
+    cuts: list[dict[str, float]] = []
+    for index, silence in enumerate(silences, start=1):
+        cut_start = max(0.0, silence["start"] + padding_before)
+        cut_end = min(media_duration, silence["end"] - padding_after)
+        duration = cut_end - cut_start
+        if duration <= 0:
+            continue
+        cuts.append(
+            {
+                "cut_id": f"silence_cut_{index:03d}",
+                "source_silence_start": silence["start"],
+                "source_silence_end": silence["end"],
+                "start": round(cut_start, 6),
+                "end": round(cut_end, 6),
+                "duration": round(duration, 6),
+            }
+        )
+    return cuts
+
+
+def plan_silence_removal(
+    media: str,
+    threshold_db: float = -35.0,
+    minimum_duration: float = 0.8,
+    padding_before: float = 0.15,
+    padding_after: float = 0.15,
+) -> dict[str, Any]:
+    if padding_before < 0 or padding_after < 0:
+        return _error("INVALID_ARGUMENT", "padding_before and padding_after must be zero or greater.")
+
+    silence_result = detect_silence(
+        media=media,
+        threshold_db=threshold_db,
+        minimum_duration=minimum_duration,
+    )
+    if not silence_result.get("success"):
+        return silence_result
+
+    validation = validate_media(silence_result["media"])
+    if not validation.get("success"):
+        return validation
+    media_duration = validation["media"].get("duration_seconds")
+    if media_duration is None:
+        return _error("MEDIA_DURATION_UNKNOWN", "Media duration is required to plan silence removal.")
+
+    cuts = _build_silence_cut_plan(
+        silences=silence_result["silences"],
+        media_duration=float(media_duration),
+        padding_before=padding_before,
+        padding_after=padding_after,
+    )
+    removed_duration = round(sum(cut["duration"] for cut in cuts), 6)
+    resulting_duration = round(max(0.0, float(media_duration) - removed_duration), 6)
+    return {
+        "success": True,
+        "operation": "plan_silence_removal",
+        "media": silence_result["media"],
+        "dry_run": True,
+        "threshold_db": threshold_db,
+        "minimum_duration": minimum_duration,
+        "padding_before": padding_before,
+        "padding_after": padding_after,
+        "silence_count": silence_result["silence_count"],
+        "cut_count": len(cuts),
+        "original_duration": float(media_duration),
+        "removed_duration": removed_duration,
+        "resulting_duration": resulting_duration,
+        "cuts": cuts,
+    }
+
+
 TOOLS: dict[str, dict[str, Any]] = {
     "detect_silence": {
         "description": "Detect silence intervals in an allowed media file using FFmpeg silencedetect.",
@@ -110,5 +187,21 @@ TOOLS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "handler": detect_silence,
+    },
+    "plan_silence_removal": {
+        "description": "Dry-run silence removal by converting detected silence intervals into padded cut ranges.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "media": {"type": "string"},
+                "threshold_db": {"type": "number", "default": -35.0},
+                "minimum_duration": {"type": "number", "default": 0.8},
+                "padding_before": {"type": "number", "default": 0.15},
+                "padding_after": {"type": "number", "default": 0.15},
+            },
+            "required": ["media"],
+            "additionalProperties": False,
+        },
+        "handler": plan_silence_removal,
     },
 }
