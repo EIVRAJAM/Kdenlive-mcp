@@ -11,7 +11,7 @@ from kdenlive_mcp.adapters.ffmpeg import extract_frames as ffmpeg_extract_frames
 from kdenlive_mcp.adapters.ffmpeg import generate_contact_sheet as ffmpeg_generate_contact_sheet
 from kdenlive_mcp.security import SecurityError, ensure_media_path, ensure_output_path
 from kdenlive_mcp.tools.audio_tools import detect_silence as audio_detect_silence
-from kdenlive_mcp.tools.media_tools import SUPPORTED_MEDIA_EXTENSIONS, validate_media
+from kdenlive_mcp.tools.media_tools import SUPPORTED_MEDIA_EXTENSIONS, scan_media, validate_media
 
 
 def _error(code: str, message: str, **extra: Any) -> dict[str, Any]:
@@ -442,6 +442,62 @@ def analyze_media(
     }
 
 
+def analyze_media_folder(
+    folder: str,
+    recursive: bool = True,
+    max_files: int = 25,
+    include_silence: bool = True,
+    include_black: bool = True,
+    include_freeze: bool = False,
+    include_scenes: bool = True,
+    silence_threshold_db: float = -35.0,
+    silence_minimum_duration: float = 0.8,
+    black_minimum_duration: float = 0.5,
+    freeze_minimum_duration: float = 0.5,
+    scene_threshold: float = 0.35,
+) -> dict[str, Any]:
+    if max_files < 1:
+        return _error("INVALID_ARGUMENT", "max_files must be greater than zero.")
+    if max_files > 500:
+        return _error("INVALID_ARGUMENT", "max_files must be 500 or less.")
+
+    scan = scan_media(folder=folder, recursive=recursive, probe=False)
+    if not scan.get("success"):
+        return scan
+
+    media_items = scan.get("media", [])
+    selected_items = media_items[:max_files]
+    results: list[dict[str, Any]] = []
+    failure_count = 0
+    for item in selected_items:
+        result = analyze_media(
+            media=item["path"],
+            include_silence=include_silence,
+            include_black=include_black,
+            include_freeze=include_freeze,
+            include_scenes=include_scenes,
+            silence_threshold_db=silence_threshold_db,
+            silence_minimum_duration=silence_minimum_duration,
+            black_minimum_duration=black_minimum_duration,
+            freeze_minimum_duration=freeze_minimum_duration,
+            scene_threshold=scene_threshold,
+        )
+        results.append(result)
+        failure_count += 0 if result.get("success") else 1
+
+    return {
+        "success": failure_count == 0,
+        "operation": "analyze_media_folder",
+        "folder": scan["folder"],
+        "recursive": recursive,
+        "total_media_count": scan["count"],
+        "analyzed_count": len(results),
+        "skipped_count": max(0, scan["count"] - len(results)),
+        "failure_count": failure_count,
+        "results": results,
+    }
+
+
 TOOLS: dict[str, dict[str, Any]] = {
     "extract_frames": {
         "description": "Extract periodic frames from an allowed video into an allowed output directory.",
@@ -538,5 +594,28 @@ TOOLS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "handler": analyze_media,
+    },
+    "analyze_media_folder": {
+        "description": "Run selected read-only audio/video analyses for media files in an allowed folder.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "folder": {"type": "string"},
+                "recursive": {"type": "boolean", "default": True},
+                "max_files": {"type": "integer", "default": 25},
+                "include_silence": {"type": "boolean", "default": True},
+                "include_black": {"type": "boolean", "default": True},
+                "include_freeze": {"type": "boolean", "default": False},
+                "include_scenes": {"type": "boolean", "default": True},
+                "silence_threshold_db": {"type": "number", "default": -35.0},
+                "silence_minimum_duration": {"type": "number", "default": 0.8},
+                "black_minimum_duration": {"type": "number", "default": 0.5},
+                "freeze_minimum_duration": {"type": "number", "default": 0.5},
+                "scene_threshold": {"type": "number", "default": 0.35},
+            },
+            "required": ["folder"],
+            "additionalProperties": False,
+        },
+        "handler": analyze_media_folder,
     },
 }

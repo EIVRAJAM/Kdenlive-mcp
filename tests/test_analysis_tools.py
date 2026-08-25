@@ -378,3 +378,41 @@ def test_analyze_media_skips_video_analyses_for_audio_only(monkeypatch, tmp_path
     assert result["analyses"]["black"]["skipped"] is True
     assert result["analyses"]["freeze"]["reason"] == "NO_VIDEO_STREAM"
     assert result["analyses"]["scenes"]["reason"] == "NO_VIDEO_STREAM"
+
+
+def test_analyze_media_folder_limits_files(monkeypatch) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_MEDIA_DIRS", str(RECON_DIR))
+
+    result = analysis_tools.analyze_media_folder(
+        folder=str(RECON_DIR),
+        recursive=False,
+        max_files=1,
+        include_silence=False,
+        include_black=False,
+        include_freeze=False,
+        include_scenes=False,
+    )
+
+    assert result["success"] is True
+    assert result["operation"] == "analyze_media_folder"
+    assert result["total_media_count"] >= 1
+    assert result["analyzed_count"] == 1
+    assert result["skipped_count"] == result["total_media_count"] - 1
+    assert result["failure_count"] == 0
+    assert len(result["results"]) == 1
+    assert result["results"][0]["operation"] == "analyze_media"
+    assert result["results"][0]["analyses"] == {}
+
+
+def test_analyze_media_folder_rejects_invalid_limit() -> None:
+    result = analysis_tools.analyze_media_folder(folder=str(RECON_DIR), max_files=0)
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_ARGUMENT"
+
+
+def test_analyze_media_folder_rejects_excessive_limit() -> None:
+    result = analysis_tools.analyze_media_folder(folder=str(RECON_DIR), max_files=501)
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_ARGUMENT"

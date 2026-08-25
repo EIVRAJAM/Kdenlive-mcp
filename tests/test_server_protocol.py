@@ -47,6 +47,7 @@ def test_tools_list_includes_health_check() -> None:
     assert "detect_scene_changes" in tool_names
     assert "detect_freeze_frames" in tool_names
     assert "analyze_media" in tool_names
+    assert "analyze_media_folder" in tool_names
     assert "create_manifest" in tool_names
     assert "inspect_project" in tool_names
     assert "validate_project" in tool_names

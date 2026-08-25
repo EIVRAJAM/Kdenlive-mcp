@@ -550,6 +550,44 @@ FFmpeg logs:
 
 Audio-only files skip visual analyses with an explicit `skipped` result.
 
+### analyze_media_folder
+
+Input:
+
+```json
+{
+  "folder": "/home/abrahamc/Videos/vlog",
+  "recursive": true,
+  "max_files": 25,
+  "include_silence": true,
+  "include_black": true,
+  "include_freeze": false,
+  "include_scenes": true
+}
+```
+
+Scans an allowed media folder without probing first, then runs `analyze_media`
+for at most `max_files` files. `max_files` must be between 1 and 500.
+`include_freeze` defaults to false for folder batches because freeze detection
+can be comparatively expensive.
+
+Output:
+
+```json
+{
+  "success": true,
+  "operation": "analyze_media_folder",
+  "total_media_count": 27,
+  "analyzed_count": 25,
+  "skipped_count": 2,
+  "failure_count": 0,
+  "results": []
+}
+```
+
+The tool is read-only. It does not create thumbnails, extracted frames, project
+files, proxies, or edited media.
+
 ## Manifest Tools
 
 The manifest layer is an intermediate MCP-owned JSON format. It is not a

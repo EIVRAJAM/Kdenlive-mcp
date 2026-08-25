@@ -21,6 +21,7 @@ detect_black_frames is read-only analysis
 detect_scene_changes is read-only analysis
 detect_freeze_frames is read-only analysis
 analyze_media is read-only aggregate analysis
+analyze_media_folder is read-only aggregate analysis with an explicit file limit
 backup_project creates timestamped copies only
 clone_project creates next-version copies only
 list_project_versions is read-only

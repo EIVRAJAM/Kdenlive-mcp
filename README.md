@@ -183,6 +183,7 @@ Audio y analisis:
 - `detect_scene_changes`: detecta timestamps de cambios de escena.
 - `detect_freeze_frames`: detecta intervalos congelados.
 - `analyze_media`: ejecuta analisis seleccionados y resume resultados.
+- `analyze_media_folder`: analiza un lote limitado de medios en una carpeta permitida.
 
 Manifiestos:
 
