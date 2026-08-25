@@ -7,7 +7,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from kdenlive_mcp.domain.timeline import TimelineClip, TimelineDocument, TimelineTrack
-from kdenlive_mcp.security import SecurityError, ensure_output_path
+from kdenlive_mcp.security import SecurityError, ensure_media_path, ensure_output_path
 from kdenlive_mcp.services.manifest_service import slugify_name
 
 
@@ -126,6 +126,101 @@ def load_timeline_document(path: Path) -> TimelineDocument:
     return TimelineDocument.model_validate(data)
 
 
+def validate_timeline_document(
+    document: TimelineDocument,
+    check_media_exists: bool = True,
+    duration_tolerance: float = 0.001,
+) -> dict[str, Any]:
+    issues: list[dict[str, Any]] = []
+    clips_by_id = {clip.id: clip for clip in document.clips}
+    for track in document.tracks:
+        track_clips = sorted(
+            [clip for clip in document.clips if clip.track_id == track.id],
+            key=lambda clip: (clip.timeline_in, clip.timeline_out, clip.id),
+        )
+        previous = None
+        for clip in track_clips:
+            if previous is not None and clip.timeline_in < previous.timeline_out - duration_tolerance:
+                issues.append(
+                    {
+                        "code": "TIMELINE_OVERLAP",
+                        "track_id": track.id,
+                        "clip_id": clip.id,
+                        "previous_clip_id": previous.id,
+                        "overlap_start": round(clip.timeline_in, 6),
+                        "overlap_end": round(previous.timeline_out, 6),
+                    }
+                )
+            previous = clip
+
+    for clip in document.clips:
+        source_duration = round((clip.source_out - clip.source_in) / clip.speed, 6)
+        timeline_duration = clip.duration
+        if abs(source_duration - timeline_duration) > duration_tolerance:
+            issues.append(
+                {
+                    "code": "DURATION_MISMATCH",
+                    "clip_id": clip.id,
+                    "source_duration": source_duration,
+                    "timeline_duration": timeline_duration,
+                    "speed": clip.speed,
+                }
+            )
+
+        linked_clip = clips_by_id.get(clip.linked_clip_id or "")
+        if linked_clip is not None:
+            linked_fields_match = (
+                clip.media_id == linked_clip.media_id
+                and clip.media == linked_clip.media
+                and abs(clip.source_in - linked_clip.source_in) <= duration_tolerance
+                and abs(clip.source_out - linked_clip.source_out) <= duration_tolerance
+                and abs(clip.timeline_in - linked_clip.timeline_in) <= duration_tolerance
+                and abs(clip.timeline_out - linked_clip.timeline_out) <= duration_tolerance
+            )
+            if not linked_fields_match:
+                issues.append(
+                    {
+                        "code": "LINKED_CLIP_MISMATCH",
+                        "clip_id": clip.id,
+                        "linked_clip_id": linked_clip.id,
+                    }
+                )
+
+        if check_media_exists:
+            try:
+                media_path = ensure_media_path(clip.media)
+            except SecurityError as exc:
+                issues.append(
+                    {
+                        "code": exc.code,
+                        "clip_id": clip.id,
+                        "media": clip.media,
+                        "message": exc.message,
+                    }
+                )
+                continue
+            if not media_path.exists():
+                issues.append(
+                    {
+                        "code": "MEDIA_OFFLINE",
+                        "clip_id": clip.id,
+                        "media": str(media_path),
+                    }
+                )
+    return {
+        "valid": len(issues) == 0,
+        "issue_count": len(issues),
+        "issues": issues,
+        "summary": {
+            "track_count": len(document.tracks),
+            "clip_count": len(document.clips),
+            "duration": document.duration,
+            "check_media_exists": check_media_exists,
+            "duration_tolerance": duration_tolerance,
+        },
+    }
+
+
 def create_timeline_from_rough_cut_plan(
     plan_file: str,
     fps: float = 30.0,
@@ -194,6 +289,9 @@ def save_timeline(
         document = TimelineDocument.model_validate(timeline)
     except ValidationError as exc:
         return _error("INVALID_TIMELINE", f"Timeline is invalid: {exc}")
+    validation = validate_timeline_document(document, check_media_exists=False)
+    if not validation["valid"]:
+        return _error("INVALID_TIMELINE", "Timeline validation failed.", validation=validation)
 
     save_timeline_document(path, document)
     return {
@@ -233,4 +331,31 @@ def inspect_timeline(timeline_file: str) -> dict[str, Any]:
             "duration": document.duration,
         },
         "data": document.model_dump(mode="json", exclude_none=True),
+    }
+
+
+def validate_timeline(
+    timeline_file: str,
+    check_media_exists: bool = True,
+    duration_tolerance: float = 0.001,
+) -> dict[str, Any]:
+    if duration_tolerance < 0:
+        return _error("INVALID_ARGUMENT", "duration_tolerance must be zero or greater.")
+    inspected = inspect_timeline(timeline_file)
+    if not inspected.get("success"):
+        return inspected
+    try:
+        document = TimelineDocument.model_validate(inspected["data"])
+    except ValidationError as exc:
+        return _error("INVALID_TIMELINE", f"Timeline is invalid: {exc}")
+    validation = validate_timeline_document(
+        document,
+        check_media_exists=check_media_exists,
+        duration_tolerance=duration_tolerance,
+    )
+    return {
+        "success": True,
+        "operation": "validate_timeline",
+        "timeline_file": inspected["timeline_file"],
+        **validation,
     }

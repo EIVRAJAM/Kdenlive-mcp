@@ -191,6 +191,7 @@ Audio y analisis:
 - `create_timeline_from_rough_cut_plan`: convierte un plan guardado a timeline MCP.
 - `save_timeline`: guarda una timeline MCP como JSON.
 - `inspect_timeline`: carga y valida una timeline MCP guardada.
+- `validate_timeline`: valida solapes, duraciones, links y referencias media.
 
 Manifiestos:
 

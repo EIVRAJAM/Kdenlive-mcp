@@ -785,6 +785,47 @@ Input:
 
 Loads and validates a persisted MCP timeline document.
 
+### validate_timeline
+
+Input:
+
+```json
+{
+  "timeline_file": "/home/abrahamc/Videos/vlog/timeline.timeline.json",
+  "check_media_exists": true,
+  "duration_tolerance": 0.001
+}
+```
+
+Checks the timeline for:
+
+```text
+TIMELINE_OVERLAP
+DURATION_MISMATCH
+LINKED_CLIP_MISMATCH
+MEDIA_OFFLINE
+PERMISSION_DENIED media references
+```
+
+Output:
+
+```json
+{
+  "success": true,
+  "operation": "validate_timeline",
+  "valid": false,
+  "issue_count": 1,
+  "issues": [
+    {
+      "code": "TIMELINE_OVERLAP",
+      "track_id": "track_v1",
+      "clip_id": "clip_002_v",
+      "previous_clip_id": "clip_001_v"
+    }
+  ]
+}
+```
+
 ## Manifest Tools
 
 The manifest layer is an intermediate MCP-owned JSON format. It is not a

@@ -78,6 +78,103 @@ def test_save_and_inspect_timeline(monkeypatch, tmp_path: Path) -> None:
     assert inspected["data"]["clips"][0]["track_id"] == "track_v1"
 
 
+def test_validate_timeline_accepts_generated_timeline(monkeypatch, tmp_path: Path) -> None:
+    plan_file = _create_plan_file(monkeypatch, tmp_path)
+    created = timeline_tools.create_timeline_from_rough_cut_plan(plan_file=str(plan_file))
+    saved = timeline_tools.save_timeline(
+        timeline=created["timeline"],
+        output_directory=str(tmp_path),
+        name="valid",
+    )
+
+    result = timeline_tools.validate_timeline(str(saved["timeline_file"]))
+
+    assert result["success"] is True
+    assert result["valid"] is True
+    assert result["issue_count"] == 0
+
+
+def test_validate_timeline_detects_overlap(monkeypatch, tmp_path: Path) -> None:
+    plan_file = _create_plan_file(monkeypatch, tmp_path)
+    created = timeline_tools.create_timeline_from_rough_cut_plan(plan_file=str(plan_file))
+    timeline = created["timeline"]
+    timeline["clips"][2]["timeline_in"] = 2.5
+    timeline["clips"][2]["timeline_out"] = 3.5
+    timeline["clips"][3]["timeline_in"] = 2.5
+    timeline["clips"][3]["timeline_out"] = 3.5
+    document = TimelineDocument.model_validate(timeline)
+    path = timeline_service.timeline_path_for(tmp_path, "overlap")
+    timeline_service.save_timeline_document(path, document)
+
+    result = timeline_tools.validate_timeline(str(path), check_media_exists=False)
+
+    assert result["success"] is True
+    assert result["valid"] is False
+    assert {issue["code"] for issue in result["issues"]} == {"TIMELINE_OVERLAP"}
+
+
+def test_validate_timeline_detects_duration_mismatch(monkeypatch, tmp_path: Path) -> None:
+    plan_file = _create_plan_file(monkeypatch, tmp_path)
+    created = timeline_tools.create_timeline_from_rough_cut_plan(plan_file=str(plan_file))
+    timeline = created["timeline"]
+    timeline["clips"][0]["timeline_out"] = 2.5
+    document = TimelineDocument.model_validate(timeline)
+    path = timeline_service.timeline_path_for(tmp_path, "duration_mismatch")
+    timeline_service.save_timeline_document(path, document)
+
+    result = timeline_tools.validate_timeline(str(path), check_media_exists=False)
+
+    assert result["success"] is True
+    assert result["valid"] is False
+    assert "DURATION_MISMATCH" in {issue["code"] for issue in result["issues"]}
+
+
+def test_validate_timeline_detects_linked_clip_mismatch(monkeypatch, tmp_path: Path) -> None:
+    plan_file = _create_plan_file(monkeypatch, tmp_path)
+    created = timeline_tools.create_timeline_from_rough_cut_plan(plan_file=str(plan_file))
+    timeline = created["timeline"]
+    timeline["clips"][1]["source_out"] = 2.0
+    document = TimelineDocument.model_validate(timeline)
+    path = timeline_service.timeline_path_for(tmp_path, "linked_mismatch")
+    timeline_service.save_timeline_document(path, document)
+
+    result = timeline_tools.validate_timeline(str(path), check_media_exists=False)
+
+    assert result["success"] is True
+    assert result["valid"] is False
+    assert "LINKED_CLIP_MISMATCH" in {issue["code"] for issue in result["issues"]}
+
+
+def test_validate_timeline_detects_media_offline(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_MEDIA_DIRS", str(tmp_path))
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS", str(tmp_path))
+    timeline = TimelineDocument(
+        tracks=[
+            {"id": "track_v1", "type": "video", "name": "Video 1"},
+        ],
+        clips=[
+            {
+                "id": "clip_001_v",
+                "track_id": "track_v1",
+                "media_id": "media_missing",
+                "media": str(tmp_path / "missing.mp4"),
+                "source_in": 0.0,
+                "source_out": 1.0,
+                "timeline_in": 0.0,
+                "timeline_out": 1.0,
+            }
+        ],
+    )
+    path = timeline_service.timeline_path_for(tmp_path, "offline")
+    timeline_service.save_timeline_document(path, timeline)
+
+    result = timeline_tools.validate_timeline(str(path), check_media_exists=True)
+
+    assert result["success"] is True
+    assert result["valid"] is False
+    assert result["issues"][0]["code"] == "MEDIA_OFFLINE"
+
+
 def test_save_timeline_refuses_existing_without_overwrite(monkeypatch, tmp_path: Path) -> None:
     plan_file = _create_plan_file(monkeypatch, tmp_path)
     created = timeline_tools.create_timeline_from_rough_cut_plan(plan_file=str(plan_file))

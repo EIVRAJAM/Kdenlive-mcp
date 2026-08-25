@@ -6,6 +6,7 @@ from kdenlive_mcp.services.timeline_service import (
     create_timeline_from_rough_cut_plan,
     inspect_timeline,
     save_timeline,
+    validate_timeline,
 )
 
 
@@ -49,5 +50,19 @@ TOOLS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "handler": inspect_timeline,
+    },
+    "validate_timeline": {
+        "description": "Validate an MCP timeline for overlaps, duration mismatches, linked clip consistency, and media references.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "timeline_file": {"type": "string"},
+                "check_media_exists": {"type": "boolean", "default": True},
+                "duration_tolerance": {"type": "number", "default": 0.001},
+            },
+            "required": ["timeline_file"],
+            "additionalProperties": False,
+        },
+        "handler": validate_timeline,
     },
 }
