@@ -826,6 +826,40 @@ Output:
 }
 ```
 
+### export_timeline_to_mlt_xml
+
+Input:
+
+```json
+{
+  "timeline_file": "/home/abrahamc/Videos/vlog/timeline.timeline.json",
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "name": "timeline_draft",
+  "overwrite": false,
+  "check_media_exists": true
+}
+```
+
+Exports a validated MCP timeline to:
+
+```text
+timeline_draft.mlt.xml
+```
+
+This is an experimental MLT XML draft, not a `.kdenlive` project. It contains:
+
+```text
+mlt
+profile
+producer elements for media references
+playlist elements for MCP tracks
+blank entries for timeline gaps
+tractor main_tractor
+```
+
+The tool refuses to export invalid timelines and returns `kdenlive_project:
+false` in the result.
+
 ## Manifest Tools
 
 The manifest layer is an intermediate MCP-owned JSON format. It is not a

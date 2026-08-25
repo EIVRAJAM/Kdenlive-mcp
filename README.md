@@ -192,6 +192,7 @@ Audio y analisis:
 - `save_timeline`: guarda una timeline MCP como JSON.
 - `inspect_timeline`: carga y valida una timeline MCP guardada.
 - `validate_timeline`: valida solapes, duraciones, links y referencias media.
+- `export_timeline_to_mlt_xml`: exporta una timeline MCP validada a MLT XML draft.
 
 Manifiestos:
 

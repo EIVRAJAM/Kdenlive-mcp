@@ -447,5 +447,33 @@ Fade and dissolve representation
 Kdenlive behavior after round-tripping an AI-written project
 ```
 
-Next technical step: implement a read-only `KdenliveProjectAdapter.inspect()`
-that parses these reference files into structured data without writing XML.
+## Current Write Boundary
+
+The project now has an experimental `export_timeline_to_mlt_xml` path that
+converts the MCP-owned timeline JSON into a minimal MLT XML draft:
+
+```text
+kdenlive_mcp_timeline
+  -> MLT XML draft
+```
+
+This is intentionally not a `.kdenlive` writer. It does not attempt to preserve
+Kdenlive document properties, `main_bin`, sequence UUIDs, nested Kdenlive track
+tractors, groups, guides, effects, proxies, or project-bin metadata.
+
+Validation note: a generated draft under `examples/recon` loaded successfully
+with:
+
+```bash
+flatpak run --command=melt org.kde.kdenlive \
+  examples/recon/codex_mlt_export.mlt.xml \
+  -consumer null terminate_on_pause=1
+```
+
+The same generated XML under `/tmp` failed to load from Flatpak in this local
+environment, while the workspace copy succeeded. Treat that as a Flatpak
+filesystem-scope constraint when choosing output directories for manual tests.
+
+Next technical step: compare generated MLT XML drafts against Kdenlive/melt,
+then introduce a template-based `.kdenlive` writer only after round-trip tests
+prove the generated structure is loadable.

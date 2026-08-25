@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 import pytest
 
@@ -173,6 +174,51 @@ def test_validate_timeline_detects_media_offline(monkeypatch, tmp_path: Path) ->
     assert result["success"] is True
     assert result["valid"] is False
     assert result["issues"][0]["code"] == "MEDIA_OFFLINE"
+
+
+def test_export_timeline_to_mlt_xml(monkeypatch, tmp_path: Path) -> None:
+    plan_file = _create_plan_file(monkeypatch, tmp_path)
+    created = timeline_tools.create_timeline_from_rough_cut_plan(plan_file=str(plan_file))
+    saved = timeline_tools.save_timeline(
+        timeline=created["timeline"],
+        output_directory=str(tmp_path),
+        name="exportable",
+    )
+
+    result = timeline_tools.export_timeline_to_mlt_xml(
+        timeline_file=str(saved["timeline_file"]),
+        output_directory=str(tmp_path),
+        name="draft",
+    )
+
+    assert result["success"] is True
+    assert result["operation"] == "export_timeline_to_mlt_xml"
+    assert result["kdenlive_project"] is False
+    assert Path(result["mlt_xml"]).name == "draft.mlt.xml"
+    root = ET.parse(result["mlt_xml"]).getroot()
+    assert root.tag == "mlt"
+    assert root.find("tractor[@id='main_tractor']") is not None
+
+
+def test_export_timeline_to_mlt_xml_refuses_invalid_timeline(monkeypatch, tmp_path: Path) -> None:
+    plan_file = _create_plan_file(monkeypatch, tmp_path)
+    created = timeline_tools.create_timeline_from_rough_cut_plan(plan_file=str(plan_file))
+    timeline = created["timeline"]
+    timeline["clips"][0]["timeline_out"] = 2.5
+    document = TimelineDocument.model_validate(timeline)
+    path = timeline_service.timeline_path_for(tmp_path, "invalid_export")
+    timeline_service.save_timeline_document(path, document)
+
+    result = timeline_tools.export_timeline_to_mlt_xml(
+        timeline_file=str(path),
+        output_directory=str(tmp_path),
+        name="invalid",
+        check_media_exists=False,
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_TIMELINE"
+    assert result["validation"]["valid"] is False
 
 
 def test_save_timeline_refuses_existing_without_overwrite(monkeypatch, tmp_path: Path) -> None:

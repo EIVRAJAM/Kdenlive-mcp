@@ -6,6 +6,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from kdenlive_mcp.adapters.mlt_xml import write_mlt_xml
 from kdenlive_mcp.domain.timeline import TimelineClip, TimelineDocument, TimelineTrack
 from kdenlive_mcp.security import SecurityError, ensure_media_path, ensure_output_path
 from kdenlive_mcp.services.manifest_service import slugify_name
@@ -21,6 +22,10 @@ def _security_error(exc: SecurityError) -> dict[str, Any]:
 
 def timeline_path_for(directory: Path, name: str) -> Path:
     return directory / f"{slugify_name(name)}.timeline.json"
+
+
+def mlt_xml_path_for(directory: Path, name: str) -> Path:
+    return directory / f"{slugify_name(name)}.mlt.xml"
 
 
 def _validate_rough_cut_plan(plan: Any) -> dict[str, Any] | None:
@@ -358,4 +363,48 @@ def validate_timeline(
         "operation": "validate_timeline",
         "timeline_file": inspected["timeline_file"],
         **validation,
+    }
+
+
+def export_timeline_to_mlt_xml(
+    timeline_file: str,
+    output_directory: str,
+    name: str = "timeline_draft",
+    overwrite: bool = False,
+    check_media_exists: bool = True,
+) -> dict[str, Any]:
+    try:
+        timeline_path = ensure_output_path(timeline_file)
+        output_dir = ensure_output_path(output_directory)
+    except SecurityError as exc:
+        return _security_error(exc)
+    if not timeline_path.exists():
+        return _error("TIMELINE_NOT_FOUND", f"Timeline does not exist: {timeline_path}")
+
+    output_path = mlt_xml_path_for(output_dir, name)
+    if output_path.exists() and not overwrite:
+        return _error("OUTPUT_EXISTS", f"MLT XML draft already exists: {output_path}")
+
+    try:
+        document = load_timeline_document(timeline_path)
+    except (json.JSONDecodeError, ValidationError) as exc:
+        return _error("INVALID_TIMELINE", f"Timeline is invalid: {exc}")
+
+    validation = validate_timeline_document(document, check_media_exists=check_media_exists)
+    if not validation["valid"]:
+        return _error("INVALID_TIMELINE", "Timeline validation failed.", validation=validation)
+
+    try:
+        write_mlt_xml(output_path, document)
+    except ValueError as exc:
+        return _error("MLT_XML_ERROR", f"Could not export MLT XML: {exc}")
+
+    return {
+        "success": True,
+        "operation": "export_timeline_to_mlt_xml",
+        "timeline_file": str(timeline_path),
+        "mlt_xml": str(output_path),
+        "format": "mlt_xml_draft",
+        "kdenlive_project": False,
+        "summary": validation["summary"],
     }

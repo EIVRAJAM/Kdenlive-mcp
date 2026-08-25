@@ -4,6 +4,7 @@ from typing import Any
 
 from kdenlive_mcp.services.timeline_service import (
     create_timeline_from_rough_cut_plan,
+    export_timeline_to_mlt_xml,
     inspect_timeline,
     save_timeline,
     validate_timeline,
@@ -64,5 +65,21 @@ TOOLS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "handler": validate_timeline,
+    },
+    "export_timeline_to_mlt_xml": {
+        "description": "Export a validated MCP timeline to a draft MLT XML file without claiming Kdenlive project compatibility.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "timeline_file": {"type": "string"},
+                "output_directory": {"type": "string"},
+                "name": {"type": "string", "default": "timeline_draft"},
+                "overwrite": {"type": "boolean", "default": False},
+                "check_media_exists": {"type": "boolean", "default": True},
+            },
+            "required": ["timeline_file", "output_directory"],
+            "additionalProperties": False,
+        },
+        "handler": export_timeline_to_mlt_xml,
     },
 }
