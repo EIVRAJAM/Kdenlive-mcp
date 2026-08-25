@@ -16,6 +16,7 @@ from kdenlive_mcp.tools.environment_tools import TOOLS as ENVIRONMENT_TOOLS
 from kdenlive_mcp.tools.manifest_tools import TOOLS as MANIFEST_TOOLS
 from kdenlive_mcp.tools.media_tools import TOOLS as MEDIA_TOOLS
 from kdenlive_mcp.tools.project_tools import TOOLS as PROJECT_TOOLS
+from kdenlive_mcp.tools.rough_cut_tools import TOOLS as ROUGH_CUT_TOOLS
 
 JSONRPC_VERSION = "2.0"
 MCP_PROTOCOL_VERSION = "2024-11-05"
@@ -24,6 +25,7 @@ TOOLS = {
     **MEDIA_TOOLS,
     **AUDIO_TOOLS,
     **ANALYSIS_TOOLS,
+    **ROUGH_CUT_TOOLS,
     **MANIFEST_TOOLS,
     **PROJECT_TOOLS,
 }

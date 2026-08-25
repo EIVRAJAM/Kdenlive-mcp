@@ -286,6 +286,7 @@ scene change timestamp detection
 freeze interval detection
 aggregate media analysis
 batch folder media analysis
+dry-run rough cut planning
 path traversal rejection
 manifest creation, inspection, validation, and media scan persistence
 Kdenlive XML fixture parsing

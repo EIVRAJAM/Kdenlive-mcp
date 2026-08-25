@@ -588,6 +588,59 @@ Output:
 The tool is read-only. It does not create thumbnails, extracted frames, project
 files, proxies, or edited media.
 
+## Rough Cut Tools
+
+### plan_rough_cut
+
+Input:
+
+```json
+{
+  "folder": "/home/abrahamc/Videos/vlog",
+  "target_duration": 60,
+  "recursive": true,
+  "max_files": 25,
+  "remove_silence": true,
+  "silence_threshold_db": -35,
+  "silence_minimum_duration": 0.8,
+  "padding_before": 0.15,
+  "padding_after": 0.15,
+  "min_segment_duration": 0.25
+}
+```
+
+Builds a read-only rough-cut plan from allowed media. The first implementation
+selects clips in deterministic file order, optionally removes detected silence,
+and trims the final segment to the requested target duration.
+
+Output:
+
+```json
+{
+  "success": true,
+  "operation": "plan_rough_cut",
+  "dry_run": true,
+  "target_duration": 60.0,
+  "planned_duration": 60.0,
+  "selected_segment_count": 12,
+  "segments": [
+    {
+      "segment_id": "rough_001",
+      "media_id": "media_f293a81f",
+      "source_in": 0.0,
+      "source_out": 4.2,
+      "timeline_in": 0.0,
+      "timeline_out": 4.2,
+      "reason": "sequential_selection"
+    }
+  ]
+}
+```
+
+This tool does not create or modify Kdenlive projects. It produces the segment
+plan that a later timeline writer can convert into `.kdenlive` entries after
+the XML adapter is ready.
+
 ## Manifest Tools
 
 The manifest layer is an intermediate MCP-owned JSON format. It is not a

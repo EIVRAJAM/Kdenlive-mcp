@@ -184,6 +184,7 @@ Audio y analisis:
 - `detect_freeze_frames`: detecta intervalos congelados.
 - `analyze_media`: ejecuta analisis seleccionados y resume resultados.
 - `analyze_media_folder`: analiza un lote limitado de medios en una carpeta permitida.
+- `plan_rough_cut`: crea un plan dry-run de segmentos para un rough cut.
 
 Manifiestos:
 
