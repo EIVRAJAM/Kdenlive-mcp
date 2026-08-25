@@ -32,6 +32,7 @@ inspect_timeline is read-only and limited to allowed output directories
 validate_timeline is read-only and checks media references against the media allowlist
 export_timeline_to_mlt_xml writes only derived MLT XML drafts in allowed output directories
 export_timeline_to_kdenlive_template writes only derived .kdenlive drafts in allowed project directories
+create_vlog_rough_cut_project composes allowed media/output/project operations only
 backup_project creates timestamped copies only
 clone_project creates next-version copies only
 list_project_versions is read-only

@@ -18,6 +18,7 @@ from kdenlive_mcp.tools.media_tools import TOOLS as MEDIA_TOOLS
 from kdenlive_mcp.tools.project_tools import TOOLS as PROJECT_TOOLS
 from kdenlive_mcp.tools.rough_cut_tools import TOOLS as ROUGH_CUT_TOOLS
 from kdenlive_mcp.tools.timeline_tools import TOOLS as TIMELINE_TOOLS
+from kdenlive_mcp.tools.workflow_tools import TOOLS as WORKFLOW_TOOLS
 
 JSONRPC_VERSION = "2.0"
 MCP_PROTOCOL_VERSION = "2024-11-05"
@@ -28,6 +29,7 @@ TOOLS = {
     **ANALYSIS_TOOLS,
     **ROUGH_CUT_TOOLS,
     **TIMELINE_TOOLS,
+    **WORKFLOW_TOOLS,
     **MANIFEST_TOOLS,
     **PROJECT_TOOLS,
 }

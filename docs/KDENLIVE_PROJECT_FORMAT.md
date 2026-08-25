@@ -496,3 +496,12 @@ Current limitations: the writer targets the observed `playlist0` audio track
 and `playlist6` video track only. It does not yet support multiple editable
 tracks, effects, transitions, subtitles, proxies, or full Kdenlive project
 metadata regeneration.
+
+The high-level `create_vlog_rough_cut_project` workflow was also validated by
+generating a draft project and loading it with:
+
+```bash
+flatpak run --command=melt org.kde.kdenlive \
+  examples/recon/codex_vlog_workflow.kdenlive \
+  -consumer null terminate_on_pause=1
+```

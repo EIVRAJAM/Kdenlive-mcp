@@ -194,6 +194,7 @@ Audio y analisis:
 - `validate_timeline`: valida solapes, duraciones, links y referencias media.
 - `export_timeline_to_mlt_xml`: exporta una timeline MCP validada a MLT XML draft.
 - `export_timeline_to_kdenlive_template`: crea un `.kdenlive` draft desde una plantilla real.
+- `create_vlog_rough_cut_project`: ejecuta el flujo carpeta -> plan -> timeline -> `.kdenlive`.
 
 Manifiestos:
 

@@ -892,6 +892,37 @@ The tool validates the output with `KdenliveProjectAdapter.inspect()` and
 returns a summary with bin media count, sequence count, active sequence, and
 timeline clip count.
 
+## Workflow Tools
+
+### create_vlog_rough_cut_project
+
+Input:
+
+```json
+{
+  "folder": "/home/abrahamc/Videos/vlog",
+  "template_project": "/home/abrahamc/Videos/templates/manual_empty_vertical.kdenlive",
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "name": "vlog_ai_001",
+  "target_duration": 60,
+  "remove_silence": true,
+  "overwrite": false
+}
+```
+
+Runs the current safe local workflow:
+
+```text
+create_rough_cut_plan_file
+create_timeline_from_rough_cut_plan
+save_timeline
+export_timeline_to_kdenlive_template
+```
+
+Output includes the generated rough-cut plan JSON, timeline JSON, final
+`.kdenlive` draft path, and per-step summaries. If a step fails, the response
+includes `failed_step` and the original structured step result.
+
 ## Manifest Tools
 
 The manifest layer is an intermediate MCP-owned JSON format. It is not a
