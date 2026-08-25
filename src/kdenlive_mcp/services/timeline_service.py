@@ -7,8 +7,9 @@ from typing import Any
 from pydantic import ValidationError
 
 from kdenlive_mcp.adapters.mlt_xml import write_mlt_xml
+from kdenlive_mcp.adapters.kdenlive_xml import KdenliveProjectAdapter, KdenliveProjectError
 from kdenlive_mcp.domain.timeline import TimelineClip, TimelineDocument, TimelineTrack
-from kdenlive_mcp.security import SecurityError, ensure_media_path, ensure_output_path
+from kdenlive_mcp.security import SecurityError, ensure_media_path, ensure_output_path, ensure_project_path
 from kdenlive_mcp.services.manifest_service import slugify_name
 
 
@@ -26,6 +27,10 @@ def timeline_path_for(directory: Path, name: str) -> Path:
 
 def mlt_xml_path_for(directory: Path, name: str) -> Path:
     return directory / f"{slugify_name(name)}.mlt.xml"
+
+
+def kdenlive_project_path_for(directory: Path, name: str) -> Path:
+    return directory / f"{slugify_name(name)}.kdenlive"
 
 
 def _validate_rough_cut_plan(plan: Any) -> dict[str, Any] | None:
@@ -407,4 +412,63 @@ def export_timeline_to_mlt_xml(
         "format": "mlt_xml_draft",
         "kdenlive_project": False,
         "summary": validation["summary"],
+    }
+
+
+def export_timeline_to_kdenlive_template(
+    timeline_file: str,
+    template_project: str,
+    output_directory: str,
+    name: str = "timeline_draft",
+    overwrite: bool = False,
+    check_media_exists: bool = True,
+) -> dict[str, Any]:
+    try:
+        timeline_path = ensure_output_path(timeline_file)
+        template_path = ensure_project_path(template_project)
+        output_dir = ensure_project_path(output_directory)
+    except SecurityError as exc:
+        return _security_error(exc)
+    if not timeline_path.exists():
+        return _error("TIMELINE_NOT_FOUND", f"Timeline does not exist: {timeline_path}")
+    if not template_path.exists():
+        return _error("PROJECT_NOT_FOUND", f"Template project does not exist: {template_path}")
+
+    output_path = kdenlive_project_path_for(output_dir, name)
+    if output_path.exists() and not overwrite:
+        return _error("OUTPUT_EXISTS", f"Kdenlive project already exists: {output_path}")
+
+    try:
+        document = load_timeline_document(timeline_path)
+    except (json.JSONDecodeError, ValidationError) as exc:
+        return _error("INVALID_TIMELINE", f"Timeline is invalid: {exc}")
+
+    validation = validate_timeline_document(document, check_media_exists=check_media_exists)
+    if not validation["valid"]:
+        return _error("INVALID_TIMELINE", "Timeline validation failed.", validation=validation)
+
+    adapter = KdenliveProjectAdapter()
+    try:
+        write_result = adapter.write_timeline_from_template(template_path, output_path, document)
+        inspection = adapter.inspect(output_path)
+    except KdenliveProjectError as exc:
+        return _error(exc.code, exc.message)
+
+    missing_media_count = inspection["validation"]["missing_media_count"]
+    return {
+        "success": missing_media_count == 0,
+        "operation": "export_timeline_to_kdenlive_template",
+        "project": str(output_path),
+        "template_project": str(template_path),
+        "format": "kdenlive_template_draft",
+        "kdenlive_project": True,
+        "write_result": write_result,
+        "inspection_summary": {
+            "bin_media_count": inspection["bin"]["media_count"],
+            "sequence_count": len(inspection["sequences"]),
+            "active_sequence_id": inspection["active_sequence_id"],
+            "timeline_clip_count": sum(sequence["timeline_clip_count"] for sequence in inspection["sequences"]),
+            "missing_media_count": missing_media_count,
+        },
+        "validation": validation,
     }

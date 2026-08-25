@@ -193,6 +193,7 @@ Audio y analisis:
 - `inspect_timeline`: carga y valida una timeline MCP guardada.
 - `validate_timeline`: valida solapes, duraciones, links y referencias media.
 - `export_timeline_to_mlt_xml`: exporta una timeline MCP validada a MLT XML draft.
+- `export_timeline_to_kdenlive_template`: crea un `.kdenlive` draft desde una plantilla real.
 
 Manifiestos:
 

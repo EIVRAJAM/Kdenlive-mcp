@@ -291,6 +291,7 @@ rough cut plan JSON persistence
 MCP timeline JSON creation and validation
 timeline overlap, duration, link, and media-reference validation
 experimental MCP timeline to MLT XML draft export
+template-based .kdenlive draft export
 path traversal rejection
 manifest creation, inspection, validation, and media scan persistence
 Kdenlive XML fixture parsing

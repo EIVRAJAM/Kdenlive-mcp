@@ -474,6 +474,25 @@ The same generated XML under `/tmp` failed to load from Flatpak in this local
 environment, while the workspace copy succeeded. Treat that as a Flatpak
 filesystem-scope constraint when choosing output directories for manual tests.
 
-Next technical step: compare generated MLT XML drafts against Kdenlive/melt,
-then introduce a template-based `.kdenlive` writer only after round-trip tests
-prove the generated structure is loadable.
+The project also has a first template-based `.kdenlive` draft writer:
+
+```text
+kdenlive_mcp_timeline
+  -> manual_empty_vertical.kdenlive copy
+  -> filled playlist0 / playlist6 entries
+  -> derived .kdenlive draft
+```
+
+Validation note: a generated `.kdenlive` draft under `examples/recon` loaded
+successfully with:
+
+```bash
+flatpak run --command=melt org.kde.kdenlive \
+  examples/recon/codex_kdenlive_export.kdenlive \
+  -consumer null terminate_on_pause=1
+```
+
+Current limitations: the writer targets the observed `playlist0` audio track
+and `playlist6` video track only. It does not yet support multiple editable
+tracks, effects, transitions, subtitles, proxies, or full Kdenlive project
+metadata regeneration.

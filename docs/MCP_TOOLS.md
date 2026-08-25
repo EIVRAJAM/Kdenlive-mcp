@@ -860,6 +860,38 @@ tractor main_tractor
 The tool refuses to export invalid timelines and returns `kdenlive_project:
 false` in the result.
 
+### export_timeline_to_kdenlive_template
+
+Input:
+
+```json
+{
+  "timeline_file": "/home/abrahamc/Videos/vlog/timeline.timeline.json",
+  "template_project": "/home/abrahamc/Videos/templates/manual_empty_vertical.kdenlive",
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "name": "vlog_ai_001",
+  "overwrite": false,
+  "check_media_exists": true
+}
+```
+
+Creates a derived `.kdenlive` draft by copying a real Kdenlive template and
+filling the observed audio/video playlists with clips from the MCP timeline.
+
+Current constraints:
+
+```text
+template must contain main_bin, playlist0, playlist6, tractor4
+one audio track target: playlist0
+one video track target: playlist6
+no effects, transitions, subtitles, proxies, or track renames
+unknown template XML is preserved where possible
+```
+
+The tool validates the output with `KdenliveProjectAdapter.inspect()` and
+returns a summary with bin media count, sequence count, active sequence, and
+timeline clip count.
+
 ## Manifest Tools
 
 The manifest layer is an intermediate MCP-owned JSON format. It is not a

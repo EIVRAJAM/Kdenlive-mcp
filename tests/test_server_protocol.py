@@ -57,6 +57,7 @@ def test_tools_list_includes_health_check() -> None:
     assert "inspect_timeline" in tool_names
     assert "validate_timeline" in tool_names
     assert "export_timeline_to_mlt_xml" in tool_names
+    assert "export_timeline_to_kdenlive_template" in tool_names
     assert "create_manifest" in tool_names
     assert "inspect_project" in tool_names
     assert "validate_project" in tool_names

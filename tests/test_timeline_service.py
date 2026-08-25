@@ -221,6 +221,55 @@ def test_export_timeline_to_mlt_xml_refuses_invalid_timeline(monkeypatch, tmp_pa
     assert result["validation"]["valid"] is False
 
 
+def test_export_timeline_to_kdenlive_template(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", f"{RECON_DIR}:{tmp_path}")
+    plan_file = _create_plan_file(monkeypatch, tmp_path)
+    created = timeline_tools.create_timeline_from_rough_cut_plan(plan_file=str(plan_file))
+    saved = timeline_tools.save_timeline(
+        timeline=created["timeline"],
+        output_directory=str(tmp_path),
+        name="exportable_project",
+    )
+
+    result = timeline_tools.export_timeline_to_kdenlive_template(
+        timeline_file=str(saved["timeline_file"]),
+        template_project=str(RECON_DIR / "manual_empty_vertical.kdenlive"),
+        output_directory=str(tmp_path),
+        name="draft_project",
+    )
+
+    assert result["success"] is True
+    assert result["operation"] == "export_timeline_to_kdenlive_template"
+    assert Path(result["project"]).name == "draft_project.kdenlive"
+    assert result["inspection_summary"]["bin_media_count"] == 2
+    assert result["inspection_summary"]["timeline_clip_count"] == 4
+    assert result["inspection_summary"]["missing_media_count"] == 0
+
+
+def test_export_timeline_to_kdenlive_template_refuses_existing(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", f"{RECON_DIR}:{tmp_path}")
+    plan_file = _create_plan_file(monkeypatch, tmp_path)
+    created = timeline_tools.create_timeline_from_rough_cut_plan(plan_file=str(plan_file))
+    saved = timeline_tools.save_timeline(
+        timeline=created["timeline"],
+        output_directory=str(tmp_path),
+        name="existing_project_timeline",
+    )
+    kwargs = {
+        "timeline_file": str(saved["timeline_file"]),
+        "template_project": str(RECON_DIR / "manual_empty_vertical.kdenlive"),
+        "output_directory": str(tmp_path),
+        "name": "existing_project",
+    }
+
+    first = timeline_tools.export_timeline_to_kdenlive_template(**kwargs)
+    second = timeline_tools.export_timeline_to_kdenlive_template(**kwargs)
+
+    assert first["success"] is True
+    assert second["success"] is False
+    assert second["error"] == "OUTPUT_EXISTS"
+
+
 def test_save_timeline_refuses_existing_without_overwrite(monkeypatch, tmp_path: Path) -> None:
     plan_file = _create_plan_file(monkeypatch, tmp_path)
     created = timeline_tools.create_timeline_from_rough_cut_plan(plan_file=str(plan_file))

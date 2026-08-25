@@ -1,7 +1,13 @@
 from pathlib import Path
 
 from kdenlive_mcp.adapters.commands import CommandResult
-from kdenlive_mcp.adapters.kdenlive_xml import KdenliveProjectAdapter, parse_timecode_to_frames
+from kdenlive_mcp.adapters.kdenlive_xml import (
+    KdenliveProjectAdapter,
+    frame_to_kdenlive_timecode,
+    parse_timecode_to_frames,
+    seconds_to_kdenlive_in_timecode,
+    seconds_to_kdenlive_out_timecode,
+)
 from kdenlive_mcp.tools import project_tools
 
 
@@ -15,6 +21,12 @@ def test_parse_timecode_to_frames_for_kdenlive_milliseconds() -> None:
     assert parse_timecode_to_frames("00:00:00.000", 30) == 0
     assert parse_timecode_to_frames("00:00:02.967", 30) == 89
     assert parse_timecode_to_frames("00:00:05.967", 30) == 179
+
+
+def test_kdenlive_timecode_helpers_use_inclusive_out_frames() -> None:
+    assert frame_to_kdenlive_timecode(89, 30) == "00:00:02.967"
+    assert seconds_to_kdenlive_in_timecode(3.0, 30) == "00:00:03.000"
+    assert seconds_to_kdenlive_out_timecode(3.0, 30) == "00:00:02.967"
 
 
 def test_inspect_project_extracts_profile_document_and_bin_media() -> None:
