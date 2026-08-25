@@ -707,6 +707,84 @@ Input:
 
 Runs `plan_rough_cut` and immediately persists the successful result.
 
+## Timeline Tools
+
+These tools operate on the MCP-owned timeline JSON format, not on `.kdenlive`
+XML. The format is intentionally simple: tracks, clips, stable IDs, media
+references, source ranges, and timeline ranges.
+
+### create_timeline_from_rough_cut_plan
+
+Input:
+
+```json
+{
+  "plan_file": "/home/abrahamc/Videos/vlog/rough_cut_plan.rough-cut-plan.json",
+  "fps": 30,
+  "width": 1080,
+  "height": 1920
+}
+```
+
+Output:
+
+```json
+{
+  "success": true,
+  "operation": "create_timeline_from_rough_cut_plan",
+  "summary": {
+    "track_count": 2,
+    "clip_count": 24,
+    "duration": 60.0,
+    "fps": 30.0,
+    "width": 1080,
+    "height": 1920
+  },
+  "timeline": {
+    "kind": "kdenlive_mcp_timeline",
+    "schema_version": 1,
+    "tracks": [],
+    "clips": []
+  }
+}
+```
+
+The first implementation creates one video track and one linked audio track.
+Each rough-cut segment becomes a video clip and an audio clip with matching
+source/timeline ranges.
+
+### save_timeline
+
+Input:
+
+```json
+{
+  "timeline": {
+    "kind": "kdenlive_mcp_timeline",
+    "tracks": [],
+    "clips": []
+  },
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "name": "timeline",
+  "overwrite": false
+}
+```
+
+Writes `<name>.timeline.json` in an allowed output directory and validates the
+timeline before saving.
+
+### inspect_timeline
+
+Input:
+
+```json
+{
+  "timeline_file": "/home/abrahamc/Videos/vlog/timeline.timeline.json"
+}
+```
+
+Loads and validates a persisted MCP timeline document.
+
 ## Manifest Tools
 
 The manifest layer is an intermediate MCP-owned JSON format. It is not a

@@ -26,6 +26,9 @@ plan_rough_cut is read-only dry-run planning
 save_rough_cut_plan writes only derived JSON plan files in allowed output directories
 inspect_rough_cut_plan is read-only and limited to allowed output directories
 create_rough_cut_plan_file writes only derived JSON plan files in allowed output directories
+create_timeline_from_rough_cut_plan is read-only conversion from allowed output JSON
+save_timeline writes only derived JSON timeline files in allowed output directories
+inspect_timeline is read-only and limited to allowed output directories
 backup_project creates timestamped copies only
 clone_project creates next-version copies only
 list_project_versions is read-only

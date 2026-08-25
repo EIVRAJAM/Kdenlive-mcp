@@ -52,6 +52,9 @@ def test_tools_list_includes_health_check() -> None:
     assert "save_rough_cut_plan" in tool_names
     assert "inspect_rough_cut_plan" in tool_names
     assert "create_rough_cut_plan_file" in tool_names
+    assert "create_timeline_from_rough_cut_plan" in tool_names
+    assert "save_timeline" in tool_names
+    assert "inspect_timeline" in tool_names
     assert "create_manifest" in tool_names
     assert "inspect_project" in tool_names
     assert "validate_project" in tool_names

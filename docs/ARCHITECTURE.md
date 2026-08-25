@@ -288,6 +288,7 @@ aggregate media analysis
 batch folder media analysis
 dry-run rough cut planning
 rough cut plan JSON persistence
+MCP timeline JSON creation and validation
 path traversal rejection
 manifest creation, inspection, validation, and media scan persistence
 Kdenlive XML fixture parsing
