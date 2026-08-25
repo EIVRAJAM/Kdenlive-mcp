@@ -49,6 +49,9 @@ def test_tools_list_includes_health_check() -> None:
     assert "analyze_media" in tool_names
     assert "analyze_media_folder" in tool_names
     assert "plan_rough_cut" in tool_names
+    assert "save_rough_cut_plan" in tool_names
+    assert "inspect_rough_cut_plan" in tool_names
+    assert "create_rough_cut_plan_file" in tool_names
     assert "create_manifest" in tool_names
     assert "inspect_project" in tool_names
     assert "validate_project" in tool_names

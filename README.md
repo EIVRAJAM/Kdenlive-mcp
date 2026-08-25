@@ -185,6 +185,9 @@ Audio y analisis:
 - `analyze_media`: ejecuta analisis seleccionados y resume resultados.
 - `analyze_media_folder`: analiza un lote limitado de medios en una carpeta permitida.
 - `plan_rough_cut`: crea un plan dry-run de segmentos para un rough cut.
+- `save_rough_cut_plan`: guarda un plan dry-run como JSON.
+- `inspect_rough_cut_plan`: carga y valida un plan dry-run guardado.
+- `create_rough_cut_plan_file`: crea y guarda un plan dry-run en una llamada.
 
 Manifiestos:
 

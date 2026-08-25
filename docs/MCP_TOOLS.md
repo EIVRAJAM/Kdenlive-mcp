@@ -641,6 +641,72 @@ This tool does not create or modify Kdenlive projects. It produces the segment
 plan that a later timeline writer can convert into `.kdenlive` entries after
 the XML adapter is ready.
 
+### save_rough_cut_plan
+
+Input:
+
+```json
+{
+  "plan": {
+    "success": true,
+    "operation": "plan_rough_cut",
+    "dry_run": true,
+    "segments": []
+  },
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "name": "rough_cut_plan",
+  "overwrite": false
+}
+```
+
+Persists a successful dry-run rough-cut plan to:
+
+```text
+rough_cut_plan.rough-cut-plan.json
+```
+
+The persisted document includes:
+
+```json
+{
+  "kind": "kdenlive_mcp_rough_cut_plan",
+  "schema_version": 1,
+  "created_at": "2026-08-25T00:00:00+00:00",
+  "plan": {}
+}
+```
+
+The tool writes only inside allowed output directories and refuses to overwrite
+existing files unless `overwrite=true`.
+
+### inspect_rough_cut_plan
+
+Input:
+
+```json
+{
+  "plan_file": "/home/abrahamc/Videos/vlog/rough_cut_plan.rough-cut-plan.json"
+}
+```
+
+Loads and validates a persisted rough-cut plan document.
+
+### create_rough_cut_plan_file
+
+Input:
+
+```json
+{
+  "folder": "/home/abrahamc/Videos/vlog",
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "name": "rough_cut_plan",
+  "target_duration": 60,
+  "remove_silence": true
+}
+```
+
+Runs `plan_rough_cut` and immediately persists the successful result.
+
 ## Manifest Tools
 
 The manifest layer is an intermediate MCP-owned JSON format. It is not a
