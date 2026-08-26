@@ -65,6 +65,10 @@ for suffix in (
 PY
 fi
 
+if [[ "${KDENLIVE_MCP_RUN_RELIABILITY:-0}" == "1" ]]; then
+  python3 scripts/fixture_reliability_check.py
+fi
+
 if [[ "${KDENLIVE_MCP_RUN_MLT_CHECK:-0}" == "1" ]]; then
   if [[ -z "${KDENLIVE_MCP_MLT_PROJECT:-}" ]]; then
     echo "KDENLIVE_MCP_MLT_PROJECT is required when KDENLIVE_MCP_RUN_MLT_CHECK=1" >&2

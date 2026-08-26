@@ -46,6 +46,7 @@ Run:
 
 ```bash
 KDENLIVE_MCP_RUN_FIXTURE_WORKFLOW=1 scripts/dev_check.sh
+KDENLIVE_MCP_RUN_RELIABILITY=1 scripts/dev_check.sh
 ```
 
 Required result:

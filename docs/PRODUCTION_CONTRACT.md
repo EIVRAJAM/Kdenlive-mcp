@@ -704,6 +704,7 @@ A production-local-agent release must record the exact commands used:
 ```bash
 scripts/dev_check.sh
 KDENLIVE_MCP_RUN_FIXTURE_WORKFLOW=1 scripts/dev_check.sh
+KDENLIVE_MCP_RUN_RELIABILITY=1 scripts/dev_check.sh
 ```
 
 `scripts/dev_check.sh` runs `python3 -m compileall src` and

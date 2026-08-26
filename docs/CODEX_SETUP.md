@@ -58,6 +58,12 @@ Include the fixture workflow check:
 KDENLIVE_MCP_RUN_FIXTURE_WORKFLOW=1 scripts/dev_check.sh
 ```
 
+Run the 20-pass fixture reliability check:
+
+```bash
+KDENLIVE_MCP_RUN_RELIABILITY=1 scripts/dev_check.sh
+```
+
 Validate a generated project with Flatpak `melt`:
 
 ```bash
