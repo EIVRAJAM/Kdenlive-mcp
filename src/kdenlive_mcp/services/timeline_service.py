@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from kdenlive_mcp.adapters.mlt_xml import write_mlt_xml
 from kdenlive_mcp.adapters.kdenlive_xml import KdenliveProjectAdapter, KdenliveProjectError
-from kdenlive_mcp.domain.timeline import TimelineClip, TimelineDocument, TimelineTrack
+from kdenlive_mcp.domain.timeline import TimelineClip, TimelineDocument, TimelineMarker, TimelineTrack
 from kdenlive_mcp.security import SecurityError, ensure_media_path, ensure_output_path, ensure_project_path
 from kdenlive_mcp.services.manifest_service import slugify_name
 
@@ -111,9 +111,19 @@ def timeline_from_rough_cut_plan(
         TimelineTrack(id="track_a1", type="audio", name="Audio 1"),
     ]
     clips: list[TimelineClip] = []
+    markers: list[TimelineMarker] = []
     for index, segment in enumerate(plan["segments"], start=1):
         video_clip, audio_clip = _clip_pair_for_segment(segment, index)
         clips.extend([video_clip, audio_clip])
+        markers.append(
+            TimelineMarker(
+                id=f"marker_{index:03d}",
+                comment=str(segment.get("segment_id") or f"rough_{index:03d}"),
+                position=float(segment["timeline_in"]),
+                duration=round(float(segment["timeline_out"]) - float(segment["timeline_in"]), 6),
+                type=0,
+            )
+        )
 
     return TimelineDocument(
         source_plan_file=source_plan_file,
@@ -123,6 +133,7 @@ def timeline_from_rough_cut_plan(
         height=height,
         tracks=tracks,
         clips=clips,
+        markers=markers,
     )
 
 
@@ -224,6 +235,7 @@ def validate_timeline_document(
         "summary": {
             "track_count": len(document.tracks),
             "clip_count": len(document.clips),
+            "marker_count": len(document.markers),
             "duration": document.duration,
             "check_media_exists": check_media_exists,
             "duration_tolerance": duration_tolerance,
@@ -273,6 +285,7 @@ def create_timeline_from_rough_cut_plan(
         "summary": {
             "track_count": len(timeline.tracks),
             "clip_count": len(timeline.clips),
+            "marker_count": len(timeline.markers),
             "duration": timeline.duration,
             "fps": timeline.fps,
             "width": timeline.width,
@@ -312,6 +325,7 @@ def save_timeline(
         "summary": {
             "track_count": len(document.tracks),
             "clip_count": len(document.clips),
+            "marker_count": len(document.markers),
             "duration": document.duration,
         },
         "data": document.model_dump(mode="json", exclude_none=True),
@@ -338,6 +352,7 @@ def inspect_timeline(timeline_file: str) -> dict[str, Any]:
         "summary": {
             "track_count": len(document.tracks),
             "clip_count": len(document.clips),
+            "marker_count": len(document.markers),
             "duration": document.duration,
         },
         "data": document.model_dump(mode="json", exclude_none=True),
@@ -468,6 +483,8 @@ def export_timeline_to_kdenlive_template(
             "sequence_count": len(inspection["sequences"]),
             "active_sequence_id": inspection["active_sequence_id"],
             "timeline_clip_count": sum(sequence["timeline_clip_count"] for sequence in inspection["sequences"]),
+            "marker_count": sum(len(sequence["markers"]) for sequence in inspection["sequences"]),
+            "guide_count": sum(len(sequence["guides"]) for sequence in inspection["sequences"]),
             "missing_media_count": missing_media_count,
         },
         "validation": validation,

@@ -51,6 +51,24 @@ class TimelineClip(BaseModel):
         return round(self.timeline_out - self.timeline_in, 6)
 
 
+class TimelineMarker(BaseModel):
+    id: str
+    comment: str
+    position: float
+    duration: float = 0.0
+    type: int = 0
+
+    @model_validator(mode="after")
+    def validate_marker(self) -> "TimelineMarker":
+        if self.position < 0:
+            raise ValueError("marker position must be non-negative")
+        if self.duration < 0:
+            raise ValueError("marker duration must be non-negative")
+        if self.comment.strip() == "":
+            raise ValueError("marker comment must not be empty")
+        return self
+
+
 class TimelineDocument(BaseModel):
     kind: Literal["kdenlive_mcp_timeline"] = "kdenlive_mcp_timeline"
     schema_version: int = 1
@@ -64,6 +82,7 @@ class TimelineDocument(BaseModel):
     height: int = 1920
     tracks: list[TimelineTrack] = Field(default_factory=list)
     clips: list[TimelineClip] = Field(default_factory=list)
+    markers: list[TimelineMarker] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_timeline(self) -> "TimelineDocument":
@@ -85,6 +104,10 @@ class TimelineDocument(BaseModel):
                 raise ValueError(f"clip references unknown track: {clip.track_id}")
             if clip.linked_clip_id is not None and clip.linked_clip_id not in clip_ids:
                 raise ValueError(f"clip references unknown linked clip: {clip.linked_clip_id}")
+
+        marker_ids = {marker.id for marker in self.markers}
+        if len(marker_ids) != len(self.markers):
+            raise ValueError("marker IDs must be unique")
         return self
 
     @property

@@ -97,6 +97,19 @@ def _remove_children(parent: ET.Element, tags: set[str]) -> None:
             parent.remove(child)
 
 
+def _timeline_markers_json(timeline: TimelineDocument, fps_num: int, fps_den: int) -> str:
+    markers = [
+        {
+            "comment": marker.comment,
+            "duration": max(0, int(round(marker.duration * fps_num / fps_den))),
+            "pos": max(0, int(round(marker.position * fps_num / fps_den))),
+            "type": marker.type,
+        }
+        for marker in sorted(timeline.markers, key=lambda item: (item.position, item.id))
+    ]
+    return json.dumps(markers, indent=4)
+
+
 def _chain_element(
     chain_id: str,
     resource: str,
@@ -623,6 +636,12 @@ class KdenliveProjectAdapter:
                 _set_property(tractor, "kdenlive:duration", project_out)
                 _set_property(tractor, "kdenlive:maxduration", max(1, int(round(timeline.duration * fps_num / fps_den))))
 
+        sequence_tractor = self._active_sequence_tractor(main_bin, list(tractors.values()))
+        if sequence_tractor is not None:
+            markers_json = _timeline_markers_json(timeline, fps_num, fps_den)
+            _set_property(sequence_tractor, "kdenlive:sequenceproperties.guides", markers_json)
+            _set_property(sequence_tractor, "kdenlive:markers", markers_json)
+
         output_path.parent.mkdir(parents=True, exist_ok=True)
         ET.indent(tree, space=" ")
         tree.write(output_path, encoding="utf-8", xml_declaration=True)
@@ -631,4 +650,18 @@ class KdenliveProjectAdapter:
             "template": str(template_path),
             "media_count": len(media_paths),
             "timeline_clip_count": len(timeline.clips),
+            "marker_count": len(timeline.markers),
         }
+
+    def _active_sequence_tractor(self, main_bin: ET.Element, tractors: list[ET.Element]) -> ET.Element | None:
+        main_bin_props = element_properties(main_bin)
+        active_uuid = main_bin_props.get("kdenlive:docproperties.activetimeline")
+        for tractor in tractors:
+            props = element_properties(tractor)
+            if active_uuid and props.get("kdenlive:uuid") == active_uuid:
+                return tractor
+        for tractor in tractors:
+            props = element_properties(tractor)
+            if props.get("kdenlive:producer_type") == "17":
+                return tractor
+        return None

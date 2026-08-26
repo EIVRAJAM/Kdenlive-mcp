@@ -713,7 +713,7 @@ Runs `plan_rough_cut` and immediately persists the successful result.
 
 These tools operate on the MCP-owned timeline JSON format, not on `.kdenlive`
 XML. The format is intentionally simple: tracks, clips, stable IDs, media
-references, source ranges, and timeline ranges.
+references, source ranges, timeline ranges, and review markers.
 
 ### create_timeline_from_rough_cut_plan
 
@@ -737,6 +737,7 @@ Output:
   "summary": {
     "track_count": 2,
     "clip_count": 24,
+    "marker_count": 12,
     "duration": 60.0,
     "fps": 30.0,
     "width": 1080,
@@ -746,14 +747,15 @@ Output:
     "kind": "kdenlive_mcp_timeline",
     "schema_version": 1,
     "tracks": [],
-    "clips": []
+    "clips": [],
+    "markers": []
   }
 }
 ```
 
 The first implementation creates one video track and one linked audio track.
 Each rough-cut segment becomes a video clip and an audio clip with matching
-source/timeline ranges.
+source/timeline ranges. It also creates one review marker per rough-cut segment.
 
 ### save_timeline
 
@@ -764,7 +766,8 @@ Input:
   "timeline": {
     "kind": "kdenlive_mcp_timeline",
     "tracks": [],
-    "clips": []
+    "clips": [],
+    "markers": []
   },
   "output_directory": "/home/abrahamc/Videos/vlog",
   "name": "timeline",
@@ -879,6 +882,9 @@ Input:
 
 Creates a derived `.kdenlive` draft by copying a real Kdenlive template and
 filling the observed audio/video playlists with clips from the MCP timeline.
+Timeline markers are serialized into the active Kdenlive sequence as both
+`kdenlive:sequenceproperties.guides` and `kdenlive:markers`, matching the
+observed Kdenlive JSON property shape.
 
 Current constraints:
 

@@ -132,6 +132,9 @@ Review the timeline manually. The current writer targets one observed audio
 playlist and one observed video playlist from the template. Treat the result as
 a rough cut, not as a final edit.
 
+Each rough-cut segment is also written as a Kdenlive guide/marker so the
+review points are visible in the generated project.
+
 ## Current Limits
 
 ```text
@@ -145,4 +148,4 @@ no semantic content selection yet
 ```
 
 The useful next improvement is to generalize the writer to multiple editable
-tracks and then add explicit rough-cut review markers/guides.
+tracks while preserving Kdenlive's native grouping metadata.

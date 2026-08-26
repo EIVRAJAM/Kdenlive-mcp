@@ -45,6 +45,7 @@ def test_create_timeline_from_rough_cut_plan(monkeypatch, tmp_path: Path) -> Non
     assert result["summary"] == {
         "track_count": 2,
         "clip_count": 4,
+        "marker_count": 2,
         "duration": 4.0,
         "fps": 30.0,
         "width": 1080,
@@ -56,6 +57,10 @@ def test_create_timeline_from_rough_cut_plan(monkeypatch, tmp_path: Path) -> Non
     assert timeline["clips"][0]["id"] == "clip_001_v"
     assert timeline["clips"][0]["linked_clip_id"] == "clip_001_a"
     assert timeline["clips"][1]["linked_clip_id"] == "clip_001_v"
+    assert timeline["markers"] == [
+        {"id": "marker_001", "comment": "rough_001", "position": 0.0, "duration": 3.0, "type": 0},
+        {"id": "marker_002", "comment": "rough_002", "position": 3.0, "duration": 1.0, "type": 0},
+    ]
 
 
 def test_save_and_inspect_timeline(monkeypatch, tmp_path: Path) -> None:
@@ -76,6 +81,7 @@ def test_save_and_inspect_timeline(monkeypatch, tmp_path: Path) -> None:
     inspected = timeline_tools.inspect_timeline(str(timeline_file))
     assert inspected["success"] is True
     assert inspected["summary"]["clip_count"] == 4
+    assert inspected["summary"]["marker_count"] == 2
     assert inspected["data"]["clips"][0]["track_id"] == "track_v1"
 
 
@@ -243,7 +249,16 @@ def test_export_timeline_to_kdenlive_template(monkeypatch, tmp_path: Path) -> No
     assert Path(result["project"]).name == "draft_project.kdenlive"
     assert result["inspection_summary"]["bin_media_count"] == 2
     assert result["inspection_summary"]["timeline_clip_count"] == 4
+    assert result["inspection_summary"]["marker_count"] == 2
+    assert result["inspection_summary"]["guide_count"] == 2
     assert result["inspection_summary"]["missing_media_count"] == 0
+
+    root = ET.parse(result["project"]).getroot()
+    sequence = root.find("tractor[@id='tractor4']")
+    assert sequence is not None
+    props = {prop.attrib["name"]: prop.text or "" for prop in sequence.findall("property")}
+    assert '"comment": "rough_001"' in props["kdenlive:sequenceproperties.guides"]
+    assert '"comment": "rough_002"' in props["kdenlive:markers"]
 
 
 def test_export_timeline_to_kdenlive_template_refuses_existing(monkeypatch, tmp_path: Path) -> None:

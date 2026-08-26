@@ -191,12 +191,12 @@ Audio y analisis:
 - `save_rough_cut_plan`: guarda un plan dry-run como JSON.
 - `inspect_rough_cut_plan`: carga y valida un plan dry-run guardado.
 - `create_rough_cut_plan_file`: crea y guarda un plan dry-run en una llamada.
-- `create_timeline_from_rough_cut_plan`: convierte un plan guardado a timeline MCP.
+- `create_timeline_from_rough_cut_plan`: convierte un plan guardado a timeline MCP con marcadores de revision.
 - `save_timeline`: guarda una timeline MCP como JSON.
 - `inspect_timeline`: carga y valida una timeline MCP guardada.
 - `validate_timeline`: valida solapes, duraciones, links y referencias media.
 - `export_timeline_to_mlt_xml`: exporta una timeline MCP validada a MLT XML draft.
-- `export_timeline_to_kdenlive_template`: crea un `.kdenlive` draft desde una plantilla real.
+- `export_timeline_to_kdenlive_template`: crea un `.kdenlive` draft desde una plantilla real y escribe guides/markers.
 - `create_vlog_rough_cut_project`: ejecuta el flujo carpeta -> plan -> timeline -> `.kdenlive`.
 
 Manifiestos:
