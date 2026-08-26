@@ -30,6 +30,9 @@ create_timeline_from_rough_cut_plan is read-only conversion from allowed output 
 save_timeline writes only derived JSON timeline files in allowed output directories
 inspect_timeline is read-only and limited to allowed output directories
 validate_timeline is read-only and checks media references against the media allowlist
+trim_timeline_clip writes only copy-on-write derived JSON timeline files, and supports dry_run
+move_timeline_clip writes only copy-on-write derived JSON timeline files, and supports dry_run
+split_timeline_clip writes only copy-on-write derived JSON timeline files, and supports dry_run
 export_timeline_to_mlt_xml writes only derived MLT XML drafts in allowed output directories
 export_timeline_to_kdenlive_template writes only derived .kdenlive drafts in allowed project directories
 create_vlog_rough_cut_project composes allowed media/output/project operations only

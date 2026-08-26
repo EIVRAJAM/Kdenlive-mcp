@@ -33,6 +33,110 @@ def kdenlive_project_path_for(directory: Path, name: str) -> Path:
     return directory / f"{slugify_name(name)}.kdenlive"
 
 
+def _timeline_summary(document: TimelineDocument) -> dict[str, Any]:
+    return {
+        "track_count": len(document.tracks),
+        "clip_count": len(document.clips),
+        "marker_count": len(document.markers),
+        "duration": document.duration,
+    }
+
+
+def _load_timeline_from_allowed_output(timeline_file: str) -> tuple[Path, TimelineDocument] | dict[str, Any]:
+    try:
+        path = ensure_output_path(timeline_file)
+    except SecurityError as exc:
+        return _security_error(exc)
+    if not path.exists():
+        return _error("TIMELINE_NOT_FOUND", f"Timeline does not exist: {path}")
+    try:
+        return path, load_timeline_document(path)
+    except (json.JSONDecodeError, ValidationError) as exc:
+        return _error("INVALID_TIMELINE", f"Timeline is invalid: {exc}")
+
+
+def _clip_map(document: TimelineDocument) -> dict[str, TimelineClip]:
+    return {clip.id: clip for clip in document.clips}
+
+
+def _edit_target_ids(document: TimelineDocument, clip_id: str, include_linked: bool) -> list[str] | dict[str, Any]:
+    clips_by_id = _clip_map(document)
+    clip = clips_by_id.get(clip_id)
+    if clip is None:
+        return _error("INVALID_CLIP", f"Clip does not exist: {clip_id}")
+    target_ids = [clip.id]
+    if include_linked and clip.linked_clip_id:
+        linked_clip = clips_by_id.get(clip.linked_clip_id)
+        if linked_clip is None:
+            return _error("INVALID_CLIP", f"Linked clip does not exist: {clip.linked_clip_id}")
+        target_ids.append(linked_clip.id)
+    return target_ids
+
+
+def _unique_clip_id(existing_ids: set[str], base: str) -> str:
+    candidate = base
+    suffix = 1
+    while candidate in existing_ids:
+        suffix += 1
+        candidate = f"{base}_{suffix}"
+    existing_ids.add(candidate)
+    return candidate
+
+
+def _maybe_write_edited_timeline(
+    *,
+    operation: str,
+    source_path: Path,
+    document: TimelineDocument,
+    output_directory: str | None,
+    name: str | None,
+    overwrite: bool,
+    dry_run: bool,
+    before: dict[str, Any],
+    after: dict[str, Any],
+    check_media_exists: bool,
+) -> dict[str, Any]:
+    validation = validate_timeline_document(document, check_media_exists=check_media_exists)
+    output_path: Path | None = None
+    if output_directory is not None or name is not None:
+        try:
+            output_dir = ensure_output_path(output_directory or str(source_path.parent))
+        except SecurityError as exc:
+            return _security_error(exc)
+        output_path = timeline_path_for(output_dir, name or f"{source_path.stem}_{operation}")
+        if output_path.exists() and not overwrite and not dry_run:
+            return _error("OUTPUT_EXISTS", f"Timeline already exists: {output_path}")
+
+    result = {
+        "success": validation["valid"],
+        "operation": operation,
+        "dry_run": dry_run,
+        "source_timeline_file": str(source_path),
+        "timeline_file": None if dry_run else str(output_path) if output_path else None,
+        "would_write": str(output_path) if output_path else None,
+        "before": before,
+        "after": after,
+        "summary": _timeline_summary(document),
+        "validation": validation,
+        "timeline": document.model_dump(mode="json", exclude_none=True),
+    }
+    if not validation["valid"]:
+        result.update(
+            {
+                "success": False,
+                "error": "INVALID_TIMELINE",
+                "message": "Edited timeline validation failed.",
+            }
+        )
+        return result
+    if dry_run:
+        return result
+    if output_path is None:
+        return _error("INVALID_ARGUMENT", "output_directory or name is required when dry_run is false.")
+    save_timeline_document(output_path, document)
+    return result
+
+
 def _validate_rough_cut_plan(plan: Any) -> dict[str, Any] | None:
     if not isinstance(plan, dict):
         return _error("INVALID_ROUGH_CUT_PLAN", "Rough cut plan must be a JSON object.")
@@ -384,6 +488,244 @@ def validate_timeline(
         "timeline_file": inspected["timeline_file"],
         **validation,
     }
+
+
+def trim_timeline_clip(
+    timeline_file: str,
+    clip_id: str,
+    source_in: float | None = None,
+    source_out: float | None = None,
+    output_directory: str | None = None,
+    name: str | None = None,
+    overwrite: bool = False,
+    dry_run: bool = True,
+    include_linked: bool = True,
+    check_media_exists: bool = False,
+) -> dict[str, Any]:
+    loaded = _load_timeline_from_allowed_output(timeline_file)
+    if isinstance(loaded, dict):
+        return loaded
+    timeline_path, document = loaded
+    if source_in is None and source_out is None:
+        return _error("INVALID_ARGUMENT", "source_in or source_out is required.")
+
+    target_ids = _edit_target_ids(document, clip_id, include_linked)
+    if isinstance(target_ids, dict):
+        return target_ids
+    edited = document.model_copy(deep=True)
+    clips_by_id = _clip_map(edited)
+    before = {"clips": {target_id: clips_by_id[target_id].model_dump(mode="json", exclude_none=True) for target_id in target_ids}}
+
+    for target_id in target_ids:
+        clip = clips_by_id[target_id]
+        new_source_in = clip.source_in if source_in is None else float(source_in)
+        new_source_out = clip.source_out if source_out is None else float(source_out)
+        if new_source_in < 0:
+            return _error("INVALID_TIMECODE", "source_in must be zero or greater.", clip_id=target_id)
+        if new_source_out <= new_source_in:
+            return _error("INVALID_TIMECODE", "source_out must be greater than source_in.", clip_id=target_id)
+        new_duration = round((new_source_out - new_source_in) / clip.speed, 6)
+        old_duration = clip.duration
+        if new_duration > old_duration:
+            return _error(
+                "INVALID_TIMECODE",
+                "trim_timeline_clip cannot extend a clip; use move/add operations for expansion.",
+                clip_id=target_id,
+                old_duration=old_duration,
+                requested_duration=new_duration,
+            )
+        clip.source_in = new_source_in
+        clip.source_out = new_source_out
+        clip.timeline_out = round(clip.timeline_in + new_duration, 6)
+
+    try:
+        edited = TimelineDocument.model_validate(edited.model_dump(mode="json", exclude_none=True))
+    except ValidationError as exc:
+        return _error("INVALID_TIMELINE", f"Edited timeline is invalid: {exc}")
+    after_clips = _clip_map(edited)
+    after = {"clips": {target_id: after_clips[target_id].model_dump(mode="json", exclude_none=True) for target_id in target_ids}}
+    return _maybe_write_edited_timeline(
+        operation="trim_timeline_clip",
+        source_path=timeline_path,
+        document=edited,
+        output_directory=output_directory,
+        name=name,
+        overwrite=overwrite,
+        dry_run=dry_run,
+        before=before,
+        after=after,
+        check_media_exists=check_media_exists,
+    )
+
+
+def move_timeline_clip(
+    timeline_file: str,
+    clip_id: str,
+    timeline_in: float,
+    output_directory: str | None = None,
+    name: str | None = None,
+    overwrite: bool = False,
+    dry_run: bool = True,
+    include_linked: bool = True,
+    move_markers: bool = True,
+    check_media_exists: bool = False,
+) -> dict[str, Any]:
+    loaded = _load_timeline_from_allowed_output(timeline_file)
+    if isinstance(loaded, dict):
+        return loaded
+    timeline_path, document = loaded
+    if timeline_in < 0:
+        return _error("INVALID_TIMECODE", "timeline_in must be zero or greater.")
+
+    target_ids = _edit_target_ids(document, clip_id, include_linked)
+    if isinstance(target_ids, dict):
+        return target_ids
+    edited = document.model_copy(deep=True)
+    clips_by_id = _clip_map(edited)
+    primary = clips_by_id[clip_id]
+    original_timeline_in = primary.timeline_in
+    original_timeline_out = primary.timeline_out
+    delta = round(float(timeline_in) - primary.timeline_in, 6)
+    before = {
+        "clips": {target_id: clips_by_id[target_id].model_dump(mode="json", exclude_none=True) for target_id in target_ids},
+        "markers": [
+            marker.model_dump(mode="json", exclude_none=True)
+            for marker in edited.markers
+            if original_timeline_in <= marker.position < original_timeline_out
+        ],
+    }
+
+    for target_id in target_ids:
+        clip = clips_by_id[target_id]
+        clip.timeline_in = round(clip.timeline_in + delta, 6)
+        clip.timeline_out = round(clip.timeline_out + delta, 6)
+    if move_markers:
+        for marker in edited.markers:
+            if original_timeline_in <= marker.position < original_timeline_out:
+                marker.position = round(marker.position + delta, 6)
+
+    try:
+        edited = TimelineDocument.model_validate(edited.model_dump(mode="json", exclude_none=True))
+    except ValidationError as exc:
+        return _error("INVALID_TIMELINE", f"Edited timeline is invalid: {exc}")
+    after_clips = _clip_map(edited)
+    moved_primary = after_clips[clip_id]
+    after = {
+        "clips": {target_id: after_clips[target_id].model_dump(mode="json", exclude_none=True) for target_id in target_ids},
+        "markers": [
+            marker.model_dump(mode="json", exclude_none=True)
+            for marker in edited.markers
+            if moved_primary.timeline_in <= marker.position < moved_primary.timeline_out
+        ],
+        "delta": delta,
+    }
+    return _maybe_write_edited_timeline(
+        operation="move_timeline_clip",
+        source_path=timeline_path,
+        document=edited,
+        output_directory=output_directory,
+        name=name,
+        overwrite=overwrite,
+        dry_run=dry_run,
+        before=before,
+        after=after,
+        check_media_exists=check_media_exists,
+    )
+
+
+def split_timeline_clip(
+    timeline_file: str,
+    clip_id: str,
+    split_at: float,
+    output_directory: str | None = None,
+    name: str | None = None,
+    overwrite: bool = False,
+    dry_run: bool = True,
+    include_linked: bool = True,
+    check_media_exists: bool = False,
+) -> dict[str, Any]:
+    loaded = _load_timeline_from_allowed_output(timeline_file)
+    if isinstance(loaded, dict):
+        return loaded
+    timeline_path, document = loaded
+
+    target_ids = _edit_target_ids(document, clip_id, include_linked)
+    if isinstance(target_ids, dict):
+        return target_ids
+    clips_by_id = _clip_map(document)
+    primary = clips_by_id[clip_id]
+    split_at = float(split_at)
+    if split_at <= primary.timeline_in or split_at >= primary.timeline_out:
+        return _error(
+            "INVALID_TIMECODE",
+            "split_at must be inside the clip timeline range.",
+            clip_id=clip_id,
+            timeline_in=primary.timeline_in,
+            timeline_out=primary.timeline_out,
+        )
+
+    edited = document.model_copy(deep=True)
+    existing_ids = {clip.id for clip in edited.clips}
+    before = {"clips": {target_id: _clip_map(edited)[target_id].model_dump(mode="json", exclude_none=True) for target_id in target_ids}}
+    replacements: dict[str, tuple[TimelineClip, TimelineClip]] = {}
+    for target_id in target_ids:
+        clip = _clip_map(edited)[target_id]
+        source_split = round(clip.source_in + ((split_at - clip.timeline_in) * clip.speed), 6)
+        first_id = _unique_clip_id(existing_ids, f"{clip.id}_part1")
+        second_id = _unique_clip_id(existing_ids, f"{clip.id}_part2")
+        first = clip.model_copy(deep=True)
+        second = clip.model_copy(deep=True)
+        first.id = first_id
+        first.source_out = source_split
+        first.timeline_out = split_at
+        second.id = second_id
+        second.source_in = source_split
+        second.timeline_in = split_at
+        replacements[target_id] = (first, second)
+
+    if len(target_ids) == 2:
+        first_a, second_a = replacements[target_ids[0]]
+        first_b, second_b = replacements[target_ids[1]]
+        first_a.linked_clip_id = first_b.id
+        first_b.linked_clip_id = first_a.id
+        second_a.linked_clip_id = second_b.id
+        second_b.linked_clip_id = second_a.id
+    elif len(target_ids) == 1:
+        first, second = replacements[target_ids[0]]
+        first.linked_clip_id = None
+        second.linked_clip_id = None
+
+    new_clips: list[TimelineClip] = []
+    for clip in edited.clips:
+        replacement = replacements.get(clip.id)
+        if replacement is None:
+            new_clips.append(clip)
+        else:
+            new_clips.extend(replacement)
+    edited.clips = new_clips
+
+    try:
+        edited = TimelineDocument.model_validate(edited.model_dump(mode="json", exclude_none=True))
+    except ValidationError as exc:
+        return _error("INVALID_TIMELINE", f"Edited timeline is invalid: {exc}")
+    after_clip_ids = [clip.id for pair in replacements.values() for clip in pair]
+    after_clips = _clip_map(edited)
+    after = {
+        "split_at": split_at,
+        "clips": {target_id: after_clips[target_id].model_dump(mode="json", exclude_none=True) for target_id in after_clip_ids},
+    }
+    return _maybe_write_edited_timeline(
+        operation="split_timeline_clip",
+        source_path=timeline_path,
+        document=edited,
+        output_directory=output_directory,
+        name=name,
+        overwrite=overwrite,
+        dry_run=dry_run,
+        before=before,
+        after=after,
+        check_media_exists=check_media_exists,
+    )
 
 
 def export_timeline_to_mlt_xml(

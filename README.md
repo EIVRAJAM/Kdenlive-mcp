@@ -200,6 +200,9 @@ Audio y analisis:
 - `save_timeline`: guarda una timeline MCP como JSON.
 - `inspect_timeline`: carga y valida una timeline MCP guardada.
 - `validate_timeline`: valida solapes, duraciones, links y referencias media.
+- `trim_timeline_clip`: recorta un clip en una copia de timeline MCP con `dry_run`.
+- `move_timeline_clip`: mueve un clip en una copia de timeline MCP con `dry_run`.
+- `split_timeline_clip`: divide un clip en una copia de timeline MCP con `dry_run`.
 - `export_timeline_to_mlt_xml`: exporta una timeline MCP validada a MLT XML draft.
 - `export_timeline_to_kdenlive_template`: crea un `.kdenlive` draft desde una plantilla real y escribe guides/markers.
 - `create_vlog_rough_cut_project`: ejecuta el flujo carpeta -> plan -> timeline -> `.kdenlive`.

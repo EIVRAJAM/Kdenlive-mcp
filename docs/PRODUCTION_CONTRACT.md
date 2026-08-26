@@ -73,7 +73,7 @@ Required before calling it a broader editing automation layer.
 
 ```text
 multi-track timeline writing
-trim/split/move timeline operations
+trim/split/move export validation against more real Kdenlive projects
 round-trip tests for real Kdenlive projects
 undo/version restore workflow documented
 more Kdenlive metadata preserved and updated
@@ -426,6 +426,9 @@ create_timeline_from_rough_cut_plan
 save_timeline
 inspect_timeline
 validate_timeline
+trim_timeline_clip
+move_timeline_clip
+split_timeline_clip
 export_timeline_to_kdenlive_template
 create_vlog_rough_cut_project
 ```
@@ -525,6 +528,9 @@ create_timeline_from_rough_cut_plan
 save_timeline
 inspect_timeline
 validate_timeline
+trim_timeline_clip
+move_timeline_clip
+split_timeline_clip
 export_timeline_to_kdenlive_template
 create_vlog_rough_cut_project
 ```

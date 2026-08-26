@@ -841,6 +841,99 @@ Output:
 }
 ```
 
+### trim_timeline_clip
+
+Input:
+
+```json
+{
+  "timeline_file": "/home/abrahamc/Videos/vlog/timeline.timeline.json",
+  "clip_id": "clip_001_v",
+  "source_in": 0.4,
+  "source_out": 3.2,
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "name": "timeline_trim_001",
+  "dry_run": true,
+  "include_linked": true,
+  "check_media_exists": false
+}
+```
+
+Creates a proposed or persisted copy of the timeline with the clip shortened.
+It never edits `timeline_file` in place. When `include_linked=true`, the linked
+audio/video clip receives the same source range and timeline duration.
+
+The first implementation only supports shortening a clip. It refuses expansion
+because expansion can create unintended overlaps and should go through explicit
+add/move operations.
+
+### move_timeline_clip
+
+Input:
+
+```json
+{
+  "timeline_file": "/home/abrahamc/Videos/vlog/timeline.timeline.json",
+  "clip_id": "clip_002_v",
+  "timeline_in": 12.5,
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "name": "timeline_move_001",
+  "dry_run": false,
+  "include_linked": true,
+  "move_markers": true,
+  "check_media_exists": false
+}
+```
+
+Creates a copy of the timeline with the clip moved to a new timeline position.
+The duration is preserved. Linked clips move together by default, and markers
+inside the original clip range move by the same delta when `move_markers=true`.
+The tool validates overlaps before reporting success.
+
+### split_timeline_clip
+
+Input:
+
+```json
+{
+  "timeline_file": "/home/abrahamc/Videos/vlog/timeline.timeline.json",
+  "clip_id": "clip_001_v",
+  "split_at": 1.25,
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "name": "timeline_split_001",
+  "dry_run": false,
+  "include_linked": true,
+  "check_media_exists": false
+}
+```
+
+Creates a copy of the timeline where the target clip is replaced by two clips
+with stable derived IDs such as `clip_001_v_part1` and `clip_001_v_part2`.
+When the clip has a linked audio/video pair, both halves are linked to their
+matching counterpart. `split_at` must be inside the clip range.
+
+All three mutation tools return:
+
+```json
+{
+  "success": true,
+  "operation": "trim_timeline_clip",
+  "dry_run": true,
+  "source_timeline_file": "/home/abrahamc/Videos/vlog/timeline.timeline.json",
+  "timeline_file": null,
+  "would_write": "/home/abrahamc/Videos/vlog/timeline_trim_001.timeline.json",
+  "before": {},
+  "after": {},
+  "summary": {},
+  "validation": {},
+  "timeline": {}
+}
+```
+
+For `dry_run=false`, `timeline_file` contains the written copy. Invalid edits
+return structured errors such as `INVALID_CLIP`, `INVALID_TIMECODE`,
+`OUTPUT_EXISTS`, or `INVALID_TIMELINE`.
+
 ### export_timeline_to_mlt_xml
 
 Input:
