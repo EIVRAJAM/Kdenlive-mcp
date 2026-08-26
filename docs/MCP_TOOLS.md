@@ -13,9 +13,11 @@ user project in place.
 
 ```toml
 [mcp_servers.kdenlive]
-command = "python3"
-args = ["/data/PROYECTOS/kdenlive-mcp/src/kdenlive_mcp/server.py"]
+command = "kdenlive-mcp"
+args = []
 ```
+
+See `examples/codex_mcp_config.toml` for a full allowlist-aware example.
 
 ## Transport
 
@@ -1316,6 +1318,6 @@ to inspect or edit.
 
 ```bash
 python3 -m pytest
-python3 -m compileall src tests
-python3 src/kdenlive_mcp/server.py
+python3 -m compileall src
+scripts/dev_check.sh
 ```

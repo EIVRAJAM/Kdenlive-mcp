@@ -155,9 +155,11 @@ Configuracion MCP para Codex:
 
 ```toml
 [mcp_servers.kdenlive]
-command = "python3"
-args = ["/data/PROYECTOS/kdenlive-mcp/src/kdenlive_mcp/server.py"]
+command = "kdenlive-mcp"
+args = []
 ```
+
+Ver tambien `examples/codex_mcp_config.toml` y `docs/CODEX_SETUP.md`.
 
 ## Herramientas Disponibles
 
@@ -287,6 +289,8 @@ Ejecutar toda la suite:
 
 ```bash
 python3 -m pytest
+python3 -m compileall src
+scripts/dev_check.sh
 ```
 
 Pruebas por area:
@@ -309,6 +313,7 @@ probar tanto el caso permitido como el denegado.
 ## Documentacion Relacionada
 
 - `docs/ARCHITECTURE.md`: arquitectura y fronteras.
+- `docs/CODEX_SETUP.md`: instalacion local y configuracion MCP para Codex.
 - `docs/MCP_TOOLS.md`: contratos detallados de herramientas MCP.
 - `docs/PRODUCTION_CONTRACT.md`: funcionalidades indispensables antes de considerar el MCP apto para produccion.
 - `docs/VLOG_WORKFLOW.md`: guia practica para crear un rough cut `.kdenlive`.

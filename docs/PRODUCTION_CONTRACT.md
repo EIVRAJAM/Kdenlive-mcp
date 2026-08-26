@@ -565,12 +565,10 @@ The current codebase has the P0 workflow baseline automated. These gaps should
 still be closed before calling it production-ready:
 
 ```text
-1. Add a sample Codex MCP config file and exact install command.
-2. Add versioned schema documentation for rough-cut plan and timeline JSON.
-3. Add a Makefile or scripts/dev_check.sh command that runs the accepted checks.
-4. Add a release checklist that includes manual Kdenlive open verification.
-5. Run and record the 20-pass fixture workflow reliability check.
-6. Run and record one real user media folder validation.
+1. Add versioned schema documentation for rough-cut plan and timeline JSON.
+2. Add a release checklist that includes manual Kdenlive open verification.
+3. Run and record the 20-pass fixture workflow reliability check.
+4. Run and record one real user media folder validation.
 ```
 
 These are mandatory because they affect agent reliability, user trust, and
@@ -599,8 +597,8 @@ requires P1 operator-trust work and release evidence.
 
 ```text
 persistent structured logs: implemented
-scripts/dev_check.sh or Makefile validation command
-sample Codex MCP config
+scripts/dev_check.sh or Makefile validation command: implemented
+sample Codex MCP config: implemented
 release checklist with manual Kdenlive open verification
 schema docs for rough-cut plan JSON
 schema docs for timeline JSON
@@ -706,9 +704,12 @@ undocumented response schema changes
 A production-local-agent release must record the exact commands used:
 
 ```bash
-python3 -m pytest
-python3 -m compileall src
+scripts/dev_check.sh
+KDENLIVE_MCP_RUN_FIXTURE_WORKFLOW=1 scripts/dev_check.sh
 ```
+
+`scripts/dev_check.sh` runs `python3 -m compileall src` and
+`python3 -m pytest`.
 
 Project-load validation:
 
