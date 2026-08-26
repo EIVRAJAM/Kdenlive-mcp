@@ -149,9 +149,11 @@ The project has no persistent log file yet. When logging is added, it should
 record operation metadata, paths inside allowlists, durations, and structured
 errors, but avoid media content or secrets.
 
-## Future Project Editing Requirements
+## Project Editing Requirements
 
-Before any `.kdenlive` XML mutation exists, implement:
+The current `.kdenlive` writer is intentionally narrow: it creates derived
+draft files from a captured real Kdenlive template. It must keep these checks in
+place before expanding to broader timeline mutation:
 
 ```text
 XML validation

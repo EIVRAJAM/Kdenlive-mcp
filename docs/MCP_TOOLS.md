@@ -1,11 +1,13 @@
 # MCP Tools
 
-Current phase: intermediate manifest layer, read-only Kdenlive project
-inspection, non-destructive project backup/clone operations, and project locks.
+Current phase: media analysis, rough-cut planning, MCP timeline JSON,
+template-based `.kdenlive` draft generation, non-destructive project
+backup/clone operations, and project locks.
 
 The server is intentionally narrow. It exposes environment/version inspection
-and non-destructive media/manifest/project tools only. It can copy `.kdenlive`
-files, but it does not mutate Kdenlive XML yet.
+and non-destructive media/manifest/project tools. Its `.kdenlive` writer only
+creates derived draft files from a real template; it does not edit an existing
+user project in place.
 
 ## Codex Configuration
 

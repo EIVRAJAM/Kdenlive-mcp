@@ -11,10 +11,13 @@ destruir archivos originales.
 
 Estado actual: servidor MCP por STDIO, herramientas de entorno, herramientas de
 media, analisis de audio/video con FFmpeg, manifiestos JSON propios del MCP,
-inspeccion/validacion de proyectos Kdenlive en modo solo lectura, backups,
-clonado copy-on-write, listado/restauracion de versiones y locks por proyecto.
+inspeccion/validacion de proyectos Kdenlive, backups, clonado copy-on-write,
+listado/restauracion de versiones, locks por proyecto y generacion de drafts
+`.kdenlive` desde una plantilla real.
 
-Limite importante: el proyecto todavia no escribe ni muta XML `.kdenlive`.
+Limite importante: la escritura `.kdenlive` actual es un draft por plantilla.
+No edita proyectos existentes en sitio y todavia no cubre multiples pistas,
+efectos, transiciones, subtitulos ni proxies.
 
 ## Que Problema Resuelve
 
@@ -304,6 +307,7 @@ probar tanto el caso permitido como el denegado.
 
 - `docs/ARCHITECTURE.md`: arquitectura y fronteras.
 - `docs/MCP_TOOLS.md`: contratos detallados de herramientas MCP.
+- `docs/VLOG_WORKFLOW.md`: guia practica para crear un rough cut `.kdenlive`.
 - `docs/SECURITY.md`: modelo de seguridad y reglas de rutas.
 - `docs/ENVIRONMENT.md`: reconocimiento del entorno local.
 - `docs/KDENLIVE_PROJECT_FORMAT.md`: notas sobre el formato Kdenlive/MLT.
@@ -312,16 +316,15 @@ probar tanto el caso permitido como el denegado.
 
 ## Roadmap Tecnico
 
-Trabajo seguro antes de escribir `.kdenlive`:
+Trabajo seguro despues del primer writer `.kdenlive` por plantilla:
 
 1. Ampliar fixtures reales con mas trims, gaps, transiciones, efectos, proxies,
    multiples secuencias y audio/video desacoplado.
-2. Fortalecer el parser read-only para cubrir esos casos.
-3. Definir un modelo de dominio de timeline que no filtre XML al resto del
-   sistema.
-4. Implementar escritura solo en el adaptador Kdenlive, preservando propiedades
-   desconocidas.
-5. Validar cada escritura con parseo, referencias, carga MLT cuando sea posible
+2. Generalizar el writer para multiples pistas y targets sin depender solo de
+   `playlist0` y `playlist6`.
+3. Preservar y actualizar mas metadata de Kdenlive: grupos, guias, marcadores,
+   duraciones, thumbnails, proxies y propiedades de bin.
+4. Validar cada escritura con parseo, referencias, carga MLT cuando sea posible
    y round-trip contra fixtures.
 
 Hasta completar esos pasos, las herramientas deben seguir siendo

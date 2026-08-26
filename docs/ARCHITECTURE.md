@@ -14,14 +14,15 @@ Codex / AI agent
     -> Audio analysis tools
     -> Video analysis tools
     -> MCP project manifest
-    -> Read-only Kdenlive project inspector
+    -> Kdenlive project inspector/validator
+    -> Template-based .kdenlive draft writer
     -> Project backup/clone service
     -> Project lock service
       -> FFmpeg / ffprobe
       -> Kdenlive XML
 ```
 
-Planned write/editing scope:
+Expanded write/editing scope:
 
 ```text
 Codex / AI agent
@@ -116,9 +117,9 @@ subprocess.run([...], shell=False)
 
 No shell command strings should be assembled from user input.
 
-`kdenlive_xml.py` is currently read-only. It parses Kdenlive-generated
-`.kdenlive` files into structured project summaries and does not serialize or
-modify XML yet.
+`kdenlive_xml.py` parses Kdenlive-generated `.kdenlive` files into structured
+project summaries. It also owns the first limited writer path, which copies a
+real empty Kdenlive template and fills one observed audio/video playlist pair.
 
 ### Security
 
@@ -239,7 +240,7 @@ Location:
 src/kdenlive_mcp/adapters/kdenlive_xml.py
 ```
 
-The adapter owns read-only parsing now and should own writing later:
+The adapter owns parsing and the limited template writer:
 
 ```text
 XML parsing
@@ -252,7 +253,7 @@ validation of references and timings
 
 The rest of the system should use domain objects and services, not raw XML.
 
-## Required Before Kdenlive Writing
+## Kdenlive Writing Scope
 
 Real Kdenlive 26.04.3 reference files have been captured:
 
@@ -264,9 +265,13 @@ manual_trim_marker.kdenlive
 ```
 
 They confirm the basic structure of `main_bin`, sequences, tracks, media
-chains, timeline entries, groups, guides, and markers. `.kdenlive` writing
-remains intentionally blocked until additional samples confirm trimmed clips and
-gaps, and until round-trip preservation tests exist.
+chains, timeline entries, groups, guides, and markers.
+
+The first writer path is deliberately limited: it copies
+`manual_empty_vertical.kdenlive` and fills one observed audio/video playlist
+pair from a generated MCP timeline. Full `.kdenlive` editing remains blocked
+until additional samples confirm trimmed clips, gaps, multi-track edits, and
+round-trip preservation tests.
 
 ## Testing Strategy
 
