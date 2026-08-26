@@ -618,14 +618,15 @@ Release evidence recorded:
 20-pass fixture workflow reliability check: implemented and recorded in docs/RELEASE_EVIDENCE.md
 real user media folder validation: recorded in docs/RELEASE_EVIDENCE.md
 manual Kdenlive visual verification: recorded in docs/RELEASE_EVIDENCE.md
+edited timeline export validation: recorded in docs/RELEASE_EVIDENCE.md
 ```
 
 ### P2 - Editing Surface Expansion
 
 ```text
 multi-track writer
-trim/split/move operations against TimelineDocument
-round-trip tests for gaps and trims
+broader trim/split/move validation against more real Kdenlive project shapes
+round-trip tests for multi-track gaps, trims, and splits
 explicit undo/version restore workflow documentation
 ```
 

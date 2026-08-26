@@ -30,6 +30,34 @@ def _create_plan_file(monkeypatch, tmp_path: Path) -> Path:
     return Path(result["plan_file"])
 
 
+def _create_saved_timeline(monkeypatch, tmp_path: Path, name: str = "timeline") -> dict[str, object]:
+    plan_file = _create_plan_file(monkeypatch, tmp_path)
+    created = timeline_tools.create_timeline_from_rough_cut_plan(plan_file=str(plan_file))
+    saved = timeline_tools.save_timeline(created["timeline"], str(tmp_path), name=name)
+    assert saved["success"] is True
+    return saved
+
+
+def _export_project(monkeypatch, tmp_path: Path, timeline_file: str, name: str) -> dict[str, object]:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", f"{RECON_DIR}:{tmp_path}")
+    result = timeline_tools.export_timeline_to_kdenlive_template(
+        timeline_file=timeline_file,
+        template_project=str(RECON_DIR / "manual_empty_vertical.kdenlive"),
+        output_directory=str(tmp_path),
+        name=name,
+    )
+    assert result["success"] is True
+    return result
+
+
+def _timeline_clips_from_exported_project(project: str) -> list[dict[str, object]]:
+    inspection = timeline_service.KdenliveProjectAdapter().inspect(project)
+    active_sequence = next(
+        sequence for sequence in inspection["sequences"] if sequence["id"] == inspection["active_sequence_id"]
+    )
+    return active_sequence["timeline_clips"]
+
+
 def test_create_timeline_from_rough_cut_plan(monkeypatch, tmp_path: Path) -> None:
     plan_file = _create_plan_file(monkeypatch, tmp_path)
 
@@ -401,6 +429,72 @@ def test_export_timeline_to_kdenlive_template(monkeypatch, tmp_path: Path) -> No
     props = {prop.attrib["name"]: prop.text or "" for prop in sequence.findall("property")}
     assert '"comment": "rough_001"' in props["kdenlive:sequenceproperties.guides"]
     assert '"comment": "rough_002"' in props["kdenlive:markers"]
+
+
+def test_export_trimmed_timeline_to_kdenlive_template(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="trim_export_source")
+    trimmed = timeline_tools.trim_timeline_clip(
+        timeline_file=str(saved["timeline_file"]),
+        clip_id="clip_001_v",
+        source_out=2.0,
+        output_directory=str(tmp_path),
+        name="trim_export_timeline",
+        dry_run=False,
+    )
+    assert trimmed["success"] is True
+
+    exported = _export_project(monkeypatch, tmp_path, str(trimmed["timeline_file"]), "trim_export_project")
+
+    clips = _timeline_clips_from_exported_project(str(exported["project"]))
+    first_video = next(clip for clip in clips if clip["media_id"] == "4" and clip["start_frame"] == 0)
+    assert first_video["in_frame"] == 0
+    assert first_video["out_frame"] == 59
+    assert first_video["duration_frames"] == 60
+    assert exported["inspection_summary"]["timeline_clip_count"] == 4
+
+
+def test_export_moved_timeline_to_kdenlive_template_preserves_gap(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="move_export_source")
+    moved = timeline_tools.move_timeline_clip(
+        timeline_file=str(saved["timeline_file"]),
+        clip_id="clip_002_v",
+        timeline_in=4.0,
+        output_directory=str(tmp_path),
+        name="move_export_timeline",
+        dry_run=False,
+    )
+    assert moved["success"] is True
+
+    exported = _export_project(monkeypatch, tmp_path, str(moved["timeline_file"]), "move_export_project")
+
+    clips = _timeline_clips_from_exported_project(str(exported["project"]))
+    second_clip_starts = sorted(clip["start_frame"] for clip in clips if clip["media_id"] == "5")
+    assert second_clip_starts == [120, 120]
+    assert exported["inspection_summary"]["guide_count"] == 2
+
+
+def test_export_split_timeline_to_kdenlive_template(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="split_export_source")
+    split = timeline_tools.split_timeline_clip(
+        timeline_file=str(saved["timeline_file"]),
+        clip_id="clip_001_v",
+        split_at=1.25,
+        output_directory=str(tmp_path),
+        name="split_export_timeline",
+        dry_run=False,
+    )
+    assert split["success"] is True
+
+    exported = _export_project(monkeypatch, tmp_path, str(split["timeline_file"]), "split_export_project")
+
+    clips = _timeline_clips_from_exported_project(str(exported["project"]))
+    assert exported["inspection_summary"]["timeline_clip_count"] == 6
+    first_media_clips = sorted(
+        [clip for clip in clips if clip["media_id"] == "4"],
+        key=lambda clip: (clip["start_frame"], clip["playlist_id"]),
+    )
+    assert {clip["duration_frames"] for clip in first_media_clips} == {38, 52}
+    assert {clip["start_frame"] for clip in first_media_clips} == {0, 38}
 
 
 def test_export_timeline_to_kdenlive_template_detects_target_playlists(monkeypatch, tmp_path: Path) -> None:

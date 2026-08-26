@@ -207,3 +207,50 @@ Decision:
 Manual Kdenlive visual verification is satisfied for the generated real-user
 validation project.
 ```
+
+## 2026-08-26 Edited Timeline Export Validation
+
+Scope:
+
+```text
+P2 editing surface expansion
+```
+
+Validated behavior:
+
+```text
+trim_timeline_clip copy-on-write JSON mutation
+move_timeline_clip copy-on-write JSON mutation
+split_timeline_clip copy-on-write JSON mutation
+edited TimelineDocument export to .kdenlive template
+KdenliveProjectAdapter inspection of exported trim/move/split projects
+```
+
+Command:
+
+```bash
+scripts/dev_check.sh
+```
+
+Result:
+
+```text
+compileall: passed
+pytest: 127 passed in 22.75s
+```
+
+Specific integration coverage:
+
+```text
+test_export_trimmed_timeline_to_kdenlive_template
+test_export_moved_timeline_to_kdenlive_template_preserves_gap
+test_export_split_timeline_to_kdenlive_template
+```
+
+Decision:
+
+```text
+The MCP-owned timeline mutation layer can produce edited timeline JSON copies
+that export to structurally valid .kdenlive draft projects for the current
+single audio/video track template path.
+```
