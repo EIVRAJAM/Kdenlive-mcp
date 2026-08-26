@@ -431,6 +431,7 @@ update_timeline_track
 remove_timeline_track
 add_timeline_clip
 remove_timeline_clip
+duplicate_timeline_clip
 trim_timeline_clip
 move_timeline_clip
 split_timeline_clip
@@ -540,6 +541,7 @@ update_timeline_track
 remove_timeline_track
 add_timeline_clip
 remove_timeline_clip
+duplicate_timeline_clip
 trim_timeline_clip
 move_timeline_clip
 split_timeline_clip

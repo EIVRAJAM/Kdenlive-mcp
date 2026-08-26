@@ -952,6 +952,29 @@ audio/video clip is removed too. Remaining clips that pointed to a removed clip
 have `linked_clip_id` cleared before validation. If `remove_markers=true`,
 markers inside the removed clip range are deleted from the derived timeline.
 
+### duplicate_timeline_clip
+
+Input:
+
+```json
+{
+  "timeline_file": "/home/abrahamc/Videos/vlog/timeline.timeline.json",
+  "clip_id": "clip_002_v",
+  "timeline_in": 30.0,
+  "new_clip_id": "clip_hook_repeat_v",
+  "include_linked": true,
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "output_name": "timeline_duplicate_001",
+  "dry_run": false
+}
+```
+
+Duplicates a clip into a derived timeline. If `timeline_in` is omitted, the
+duplicate is appended at the current timeline end to avoid accidental overlap.
+When `include_linked=true`, the linked audio/video pair is duplicated and the
+new clips are linked to each other. Generated IDs are monotonic and do not
+reuse IDs deleted earlier in the same timeline.
+
 ### trim_timeline_clip
 
 Input:
@@ -1076,7 +1099,7 @@ Input:
 }
 ```
 
-Applies an ordered batch of `add`, `remove`, `trim`, `move`, and `split` operations to the
+Applies an ordered batch of `add`, `duplicate`, `remove`, `trim`, `move`, and `split` operations to the
 MCP-owned timeline, then validates the final result before writing one derived
 timeline JSON file. This is the preferred tool when an agent wants to execute a
 small edit plan without producing one intermediate file per operation.

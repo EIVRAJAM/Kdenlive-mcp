@@ -450,3 +450,52 @@ Decision:
 Agents can now build and revise MCP-owned timelines with add, remove, trim,
 move, and split operations before exporting to .kdenlive.
 ```
+
+## 2026-08-26 Timeline Clip Duplicate Validation
+
+Scope:
+
+```text
+P2 MCP-owned timeline clip duplication
+```
+
+Validated behavior:
+
+```text
+duplicate_timeline_clip duplicates clip references copy-on-write
+linked audio/video pairs are duplicated together by default
+duplicates append to timeline end when timeline_in is omitted
+overlapping duplicate requests fail before writing
+duplicated timelines export to .kdenlive template
+apply_timeline_edits supports duplicate operations
+tools/list exposes duplicate_timeline_clip
+```
+
+Command:
+
+```bash
+scripts/dev_check.sh
+```
+
+Result:
+
+```text
+compileall: passed
+pytest: 150 passed in 31.70s
+```
+
+Specific integration coverage:
+
+```text
+test_duplicate_timeline_clip_appends_linked_pair_by_default
+test_duplicate_timeline_clip_reports_overlap
+test_export_duplicated_timeline_to_kdenlive_template
+test_apply_timeline_edits_can_duplicate_clip
+```
+
+Decision:
+
+```text
+Agents can now duplicate existing timeline clips safely before further trim,
+move, split, remove, or export operations.
+```

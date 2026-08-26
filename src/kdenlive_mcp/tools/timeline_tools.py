@@ -7,6 +7,7 @@ from kdenlive_mcp.services.timeline_service import (
     apply_timeline_edits,
     create_timeline_from_rough_cut_plan,
     create_timeline_track,
+    duplicate_timeline_clip,
     export_timeline_to_mlt_xml,
     export_timeline_to_kdenlive_template,
     inspect_timeline,
@@ -186,6 +187,27 @@ TOOLS: dict[str, dict[str, Any]] = {
         },
         "handler": remove_timeline_clip,
     },
+    "duplicate_timeline_clip": {
+        "description": "Duplicate a clip in a copy of an MCP timeline, optionally duplicating its linked audio/video clip.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "timeline_file": {"type": "string"},
+                "clip_id": {"type": "string"},
+                "timeline_in": {"type": ["number", "null"], "default": None},
+                "new_clip_id": {"type": ["string", "null"], "default": None},
+                "include_linked": {"type": "boolean", "default": True},
+                "output_directory": {"type": ["string", "null"], "default": None},
+                "output_name": {"type": ["string", "null"], "default": None},
+                "overwrite": {"type": "boolean", "default": False},
+                "dry_run": {"type": "boolean", "default": True},
+                "check_media_exists": {"type": "boolean", "default": False},
+            },
+            "required": ["timeline_file", "clip_id"],
+            "additionalProperties": False,
+        },
+        "handler": duplicate_timeline_clip,
+    },
     "trim_timeline_clip": {
         "description": "Create a trimmed copy of one MCP timeline clip, optionally including its linked audio/video clip.",
         "inputSchema": {
@@ -249,7 +271,7 @@ TOOLS: dict[str, dict[str, Any]] = {
         "handler": split_timeline_clip,
     },
     "apply_timeline_edits": {
-        "description": "Apply an ordered batch of add/remove/trim/move/split operations to an MCP timeline as one validated copy-on-write transaction.",
+        "description": "Apply an ordered batch of add/duplicate/remove/trim/move/split operations to an MCP timeline as one validated copy-on-write transaction.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -259,8 +281,9 @@ TOOLS: dict[str, dict[str, Any]] = {
                     "items": {
                         "type": "object",
                         "properties": {
-                            "operation": {"type": "string", "enum": ["add", "remove", "trim", "move", "split"]},
+                            "operation": {"type": "string", "enum": ["add", "duplicate", "remove", "trim", "move", "split"]},
                             "clip_id": {"type": "string"},
+                            "new_clip_id": {"type": "string"},
                             "track_id": {"type": "string"},
                             "media": {"type": "string"},
                             "source_in": {"type": "number"},

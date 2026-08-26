@@ -284,6 +284,47 @@ def test_remove_timeline_clip_removes_linked_clip_and_marker(monkeypatch, tmp_pa
     assert {clip["id"] for clip in inspected["data"]["clips"]} == {"clip_002_v", "clip_002_a"}
 
 
+def test_duplicate_timeline_clip_appends_linked_pair_by_default(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="clip_duplicate_source")
+
+    result = timeline_tools.duplicate_timeline_clip(
+        timeline_file=str(saved["timeline_file"]),
+        clip_id="clip_001_v",
+        output_directory=str(tmp_path),
+        output_name="clip_duplicate_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is True
+    duplicated = result["after"]["clips"]
+    assert set(duplicated) == {"clip_003_v", "clip_003_a"}
+    assert duplicated["clip_003_v"]["linked_clip_id"] == "clip_003_a"
+    assert duplicated["clip_003_a"]["linked_clip_id"] == "clip_003_v"
+    assert duplicated["clip_003_v"]["timeline_in"] == 4.0
+    assert duplicated["clip_003_v"]["timeline_out"] == 7.0
+    inspected = timeline_tools.inspect_timeline(str(result["timeline_file"]))
+    assert inspected["summary"]["clip_count"] == 6
+    assert inspected["summary"]["duration"] == 7.0
+
+
+def test_duplicate_timeline_clip_reports_overlap(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="clip_duplicate_overlap_source")
+
+    result = timeline_tools.duplicate_timeline_clip(
+        timeline_file=str(saved["timeline_file"]),
+        clip_id="clip_001_v",
+        timeline_in=0.5,
+        output_directory=str(tmp_path),
+        output_name="clip_duplicate_overlap_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_TIMELINE"
+    assert "TIMELINE_OVERLAP" in {issue["code"] for issue in result["validation"]["issues"]}
+    assert not (tmp_path / "clip_duplicate_overlap_result.timeline.json").exists()
+
+
 def test_trim_timeline_clip_dry_run_does_not_write(monkeypatch, tmp_path: Path) -> None:
     plan_file = _create_plan_file(monkeypatch, tmp_path)
     created = timeline_tools.create_timeline_from_rough_cut_plan(plan_file=str(plan_file))
@@ -546,6 +587,25 @@ def test_apply_timeline_edits_can_add_and_remove_clips(monkeypatch, tmp_path: Pa
     }
 
 
+def test_apply_timeline_edits_can_duplicate_clip(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="batch_duplicate_source")
+
+    result = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[{"operation": "duplicate", "clip_id": "clip_002_v"}],
+        output_directory=str(tmp_path),
+        name="batch_duplicate_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is True
+    assert result["steps"][0]["operation"] == "duplicate"
+    inspected = timeline_tools.inspect_timeline(str(result["timeline_file"]))
+    assert inspected["summary"]["clip_count"] == 6
+    assert inspected["summary"]["duration"] == 5.0
+    assert {"clip_003_v", "clip_003_a"}.issubset({clip["id"] for clip in inspected["data"]["clips"]})
+
+
 def test_validate_timeline_detects_overlap(monkeypatch, tmp_path: Path) -> None:
     plan_file = _create_plan_file(monkeypatch, tmp_path)
     created = timeline_tools.create_timeline_from_rough_cut_plan(plan_file=str(plan_file))
@@ -770,6 +830,25 @@ def test_export_split_timeline_to_kdenlive_template(monkeypatch, tmp_path: Path)
     )
     assert {clip["duration_frames"] for clip in first_media_clips} == {38, 52}
     assert {clip["start_frame"] for clip in first_media_clips} == {0, 38}
+
+
+def test_export_duplicated_timeline_to_kdenlive_template(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="duplicate_export_source")
+    duplicated = timeline_tools.duplicate_timeline_clip(
+        timeline_file=str(saved["timeline_file"]),
+        clip_id="clip_002_v",
+        output_directory=str(tmp_path),
+        output_name="duplicate_export_timeline",
+        dry_run=False,
+    )
+    assert duplicated["success"] is True
+
+    exported = _export_project(monkeypatch, tmp_path, str(duplicated["timeline_file"]), "duplicate_export_project")
+
+    clips = _timeline_clips_from_exported_project(str(exported["project"]))
+    assert exported["inspection_summary"]["timeline_clip_count"] == 6
+    second_media_starts = sorted(clip["start_frame"] for clip in clips if clip["media_id"] == "5")
+    assert second_media_starts == [90, 90, 120, 120]
 
 
 def test_export_timeline_to_kdenlive_template_maps_extra_video_track(monkeypatch, tmp_path: Path) -> None:

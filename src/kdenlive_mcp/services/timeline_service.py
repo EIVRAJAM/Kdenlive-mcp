@@ -567,6 +567,61 @@ def _remove_document_clip(
     return edited, before, after
 
 
+def _duplicate_document_clip(
+    document: TimelineDocument,
+    clip_id: str,
+    timeline_in: float | None,
+    new_clip_id: str | None,
+    include_linked: bool,
+) -> tuple[TimelineDocument, dict[str, Any], dict[str, Any]] | dict[str, Any]:
+    target_ids = _edit_target_ids(document, clip_id, include_linked)
+    if isinstance(target_ids, dict):
+        return target_ids
+    if timeline_in is not None and timeline_in < 0:
+        return _error("INVALID_TIMECODE", "timeline_in must be zero or greater.")
+
+    edited = document.model_copy(deep=True)
+    clips_by_id = _clip_map(edited)
+    originals = [clips_by_id[target_id] for target_id in target_ids]
+    primary = clips_by_id[clip_id]
+    destination_start = document.duration if timeline_in is None else float(timeline_in)
+    delta = round(destination_start - primary.timeline_in, 6)
+    existing_ids = {clip.id for clip in edited.clips}
+    base = _next_clip_base(edited)
+    duplicates: list[TimelineClip] = []
+
+    for original in originals:
+        duplicate = original.model_copy(deep=True)
+        if original.id == clip_id and new_clip_id:
+            if new_clip_id in existing_ids:
+                return _error("INVALID_CLIP", f"Clip already exists: {new_clip_id}")
+            duplicate.id = new_clip_id
+            existing_ids.add(new_clip_id)
+        else:
+            suffix = "_a" if _track_map(edited)[original.track_id].type == "audio" else "_v"
+            duplicate.id = _unique_clip_id(existing_ids, f"{base}{suffix}")
+        duplicate.timeline_in = round(original.timeline_in + delta, 6)
+        duplicate.timeline_out = round(original.timeline_out + delta, 6)
+        duplicate.linked_clip_id = None
+        duplicates.append(duplicate)
+
+    if len(duplicates) == 2:
+        duplicates[0].linked_clip_id = duplicates[1].id
+        duplicates[1].linked_clip_id = duplicates[0].id
+
+    before = {"clips": {clip.id: clip.model_dump(mode="json", exclude_none=True) for clip in originals}}
+    edited.clips.extend(duplicates)
+    try:
+        edited = TimelineDocument.model_validate(edited.model_dump(mode="json", exclude_none=True))
+    except ValidationError as exc:
+        return _error("INVALID_TIMELINE", f"Edited timeline is invalid: {exc}")
+    after = {
+        "clips": {clip.id: clip.model_dump(mode="json", exclude_none=True) for clip in duplicates},
+        "delta": delta,
+    }
+    return edited, before, after
+
+
 def _validate_rough_cut_plan(plan: Any) -> dict[str, Any] | None:
     if not isinstance(plan, dict):
         return _error("INVALID_ROUGH_CUT_PLAN", "Rough cut plan must be a JSON object.")
@@ -1213,6 +1268,40 @@ def remove_timeline_clip(
     )
 
 
+def duplicate_timeline_clip(
+    timeline_file: str,
+    clip_id: str,
+    timeline_in: float | None = None,
+    new_clip_id: str | None = None,
+    include_linked: bool = True,
+    output_directory: str | None = None,
+    output_name: str | None = None,
+    overwrite: bool = False,
+    dry_run: bool = True,
+    check_media_exists: bool = False,
+) -> dict[str, Any]:
+    loaded = _load_timeline_from_allowed_output(timeline_file)
+    if isinstance(loaded, dict):
+        return loaded
+    timeline_path, document = loaded
+    edited_result = _duplicate_document_clip(document, clip_id, timeline_in, new_clip_id, include_linked)
+    if isinstance(edited_result, dict):
+        return edited_result
+    edited, before, after = edited_result
+    return _maybe_write_edited_timeline(
+        operation="duplicate_timeline_clip",
+        source_path=timeline_path,
+        document=edited,
+        output_directory=output_directory,
+        name=output_name,
+        overwrite=overwrite,
+        dry_run=dry_run,
+        before=before,
+        after=after,
+        check_media_exists=check_media_exists,
+    )
+
+
 def apply_timeline_edits(
     timeline_file: str,
     edits: list[dict[str, Any]],
@@ -1267,6 +1356,15 @@ def apply_timeline_edits(
                 require_media_exists=check_media_exists,
             )
             step_clip_id = clip_id or str(edit.get("track_id"))
+        elif operation == "duplicate":
+            edited_result = _duplicate_document_clip(
+                document=document,
+                clip_id=clip_id,
+                timeline_in=edit.get("timeline_in"),
+                new_clip_id=edit.get("new_clip_id"),
+                include_linked=bool(edit.get("include_linked", True)),
+            )
+            step_clip_id = clip_id
         elif operation == "remove":
             edited_result = _remove_document_clip(
                 document=document,
@@ -1310,7 +1408,7 @@ def apply_timeline_edits(
                 "INVALID_ARGUMENT",
                 f"Unsupported timeline edit operation: {operation}",
                 failed_step=index,
-                supported_operations=["add", "remove", "trim", "move", "split"],
+                supported_operations=["add", "duplicate", "remove", "trim", "move", "split"],
                 steps=steps,
             )
 
