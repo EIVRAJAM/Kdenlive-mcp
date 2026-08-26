@@ -36,6 +36,13 @@ notifications/*
 
 `resources/list` and `prompts/list` currently return empty lists.
 
+## Logging
+
+Every `tools/call` writes one JSON Lines record to `KDENLIVE_MCP_LOG_FILE`,
+defaulting to `logs/kdenlive-mcp.log`. Set `KDENLIVE_MCP_LOG_FILE=off` to
+disable persistent logs. Logs are never written to STDOUT, preserving MCP
+framing.
+
 ## Tools
 
 ### health_check

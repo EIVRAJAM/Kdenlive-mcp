@@ -90,6 +90,7 @@ export KDENLIVE_MCP_ALLOWED_MEDIA_DIRS=/home/usuario/Videos
 export KDENLIVE_MCP_ALLOWED_PROJECT_DIRS=/home/usuario/Videos
 export KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS=/home/usuario/Videos:/tmp
 export KDENLIVE_MCP_FLATPAK_ID=org.kde.kdenlive
+export KDENLIVE_MCP_LOG_FILE=logs/kdenlive-mcp.log
 ```
 
 Categorias:
@@ -99,6 +100,8 @@ Categorias:
   consideradas validas para proyectos.
 - `allowed_output_directories`: escritura de derivados, manifiestos, backups y
   locks.
+- `KDENLIVE_MCP_LOG_FILE`: log JSON Lines de llamadas a herramientas. Usar
+  `off` para desactivarlo.
 
 Las rutas se expanden y resuelven antes de validarse. Intentos como
 `../outside.mp4` quedan fuera del root permitido y devuelven:

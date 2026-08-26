@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 import traceback
 from pathlib import Path
 from typing import Any, BinaryIO
@@ -10,6 +11,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from kdenlive_mcp import __version__
+from kdenlive_mcp.logging import append_tool_log
 from kdenlive_mcp.tools.analysis_tools import TOOLS as ANALYSIS_TOOLS
 from kdenlive_mcp.tools.audio_tools import TOOLS as AUDIO_TOOLS
 from kdenlive_mcp.tools.environment_tools import TOOLS as ENVIRONMENT_TOOLS
@@ -110,7 +112,7 @@ def _tool_definitions() -> list[dict[str, Any]]:
     ]
 
 
-def _call_tool(params: dict[str, Any]) -> dict[str, Any]:
+def _call_tool(params: dict[str, Any], request_id: Any = None) -> dict[str, Any]:
     name = params.get("name")
     if not isinstance(name, str):
         raise McpError(-32602, "Tool name is required")
@@ -120,6 +122,7 @@ def _call_tool(params: dict[str, Any]) -> dict[str, Any]:
     arguments = params.get("arguments") or {}
     if not isinstance(arguments, dict):
         raise McpError(-32602, "Tool arguments must be an object")
+    start = time.perf_counter()
     try:
         result = TOOLS[name]["handler"](**arguments)
     except TypeError as exc:
@@ -131,6 +134,17 @@ def _call_tool(params: dict[str, Any]) -> dict[str, Any]:
             "message": str(exc),
             "traceback": traceback.format_exc(),
         }
+    duration_ms = (time.perf_counter() - start) * 1000
+    try:
+        append_tool_log(
+            request_id=request_id,
+            tool_name=name,
+            arguments=arguments,
+            result=result,
+            duration_ms=duration_ms,
+        )
+    except Exception:
+        pass
 
     is_error = not bool(result.get("success", False))
     return {
@@ -173,7 +187,7 @@ def handle_request(message: dict[str, Any]) -> dict[str, Any] | None:
     if method == "tools/list":
         return _response(message_id, {"tools": _tool_definitions()})
     if method == "tools/call":
-        return _response(message_id, _call_tool(params))
+        return _response(message_id, _call_tool(params, request_id=message_id))
     if method == "resources/list":
         return _response(message_id, {"resources": []})
     if method == "prompts/list":

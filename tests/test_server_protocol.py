@@ -4,6 +4,7 @@ import io
 import json
 
 from kdenlive_mcp.server import handle_request, read_message, write_message
+from kdenlive_mcp.logging import append_tool_log
 
 
 def _framed(payload: dict[str, object]) -> bytes:
@@ -87,3 +88,66 @@ def test_tools_call_health_check() -> None:
     assert result["isError"] is False
     text = result["content"][0]["text"]
     assert json.loads(text)["success"] is True
+
+
+def test_tools_call_writes_structured_log(monkeypatch, tmp_path) -> None:
+    log_file = tmp_path / "kdenlive-mcp.log"
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", str(log_file))
+
+    response = handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": "log-test",
+            "method": "tools/call",
+            "params": {"name": "health_check", "arguments": {}},
+        }
+    )
+
+    assert response is not None
+    assert response["result"]["isError"] is False
+    records = [json.loads(line) for line in log_file.read_text(encoding="utf-8").splitlines()]
+    assert len(records) == 1
+    assert records[0]["event"] == "tool_call"
+    assert records[0]["request_id"] == "log-test"
+    assert records[0]["operation"] == "health_check"
+    assert records[0]["success"] is True
+    assert records[0]["arguments"] == {}
+    assert isinstance(records[0]["duration_ms"], float)
+
+
+def test_structured_log_redacts_sensitive_arguments(monkeypatch, tmp_path) -> None:
+    log_file = tmp_path / "redacted.log"
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", str(log_file))
+
+    append_tool_log(
+        request_id=1,
+        tool_name="example",
+        arguments={"api_key": "secret-value", "nested": {"password": "hidden", "name": "kept"}},
+        result={"success": False, "error": "EXAMPLE_ERROR"},
+        duration_ms=1.25,
+    )
+
+    record = json.loads(log_file.read_text(encoding="utf-8"))
+    assert record["arguments"] == {
+        "api_key": "[REDACTED]",
+        "nested": {"password": "[REDACTED]", "name": "kept"},
+    }
+    assert record["error"] == "EXAMPLE_ERROR"
+
+
+def test_tools_call_logging_can_be_disabled(monkeypatch, tmp_path) -> None:
+    log_file = tmp_path / "disabled.log"
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", "off")
+
+    response = handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": "log-disabled",
+            "method": "tools/call",
+            "params": {"name": "health_check", "arguments": {}},
+        }
+    )
+
+    assert response is not None
+    assert response["result"]["isError"] is False
+    assert not log_file.exists()

@@ -145,9 +145,13 @@ contents of private documents
 arbitrary files outside allowlists
 ```
 
-The project has no persistent log file yet. When logging is added, it should
-record operation metadata, paths inside allowlists, durations, and structured
-errors, but avoid media content or secrets.
+Persistent logging writes JSON Lines to `KDENLIVE_MCP_LOG_FILE`, defaulting to
+`logs/kdenlive-mcp.log`. Use `KDENLIVE_MCP_LOG_FILE=off` to disable it.
+
+Logs record operation metadata, tool arguments, derived artifact paths,
+durations, success state, and structured errors. Argument keys containing
+`token`, `secret`, `password`, `key`, or `credential` are redacted. Logs must
+not be written to STDOUT because that would corrupt MCP framing.
 
 ## Project Editing Requirements
 

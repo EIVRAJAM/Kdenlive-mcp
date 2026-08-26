@@ -565,13 +565,12 @@ The current codebase has the P0 workflow baseline automated. These gaps should
 still be closed before calling it production-ready:
 
 ```text
-1. Add persistent structured logging outside STDIO.
-2. Add a sample Codex MCP config file and exact install command.
-3. Add versioned schema documentation for rough-cut plan and timeline JSON.
-4. Add a Makefile or scripts/dev_check.sh command that runs the accepted checks.
-5. Add a release checklist that includes manual Kdenlive open verification.
-6. Run and record the 20-pass fixture workflow reliability check.
-7. Run and record one real user media folder validation.
+1. Add a sample Codex MCP config file and exact install command.
+2. Add versioned schema documentation for rough-cut plan and timeline JSON.
+3. Add a Makefile or scripts/dev_check.sh command that runs the accepted checks.
+4. Add a release checklist that includes manual Kdenlive open verification.
+5. Run and record the 20-pass fixture workflow reliability check.
+6. Run and record one real user media folder validation.
 ```
 
 These are mandatory because they affect agent reliability, user trust, and
@@ -599,7 +598,7 @@ requires P1 operator-trust work and release evidence.
 ### P1 - Operator Trust
 
 ```text
-persistent structured logs
+persistent structured logs: implemented
 scripts/dev_check.sh or Makefile validation command
 sample Codex MCP config
 release checklist with manual Kdenlive open verification
