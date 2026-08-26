@@ -531,10 +531,13 @@ class KdenliveProjectAdapter:
         playlists = {element.attrib["id"]: element for element in root.findall("playlist") if "id" in element.attrib}
         tractors = {element.attrib["id"]: element for element in root.findall("tractor") if "id" in element.attrib}
         main_bin = playlists.get("main_bin")
-        audio_playlist = playlists.get("playlist0")
-        video_playlist = playlists.get("playlist6")
-        if main_bin is None or audio_playlist is None or video_playlist is None:
-            raise KdenliveProjectError("INVALID_PROJECT", "Template is missing required main/audio/video playlists")
+        if main_bin is None:
+            raise KdenliveProjectError("INVALID_PROJECT", "Template is missing required main_bin playlist")
+
+        sequence_tractor = self._active_sequence_tractor(main_bin, list(tractors.values()))
+        audio_playlist, video_playlist = self._target_timeline_playlists(sequence_tractor, tractors, playlists)
+        if audio_playlist is None or video_playlist is None:
+            raise KdenliveProjectError("INVALID_PROJECT", "Template is missing editable audio/video target playlists")
 
         for chain in root.findall("chain"):
             root.remove(chain)
@@ -636,7 +639,6 @@ class KdenliveProjectAdapter:
                 _set_property(tractor, "kdenlive:duration", project_out)
                 _set_property(tractor, "kdenlive:maxduration", max(1, int(round(timeline.duration * fps_num / fps_den))))
 
-        sequence_tractor = self._active_sequence_tractor(main_bin, list(tractors.values()))
         if sequence_tractor is not None:
             markers_json = _timeline_markers_json(timeline, fps_num, fps_den)
             _set_property(sequence_tractor, "kdenlive:sequenceproperties.guides", markers_json)
@@ -665,3 +667,34 @@ class KdenliveProjectAdapter:
             if props.get("kdenlive:producer_type") == "17":
                 return tractor
         return None
+
+    def _target_timeline_playlists(
+        self,
+        sequence_tractor: ET.Element | None,
+        tractors: dict[str, ET.Element],
+        playlists: dict[str, ET.Element],
+    ) -> tuple[ET.Element | None, ET.Element | None]:
+        if sequence_tractor is None:
+            return None, None
+
+        audio_candidates: list[ET.Element] = []
+        video_candidates: list[ET.Element] = []
+        for track in sequence_tractor.findall("track"):
+            nested = tractors.get(track.attrib.get("producer") or "")
+            if nested is None:
+                continue
+            for branch in nested.findall("track"):
+                playlist = playlists.get(branch.attrib.get("producer") or "")
+                if playlist is None:
+                    continue
+                kind = self._branch_kind(branch.attrib.get("hide"))
+                if kind == "audio":
+                    audio_candidates.append(playlist)
+                elif kind == "video":
+                    video_candidates.append(playlist)
+
+        audio_playlist = audio_candidates[0] if audio_candidates else None
+        # Kdenlive's captured vertical template orders video branches bottom-to-top;
+        # the active V1 target is the first branch of the top editable video tractor.
+        video_playlist = video_candidates[-2] if len(video_candidates) >= 2 else (video_candidates[0] if video_candidates else None)
+        return audio_playlist, video_playlist

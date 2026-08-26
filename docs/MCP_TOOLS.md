@@ -881,7 +881,8 @@ Input:
 ```
 
 Creates a derived `.kdenlive` draft by copying a real Kdenlive template and
-filling the observed audio/video playlists with clips from the MCP timeline.
+filling a detected editable audio/video playlist pair with clips from the MCP
+timeline.
 Timeline markers are serialized into the active Kdenlive sequence as both
 `kdenlive:sequenceproperties.guides` and `kdenlive:markers`, matching the
 observed Kdenlive JSON property shape.
@@ -889,9 +890,8 @@ observed Kdenlive JSON property shape.
 Current constraints:
 
 ```text
-template must contain main_bin, playlist0, playlist6, tractor4
-one audio track target: playlist0
-one video track target: playlist6
+template must contain main_bin and an active Kdenlive sequence tractor
+one audio/video playlist pair is detected from that active sequence
 no effects, transitions, subtitles, proxies, or track renames
 unknown template XML is preserved where possible
 ```

@@ -261,6 +261,46 @@ def test_export_timeline_to_kdenlive_template(monkeypatch, tmp_path: Path) -> No
     assert '"comment": "rough_002"' in props["kdenlive:markers"]
 
 
+def test_export_timeline_to_kdenlive_template_detects_target_playlists(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", f"{RECON_DIR}:{tmp_path}")
+    plan_file = _create_plan_file(monkeypatch, tmp_path)
+    created = timeline_tools.create_timeline_from_rough_cut_plan(plan_file=str(plan_file))
+    saved = timeline_tools.save_timeline(
+        timeline=created["timeline"],
+        output_directory=str(tmp_path),
+        name="custom_targets_timeline",
+    )
+    template_path = tmp_path / "custom_target_template.kdenlive"
+    tree = ET.parse(RECON_DIR / "manual_empty_vertical.kdenlive")
+    root = tree.getroot()
+    root.find("playlist[@id='playlist0']").attrib["id"] = "audio_primary"
+    root.find("playlist[@id='playlist6']").attrib["id"] = "video_primary"
+    for track in root.findall(".//track"):
+        if track.attrib.get("producer") == "playlist0":
+            track.attrib["producer"] = "audio_primary"
+        elif track.attrib.get("producer") == "playlist6":
+            track.attrib["producer"] = "video_primary"
+    tree.write(template_path, encoding="utf-8", xml_declaration=True)
+
+    result = timeline_tools.export_timeline_to_kdenlive_template(
+        timeline_file=str(saved["timeline_file"]),
+        template_project=str(template_path),
+        output_directory=str(tmp_path),
+        name="custom_target_project",
+    )
+
+    assert result["success"] is True
+    exported = ET.parse(result["project"]).getroot()
+    audio_playlist = exported.find("playlist[@id='audio_primary']")
+    video_playlist = exported.find("playlist[@id='video_primary']")
+    assert audio_playlist is not None
+    assert video_playlist is not None
+    assert len(audio_playlist.findall("entry")) == 2
+    assert len(video_playlist.findall("entry")) == 2
+    assert exported.find("playlist[@id='playlist0']") is None
+    assert exported.find("playlist[@id='playlist6']") is None
+
+
 def test_export_timeline_to_kdenlive_template_refuses_existing(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", f"{RECON_DIR}:{tmp_path}")
     plan_file = _create_plan_file(monkeypatch, tmp_path)

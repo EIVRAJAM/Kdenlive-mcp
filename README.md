@@ -320,8 +320,8 @@ Trabajo seguro despues del primer writer `.kdenlive` por plantilla:
 
 1. Ampliar fixtures reales con mas trims, gaps, transiciones, efectos, proxies,
    multiples secuencias y audio/video desacoplado.
-2. Generalizar el writer para multiples pistas y targets sin depender solo de
-   `playlist0` y `playlist6`.
+2. Generalizar el writer para multiples pistas editables, no solo un par
+   audio/video detectado desde la plantilla.
 3. Preservar y actualizar mas metadata de Kdenlive: grupos, guias, marcadores,
    duraciones, thumbnails, proxies y propiedades de bin.
 4. Validar cada escritura con parseo, referencias, carga MLT cuando sea posible

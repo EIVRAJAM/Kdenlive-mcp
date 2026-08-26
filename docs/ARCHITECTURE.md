@@ -268,10 +268,10 @@ They confirm the basic structure of `main_bin`, sequences, tracks, media
 chains, timeline entries, groups, guides, and markers.
 
 The first writer path is deliberately limited: it copies
-`manual_empty_vertical.kdenlive` and fills one observed audio/video playlist
-pair from a generated MCP timeline. Full `.kdenlive` editing remains blocked
-until additional samples confirm trimmed clips, gaps, multi-track edits, and
-round-trip preservation tests.
+`manual_empty_vertical.kdenlive`, detects one editable audio/video playlist pair
+from the active sequence, and fills it from a generated MCP timeline. Full
+`.kdenlive` editing remains blocked until additional samples confirm trimmed
+clips, gaps, multi-track edits, and round-trip preservation tests.
 
 ## Testing Strategy
 
