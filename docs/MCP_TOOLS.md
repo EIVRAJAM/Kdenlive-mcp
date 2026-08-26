@@ -914,7 +914,9 @@ Input:
   "name": "vlog_ai_001",
   "target_duration": 60,
   "remove_silence": true,
-  "overwrite": false
+  "overwrite": false,
+  "check_mlt": false,
+  "mlt_timeout": 20
 }
 ```
 
@@ -925,11 +927,17 @@ create_rough_cut_plan_file
 create_timeline_from_rough_cut_plan
 save_timeline
 export_timeline_to_kdenlive_template
+optional Flatpak melt validation when check_mlt=true
 ```
 
 Output includes the generated rough-cut plan JSON, timeline JSON, final
 `.kdenlive` draft path, and per-step summaries. If a step fails, the response
-includes `failed_step` and the original structured step result.
+includes `failed_step`, `partial_outputs`, and the original structured step
+result.
+
+When `check_mlt` is true, MLT load validation is included under
+`steps.mlt_load`. A real MLT failure fails the workflow. A Codex sandbox
+execution block is returned as a warning with `valid: null`.
 
 ## Manifest Tools
 

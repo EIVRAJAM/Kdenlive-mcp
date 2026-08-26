@@ -561,20 +561,17 @@ zero unstructured tool failures are allowed in production workflows
 
 ## Required Before Calling It Production
 
-The current codebase is close to a local alpha. These gaps should be closed
-before calling it production-ready:
+The current codebase has the P0 workflow baseline automated. These gaps should
+still be closed before calling it production-ready:
 
 ```text
-1. Add an automated end-to-end test for create_vlog_rough_cut_project.
-2. Add original-media checksum assertions around the workflow.
-3. Add strict partial-output cleanup or explicit partial-output reporting.
-4. Add validation that every generated .kdenlive write passes inspect_project.
-5. Add optional check_mlt validation directly to the workflow.
-6. Add persistent structured logging outside STDIO.
-7. Add a sample Codex MCP config file and exact install command.
-8. Add versioned schema documentation for rough-cut plan and timeline JSON.
-9. Add a Makefile or scripts/dev_check.sh command that runs the accepted checks.
-10. Add a release checklist that includes manual Kdenlive open verification.
+1. Add persistent structured logging outside STDIO.
+2. Add a sample Codex MCP config file and exact install command.
+3. Add versioned schema documentation for rough-cut plan and timeline JSON.
+4. Add a Makefile or scripts/dev_check.sh command that runs the accepted checks.
+5. Add a release checklist that includes manual Kdenlive open verification.
+6. Run and record the 20-pass fixture workflow reliability check.
+7. Run and record one real user media folder validation.
 ```
 
 These are mandatory because they affect agent reliability, user trust, and
@@ -588,15 +585,16 @@ P0 and P1 are complete.
 ### P0 - Production Gate
 
 ```text
-automated end-to-end workflow test
-original media checksum assertions
-workflow-level inspect_project validation
-workflow-level optional check_mlt validation
-partial-output reporting or cleanup
+automated end-to-end workflow test: implemented
+original media checksum assertions: implemented
+workflow-level inspect_project validation: implemented through .kdenlive export
+workflow-level optional check_mlt validation: implemented
+partial-output reporting or cleanup: implemented as explicit partial-output reporting
 ```
 
 This is the smallest set that turns the current alpha workflow into a dependable
-agent workflow.
+agent workflow. P0 is implemented at test level, but production release still
+requires P1 operator-trust work and release evidence.
 
 ### P1 - Operator Trust
 

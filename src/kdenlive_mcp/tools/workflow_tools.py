@@ -28,6 +28,8 @@ TOOLS: dict[str, dict[str, Any]] = {
                 "width": {"type": "integer", "default": 1080},
                 "height": {"type": "integer", "default": 1920},
                 "overwrite": {"type": "boolean", "default": False},
+                "check_mlt": {"type": "boolean", "default": False},
+                "mlt_timeout": {"type": "number", "default": 20.0},
             },
             "required": ["folder", "template_project", "output_directory"],
             "additionalProperties": False,

@@ -74,7 +74,9 @@ request = {
             "silence_minimum_duration": 0.8,
             "padding_before": 0.15,
             "padding_after": 0.15,
-            "overwrite": False
+            "overwrite": False,
+            "check_mlt": False,
+            "mlt_timeout": 20
         }
     }
 }
@@ -96,7 +98,14 @@ Expected successful shape:
     "rough_cut_plan": "...rough-cut-plan.json",
     "timeline": "...timeline.json",
     "kdenlive_project": "...kdenlive"
-  }
+  },
+  "steps": {
+    "mlt_load": {
+      "checked": false,
+      "valid": null
+    }
+  },
+  "warnings": []
 }
 ```
 
@@ -107,9 +116,14 @@ If any step fails, the response includes:
   "success": false,
   "failed_step": "create_rough_cut_plan_file",
   "error": "OUTPUT_EXISTS",
-  "step_result": {}
+  "step_result": {},
+  "partial_outputs": {}
 }
 ```
+
+Set `check_mlt` to `True` when you want the workflow itself to load-test the
+generated project through the Flatpak `melt` binary. In restricted Codex
+sandboxes this can be reported as a warning instead of a hard failure.
 
 ## 4. Validate With Flatpak Melt
 
