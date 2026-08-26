@@ -565,9 +565,8 @@ The current codebase has the P0 workflow baseline automated. These gaps should
 still be closed before calling it production-ready:
 
 ```text
-1. Add a release checklist that includes manual Kdenlive open verification.
-2. Run and record the 20-pass fixture workflow reliability check.
-3. Run and record one real user media folder validation.
+1. Run and record the 20-pass fixture workflow reliability check.
+2. Run and record one real user media folder validation.
 ```
 
 These are mandatory because they affect agent reliability, user trust, and
@@ -598,7 +597,7 @@ requires P1 operator-trust work and release evidence.
 persistent structured logs: implemented
 scripts/dev_check.sh or Makefile validation command: implemented
 sample Codex MCP config: implemented
-release checklist with manual Kdenlive open verification
+release checklist with manual Kdenlive open verification: implemented
 schema docs for rough-cut plan JSON: implemented
 schema docs for timeline JSON: implemented
 ```
