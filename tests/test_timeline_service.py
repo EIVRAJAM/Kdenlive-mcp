@@ -668,6 +668,68 @@ def test_export_split_timeline_to_kdenlive_template(monkeypatch, tmp_path: Path)
     assert {clip["start_frame"] for clip in first_media_clips} == {0, 38}
 
 
+def test_export_timeline_to_kdenlive_template_maps_extra_video_track(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", f"{RECON_DIR}:{tmp_path}")
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="multi_track_source")
+    inspected = timeline_tools.inspect_timeline(str(saved["timeline_file"]))
+    timeline = inspected["data"]
+    timeline["tracks"].append({"id": "track_v2", "type": "video", "name": "B-roll"})
+    first_video = next(clip for clip in timeline["clips"] if clip["id"] == "clip_001_v")
+    timeline["clips"].append(
+        {
+            **first_video,
+            "id": "clip_broll_001",
+            "track_id": "track_v2",
+            "source_out": 1.0,
+            "timeline_out": 1.0,
+            "linked_clip_id": None,
+            "reason": "overlay",
+        }
+    )
+    path = timeline_service.timeline_path_for(tmp_path, "multi_track_timeline")
+    timeline_service.save_timeline_document(path, TimelineDocument.model_validate(timeline))
+
+    result = timeline_tools.export_timeline_to_kdenlive_template(
+        timeline_file=str(path),
+        template_project=str(RECON_DIR / "manual_empty_vertical.kdenlive"),
+        output_directory=str(tmp_path),
+        name="multi_track_project",
+    )
+
+    assert result["success"] is True
+    assert result["write_result"]["track_playlist_map"]["track_v1"] != result["write_result"]["track_playlist_map"]["track_v2"]
+    assert result["inspection_summary"]["timeline_clip_count"] == 5
+    clips = _timeline_clips_from_exported_project(str(result["project"]))
+    extra_clip_playlist = result["write_result"]["track_playlist_map"]["track_v2"]
+    assert any(clip["playlist_id"] == extra_clip_playlist for clip in clips)
+
+
+def test_export_timeline_to_kdenlive_template_refuses_more_tracks_than_template(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", f"{RECON_DIR}:{tmp_path}")
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="too_many_tracks_source")
+    inspected = timeline_tools.inspect_timeline(str(saved["timeline_file"]))
+    timeline = inspected["data"]
+    for index in range(2, 7):
+        timeline["tracks"].append({"id": f"track_v{index}", "type": "video", "name": f"Video {index}"})
+    path = timeline_service.timeline_path_for(tmp_path, "too_many_tracks_timeline")
+    timeline_service.save_timeline_document(path, TimelineDocument.model_validate(timeline))
+
+    result = timeline_tools.export_timeline_to_kdenlive_template(
+        timeline_file=str(path),
+        template_project=str(RECON_DIR / "manual_empty_vertical.kdenlive"),
+        output_directory=str(tmp_path),
+        name="too_many_tracks_project",
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "UNSUPPORTED_TIMELINE"
+    assert "editable video playlists" in result["message"]
+    assert not (tmp_path / "too_many_tracks_project.kdenlive").exists()
+
+
 def test_export_timeline_to_kdenlive_template_detects_target_playlists(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", f"{RECON_DIR}:{tmp_path}")
     plan_file = _create_plan_file(monkeypatch, tmp_path)

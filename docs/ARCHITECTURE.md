@@ -272,11 +272,13 @@ manual_trim_marker.kdenlive
 They confirm the basic structure of `main_bin`, sequences, tracks, media
 chains, timeline entries, groups, guides, and markers.
 
-The first writer path is deliberately limited: it copies
-`manual_empty_vertical.kdenlive`, detects one editable audio/video playlist pair
-from the active sequence, and fills it from a generated MCP timeline. Full
-`.kdenlive` editing remains blocked until additional samples confirm trimmed
-clips, gaps, multi-track edits, and round-trip preservation tests.
+The writer path is deliberately limited: it copies
+`manual_empty_vertical.kdenlive`, detects editable audio/video playlists from
+the active sequence, maps MCP timeline tracks onto those existing playlists,
+and fills them from a generated MCP timeline. It refuses timelines with more
+tracks than the template can represent. Full `.kdenlive` editing remains
+blocked until additional samples confirm broader multi-track project shapes,
+effects, transitions, proxies, and round-trip preservation tests.
 
 ## Testing Strategy
 

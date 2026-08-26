@@ -479,8 +479,9 @@ The project also has a first template-based `.kdenlive` draft writer:
 ```text
 kdenlive_mcp_timeline
   -> manual_empty_vertical.kdenlive copy
-  -> detected editable audio/video playlist pair
-  -> filled playlist entries
+  -> detected editable audio/video playlists
+  -> track-to-playlist mapping
+  -> filled playlist entries per mapped track
   -> derived .kdenlive draft
 ```
 
@@ -493,9 +494,11 @@ flatpak run --command=melt org.kde.kdenlive \
   -consumer null terminate_on_pause=1
 ```
 
-Current limitations: the writer fills one detected audio/video playlist pair
-only. It does not yet support multiple editable tracks, effects, transitions,
-subtitles, proxies, or full Kdenlive project metadata regeneration.
+Current limitations: the writer can fill multiple existing editable audio/video
+playlists detected from the template, but it does not yet synthesize new
+Kdenlive tractor/playlist structures when the template has fewer tracks than
+the MCP timeline. It also does not yet support effects, transitions, subtitles,
+proxies, or full Kdenlive project metadata regeneration.
 
 The high-level `create_vlog_rough_cut_project` workflow was also validated by
 generating a draft project and loading it with:

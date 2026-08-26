@@ -355,3 +355,49 @@ Decision:
 Track management is available at the MCP-owned TimelineDocument layer. Export
 of multiple editable Kdenlive tracks remains a separate P2 writer task.
 ```
+
+## 2026-08-26 Limited Multi-Track Kdenlive Writer Validation
+
+Scope:
+
+```text
+P2 template-backed multi-track writer
+```
+
+Validated behavior:
+
+```text
+KdenliveProjectAdapter detects multiple editable audio/video playlists
+track_v1 preserves the previously validated primary video playlist mapping
+additional MCP video tracks map to additional template video playlists
+exported .kdenlive inspection includes clips from the extra mapped track
+timelines with more tracks than the template supports fail with UNSUPPORTED_TIMELINE
+```
+
+Command:
+
+```bash
+scripts/dev_check.sh
+```
+
+Result:
+
+```text
+compileall: passed
+pytest: 142 passed in 26.38s
+```
+
+Specific integration coverage:
+
+```text
+test_export_timeline_to_kdenlive_template_maps_extra_video_track
+test_export_timeline_to_kdenlive_template_refuses_more_tracks_than_template
+```
+
+Decision:
+
+```text
+The .kdenlive writer can now fill multiple existing editable template tracks.
+It still does not synthesize new Kdenlive track structures beyond what the
+template provides.
+```

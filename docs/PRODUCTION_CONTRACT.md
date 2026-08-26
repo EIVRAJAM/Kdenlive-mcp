@@ -635,7 +635,7 @@ undo/version restore workflow documentation: implemented in docs/UNDO_VERSIONING
 ### P2 - Editing Surface Expansion
 
 ```text
-multi-track writer
+broader multi-track writer validation against real Kdenlive project shapes
 broader trim/split/move validation against more real Kdenlive project shapes
 round-trip tests for multi-track gaps, trims, and splits
 automated real-project restore evidence per release

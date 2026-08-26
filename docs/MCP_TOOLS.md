@@ -1118,7 +1118,9 @@ Current constraints:
 
 ```text
 template must contain main_bin and an active Kdenlive sequence tractor
-one audio/video playlist pair is detected from that active sequence
+editable audio/video playlists are detected from that active sequence
+MCP timeline tracks are mapped onto existing template playlists
+the tool refuses timelines with more tracks than available template playlists
 no effects, transitions, subtitles, proxies, or track renames
 unknown template XML is preserved where possible
 ```

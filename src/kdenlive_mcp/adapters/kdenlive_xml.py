@@ -535,13 +535,15 @@ class KdenliveProjectAdapter:
             raise KdenliveProjectError("INVALID_PROJECT", "Template is missing required main_bin playlist")
 
         sequence_tractor = self._active_sequence_tractor(main_bin, list(tractors.values()))
-        audio_playlist, video_playlist = self._target_timeline_playlists(sequence_tractor, tractors, playlists)
-        if audio_playlist is None or video_playlist is None:
+        timeline_playlist_map = self._timeline_playlist_map(sequence_tractor, tractors, playlists, timeline)
+        if not timeline_playlist_map:
             raise KdenliveProjectError("INVALID_PROJECT", "Template is missing editable audio/video target playlists")
 
         for chain in root.findall("chain"):
             root.remove(chain)
-        for playlist in (audio_playlist, video_playlist):
+        for playlist in self._candidate_timeline_playlists(sequence_tractor, tractors, playlists)[0]:
+            _remove_children(playlist, {"entry", "blank"})
+        for playlist in self._candidate_timeline_playlists(sequence_tractor, tractors, playlists)[1]:
             _remove_children(playlist, {"entry", "blank"})
         for entry in list(main_bin.findall("entry")):
             producer = entry.attrib.get("producer")
@@ -582,9 +584,12 @@ class KdenliveProjectAdapter:
         for media_id in sorted(media_paths):
             bin_chain_ids[media_id] = add_chain(media_id, set_audio=False, set_image=True)
         for clip in timeline.clips:
-            if clip.track_id == "track_a1":
+            track = next((item for item in timeline.tracks if item.id == clip.track_id), None)
+            if track is None:
+                continue
+            if track.type == "audio":
                 timeline_chain_ids[clip.id] = add_chain(clip.media_id, set_audio=True, set_image=False)
-            elif clip.track_id == "track_v1":
+            elif track.type == "video":
                 timeline_chain_ids[clip.id] = add_chain(clip.media_id, set_audio=False, set_image=True)
 
         def append_playlist_entry(playlist: ET.Element, clip: TimelineClip) -> None:
@@ -616,8 +621,10 @@ class KdenliveProjectAdapter:
                 append_playlist_entry(playlist, clip)
                 cursor = max(cursor, clip.timeline_out)
 
-        append_track_clips(audio_playlist, "track_a1")
-        append_track_clips(video_playlist, "track_v1")
+        for track in timeline.tracks:
+            playlist = timeline_playlist_map.get(track.id)
+            if playlist is not None:
+                append_track_clips(playlist, track.id)
 
         for media_id in sorted(media_paths):
             entry = ET.SubElement(
@@ -653,6 +660,9 @@ class KdenliveProjectAdapter:
             "media_count": len(media_paths),
             "timeline_clip_count": len(timeline.clips),
             "marker_count": len(timeline.markers),
+            "track_playlist_map": {
+                track_id: playlist.attrib.get("id") for track_id, playlist in sorted(timeline_playlist_map.items())
+            },
         }
 
     def _active_sequence_tractor(self, main_bin: ET.Element, tractors: list[ET.Element]) -> ET.Element | None:
@@ -674,8 +684,21 @@ class KdenliveProjectAdapter:
         tractors: dict[str, ET.Element],
         playlists: dict[str, ET.Element],
     ) -> tuple[ET.Element | None, ET.Element | None]:
+        audio_candidates, video_candidates = self._candidate_timeline_playlists(sequence_tractor, tractors, playlists)
+        audio_playlist = audio_candidates[0] if audio_candidates else None
+        # Kdenlive's captured vertical template orders video branches bottom-to-top;
+        # the active V1 target is the first branch of the top editable video tractor.
+        video_playlist = video_candidates[-2] if len(video_candidates) >= 2 else (video_candidates[0] if video_candidates else None)
+        return audio_playlist, video_playlist
+
+    def _candidate_timeline_playlists(
+        self,
+        sequence_tractor: ET.Element | None,
+        tractors: dict[str, ET.Element],
+        playlists: dict[str, ET.Element],
+    ) -> tuple[list[ET.Element], list[ET.Element]]:
         if sequence_tractor is None:
-            return None, None
+            return [], []
 
         audio_candidates: list[ET.Element] = []
         video_candidates: list[ET.Element] = []
@@ -692,9 +715,37 @@ class KdenliveProjectAdapter:
                     audio_candidates.append(playlist)
                 elif kind == "video":
                     video_candidates.append(playlist)
+        return audio_candidates, video_candidates
 
-        audio_playlist = audio_candidates[0] if audio_candidates else None
-        # Kdenlive's captured vertical template orders video branches bottom-to-top;
-        # the active V1 target is the first branch of the top editable video tractor.
-        video_playlist = video_candidates[-2] if len(video_candidates) >= 2 else (video_candidates[0] if video_candidates else None)
-        return audio_playlist, video_playlist
+    def _timeline_playlist_map(
+        self,
+        sequence_tractor: ET.Element | None,
+        tractors: dict[str, ET.Element],
+        playlists: dict[str, ET.Element],
+        timeline: TimelineDocument,
+    ) -> dict[str, ET.Element]:
+        audio_candidates, video_candidates = self._candidate_timeline_playlists(sequence_tractor, tractors, playlists)
+        if not audio_candidates or not video_candidates:
+            return {}
+
+        audio_order = audio_candidates
+        video_primary = video_candidates[-2] if len(video_candidates) >= 2 else video_candidates[0]
+        video_order = [video_primary] + [playlist for playlist in video_candidates if playlist is not video_primary]
+        result: dict[str, ET.Element] = {}
+        audio_tracks = [track for track in timeline.tracks if track.type == "audio"]
+        video_tracks = [track for track in timeline.tracks if track.type == "video"]
+        if len(audio_tracks) > len(audio_order):
+            raise KdenliveProjectError(
+                "UNSUPPORTED_TIMELINE",
+                f"Template has {len(audio_order)} editable audio playlists but timeline has {len(audio_tracks)} audio tracks.",
+            )
+        if len(video_tracks) > len(video_order):
+            raise KdenliveProjectError(
+                "UNSUPPORTED_TIMELINE",
+                f"Template has {len(video_order)} editable video playlists but timeline has {len(video_tracks)} video tracks.",
+            )
+        for track, playlist in zip(audio_tracks, audio_order, strict=False):
+            result[track.id] = playlist
+        for track, playlist in zip(video_tracks, video_order, strict=False):
+            result[track.id] = playlist
+        return result
