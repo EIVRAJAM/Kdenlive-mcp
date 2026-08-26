@@ -765,6 +765,7 @@ Output:
 The first implementation creates one video track and one linked audio track.
 Each rough-cut segment becomes a video clip and an audio clip with matching
 source/timeline ranges. It also creates one review marker per rough-cut segment.
+See `docs/SCHEMAS.md` for the persisted timeline JSON schema.
 
 ### save_timeline
 
