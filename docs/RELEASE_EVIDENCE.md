@@ -401,3 +401,52 @@ The .kdenlive writer can now fill multiple existing editable template tracks.
 It still does not synthesize new Kdenlive track structures beyond what the
 template provides.
 ```
+
+## 2026-08-26 Timeline Clip Add Remove Validation
+
+Scope:
+
+```text
+P2 MCP-owned timeline clip construction and removal
+```
+
+Validated behavior:
+
+```text
+add_timeline_clip adds allowed media references to derived timeline JSON files
+add_timeline_clip can create linked audio/video clip pairs
+add_timeline_clip rejects overlapping output through timeline validation
+remove_timeline_clip removes linked pairs when include_linked=true
+remove_timeline_clip can remove markers inside removed clip ranges
+apply_timeline_edits supports add and remove in the same validated transaction
+tools/list exposes add_timeline_clip and remove_timeline_clip
+```
+
+Command:
+
+```bash
+scripts/dev_check.sh
+```
+
+Result:
+
+```text
+compileall: passed
+pytest: 146 passed in 31.15s
+```
+
+Specific integration coverage:
+
+```text
+test_add_timeline_clip_writes_linked_pair
+test_add_timeline_clip_reports_overlap
+test_remove_timeline_clip_removes_linked_clip_and_marker
+test_apply_timeline_edits_can_add_and_remove_clips
+```
+
+Decision:
+
+```text
+Agents can now build and revise MCP-owned timelines with add, remove, trim,
+move, and split operations before exporting to .kdenlive.
+```

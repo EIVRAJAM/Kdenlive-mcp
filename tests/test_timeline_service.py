@@ -213,6 +213,77 @@ def test_remove_timeline_track_with_clips_clears_remaining_links(monkeypatch, tm
     assert all(clip.get("linked_clip_id") is None for clip in inspected["data"]["clips"])
 
 
+def test_add_timeline_clip_writes_linked_pair(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="clip_add_source")
+
+    result = timeline_tools.add_timeline_clip(
+        timeline_file=str(saved["timeline_file"]),
+        track_id="track_v1",
+        media=str(RECON_DIR / "sample1.mp4"),
+        media_id="media_added",
+        source_in=0.0,
+        source_out=1.0,
+        timeline_in=4.5,
+        create_linked_clip=True,
+        linked_track_id="track_a1",
+        output_directory=str(tmp_path),
+        output_name="clip_add_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is True
+    added = result["after"]["clips"]
+    assert set(added) == {"clip_003_v", "clip_003_a"}
+    assert added["clip_003_v"]["linked_clip_id"] == "clip_003_a"
+    assert added["clip_003_a"]["linked_clip_id"] == "clip_003_v"
+    inspected = timeline_tools.inspect_timeline(str(result["timeline_file"]))
+    assert inspected["summary"]["clip_count"] == 6
+    assert inspected["summary"]["duration"] == 5.5
+
+
+def test_add_timeline_clip_reports_overlap(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="clip_add_overlap_source")
+
+    result = timeline_tools.add_timeline_clip(
+        timeline_file=str(saved["timeline_file"]),
+        track_id="track_v1",
+        media=str(RECON_DIR / "sample1.mp4"),
+        source_in=0.0,
+        source_out=1.0,
+        timeline_in=0.5,
+        output_directory=str(tmp_path),
+        output_name="clip_add_overlap_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_TIMELINE"
+    assert "TIMELINE_OVERLAP" in {issue["code"] for issue in result["validation"]["issues"]}
+    assert not (tmp_path / "clip_add_overlap_result.timeline.json").exists()
+
+
+def test_remove_timeline_clip_removes_linked_clip_and_marker(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="clip_remove_source")
+
+    result = timeline_tools.remove_timeline_clip(
+        timeline_file=str(saved["timeline_file"]),
+        clip_id="clip_001_v",
+        include_linked=True,
+        remove_markers=True,
+        output_directory=str(tmp_path),
+        output_name="clip_remove_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is True
+    assert result["after"]["removed_clip_ids"] == ["clip_001_a", "clip_001_v"]
+    assert result["after"]["removed_marker_ids"] == ["marker_001"]
+    inspected = timeline_tools.inspect_timeline(str(result["timeline_file"]))
+    assert inspected["summary"]["clip_count"] == 2
+    assert inspected["summary"]["marker_count"] == 1
+    assert {clip["id"] for clip in inspected["data"]["clips"]} == {"clip_002_v", "clip_002_a"}
+
+
 def test_trim_timeline_clip_dry_run_does_not_write(monkeypatch, tmp_path: Path) -> None:
     plan_file = _create_plan_file(monkeypatch, tmp_path)
     created = timeline_tools.create_timeline_from_rough_cut_plan(plan_file=str(plan_file))
@@ -440,6 +511,39 @@ def test_apply_timeline_edits_export_to_kdenlive_template(monkeypatch, tmp_path:
     assert exported["inspection_summary"]["timeline_clip_count"] == 6
     assert sorted(clip["start_frame"] for clip in clips if clip["media_id"] == "5") == [120, 120]
     assert {clip["duration_frames"] for clip in clips if clip["media_id"] == "4"} == {30, 30}
+
+
+def test_apply_timeline_edits_can_add_and_remove_clips(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="batch_add_remove_source")
+
+    result = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[
+            {"operation": "remove", "clip_id": "clip_001_v"},
+            {
+                "operation": "add",
+                "track_id": "track_v1",
+                "media": str(RECON_DIR / "sample1.mp4"),
+                "media_id": "media_added",
+                "source_in": 0.0,
+                "source_out": 1.0,
+                "timeline_in": 4.5,
+                "create_linked_clip": True,
+                "linked_track_id": "track_a1",
+            },
+        ],
+        output_directory=str(tmp_path),
+        name="batch_add_remove_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is True
+    assert [step["operation"] for step in result["steps"]] == ["remove", "add"]
+    inspected = timeline_tools.inspect_timeline(str(result["timeline_file"]))
+    assert inspected["summary"]["clip_count"] == 4
+    assert {"clip_002_v", "clip_002_a", "clip_003_v", "clip_003_a"} == {
+        clip["id"] for clip in inspected["data"]["clips"]
+    }
 
 
 def test_validate_timeline_detects_overlap(monkeypatch, tmp_path: Path) -> None:

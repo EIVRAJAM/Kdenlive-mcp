@@ -60,6 +60,8 @@ def test_tools_list_includes_health_check() -> None:
     assert "create_timeline_track" in tool_names
     assert "update_timeline_track" in tool_names
     assert "remove_timeline_track" in tool_names
+    assert "add_timeline_clip" in tool_names
+    assert "remove_timeline_clip" in tool_names
     assert "trim_timeline_clip" in tool_names
     assert "move_timeline_clip" in tool_names
     assert "split_timeline_clip" in tool_names

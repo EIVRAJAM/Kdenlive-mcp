@@ -902,6 +902,56 @@ a non-empty track and returns `TRACK_NOT_EMPTY`. If `remove_clips=true`, clips
 on the removed track are deleted and any remaining linked clip references to
 those clips are cleared before validation.
 
+### add_timeline_clip
+
+Input:
+
+```json
+{
+  "timeline_file": "/home/abrahamc/Videos/vlog/timeline.timeline.json",
+  "track_id": "track_v1",
+  "media": "/home/abrahamc/Videos/vlog/GX010001.mp4",
+  "media_id": "media_gx010001",
+  "source_in": 0.0,
+  "source_out": 2.0,
+  "timeline_in": 12.0,
+  "create_linked_clip": true,
+  "linked_track_id": "track_a1",
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "output_name": "timeline_add_001",
+  "dry_run": true,
+  "check_media_exists": true
+}
+```
+
+Adds a media reference to a derived MCP timeline. The media path must be inside
+`allowed_media_directories`; by default the file must exist. If `clip_id` is
+omitted, the service generates a monotonic ID such as `clip_003_v` without
+reusing lower IDs removed earlier in the same edit flow. If
+`create_linked_clip=true`, the tool creates a matching audio/video counterpart
+on the requested `linked_track_id`, or on the first opposite-type track.
+
+### remove_timeline_clip
+
+Input:
+
+```json
+{
+  "timeline_file": "/home/abrahamc/Videos/vlog/timeline.timeline.json",
+  "clip_id": "clip_001_v",
+  "include_linked": true,
+  "remove_markers": false,
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "output_name": "timeline_remove_001",
+  "dry_run": false
+}
+```
+
+Removes a clip from a derived timeline. When `include_linked=true`, the linked
+audio/video clip is removed too. Remaining clips that pointed to a removed clip
+have `linked_clip_id` cleared before validation. If `remove_markers=true`,
+markers inside the removed clip range are deleted from the derived timeline.
+
 ### trim_timeline_clip
 
 Input:
@@ -1026,7 +1076,7 @@ Input:
 }
 ```
 
-Applies an ordered batch of `trim`, `move`, and `split` operations to the
+Applies an ordered batch of `add`, `remove`, `trim`, `move`, and `split` operations to the
 MCP-owned timeline, then validates the final result before writing one derived
 timeline JSON file. This is the preferred tool when an agent wants to execute a
 small edit plan without producing one intermediate file per operation.

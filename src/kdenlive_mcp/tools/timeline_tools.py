@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from kdenlive_mcp.services.timeline_service import (
+    add_timeline_clip,
     apply_timeline_edits,
     create_timeline_from_rough_cut_plan,
     create_timeline_track,
@@ -10,6 +11,7 @@ from kdenlive_mcp.services.timeline_service import (
     export_timeline_to_kdenlive_template,
     inspect_timeline,
     move_timeline_clip,
+    remove_timeline_clip,
     remove_timeline_track,
     save_timeline,
     split_timeline_clip,
@@ -135,6 +137,55 @@ TOOLS: dict[str, dict[str, Any]] = {
         },
         "handler": remove_timeline_track,
     },
+    "add_timeline_clip": {
+        "description": "Add a clip reference to a copy of an MCP timeline, optionally creating a linked audio/video clip.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "timeline_file": {"type": "string"},
+                "track_id": {"type": "string"},
+                "media": {"type": "string"},
+                "source_in": {"type": "number"},
+                "source_out": {"type": "number"},
+                "timeline_in": {"type": "number"},
+                "media_id": {"type": ["string", "null"], "default": None},
+                "clip_id": {"type": ["string", "null"], "default": None},
+                "speed": {"type": "number", "default": 1.0},
+                "create_linked_clip": {"type": "boolean", "default": False},
+                "linked_track_id": {"type": ["string", "null"], "default": None},
+                "source_segment_id": {"type": ["string", "null"], "default": None},
+                "reason": {"type": ["string", "null"], "default": None},
+                "output_directory": {"type": ["string", "null"], "default": None},
+                "output_name": {"type": ["string", "null"], "default": None},
+                "overwrite": {"type": "boolean", "default": False},
+                "dry_run": {"type": "boolean", "default": True},
+                "check_media_exists": {"type": "boolean", "default": True},
+            },
+            "required": ["timeline_file", "track_id", "media", "source_in", "source_out", "timeline_in"],
+            "additionalProperties": False,
+        },
+        "handler": add_timeline_clip,
+    },
+    "remove_timeline_clip": {
+        "description": "Remove a clip from a copy of an MCP timeline, optionally removing its linked audio/video clip and markers.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "timeline_file": {"type": "string"},
+                "clip_id": {"type": "string"},
+                "include_linked": {"type": "boolean", "default": True},
+                "remove_markers": {"type": "boolean", "default": False},
+                "output_directory": {"type": ["string", "null"], "default": None},
+                "output_name": {"type": ["string", "null"], "default": None},
+                "overwrite": {"type": "boolean", "default": False},
+                "dry_run": {"type": "boolean", "default": True},
+                "check_media_exists": {"type": "boolean", "default": False},
+            },
+            "required": ["timeline_file", "clip_id"],
+            "additionalProperties": False,
+        },
+        "handler": remove_timeline_clip,
+    },
     "trim_timeline_clip": {
         "description": "Create a trimmed copy of one MCP timeline clip, optionally including its linked audio/video clip.",
         "inputSchema": {
@@ -198,7 +249,7 @@ TOOLS: dict[str, dict[str, Any]] = {
         "handler": split_timeline_clip,
     },
     "apply_timeline_edits": {
-        "description": "Apply an ordered batch of trim/move/split operations to an MCP timeline as one validated copy-on-write transaction.",
+        "description": "Apply an ordered batch of add/remove/trim/move/split operations to an MCP timeline as one validated copy-on-write transaction.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -208,16 +259,25 @@ TOOLS: dict[str, dict[str, Any]] = {
                     "items": {
                         "type": "object",
                         "properties": {
-                            "operation": {"type": "string", "enum": ["trim", "move", "split"]},
+                            "operation": {"type": "string", "enum": ["add", "remove", "trim", "move", "split"]},
                             "clip_id": {"type": "string"},
+                            "track_id": {"type": "string"},
+                            "media": {"type": "string"},
                             "source_in": {"type": "number"},
                             "source_out": {"type": "number"},
                             "timeline_in": {"type": "number"},
                             "split_at": {"type": "number"},
+                            "media_id": {"type": "string"},
+                            "speed": {"type": "number", "default": 1.0},
+                            "create_linked_clip": {"type": "boolean", "default": False},
+                            "linked_track_id": {"type": "string"},
+                            "source_segment_id": {"type": "string"},
+                            "reason": {"type": "string"},
                             "include_linked": {"type": "boolean", "default": True},
                             "move_markers": {"type": "boolean", "default": True},
+                            "remove_markers": {"type": "boolean", "default": False},
                         },
-                        "required": ["operation", "clip_id"],
+                        "required": ["operation"],
                         "additionalProperties": False,
                     },
                     "minItems": 1,

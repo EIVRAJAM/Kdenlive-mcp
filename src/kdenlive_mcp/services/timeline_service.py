@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import re
 from pathlib import Path
 from typing import Any
 
@@ -70,6 +72,15 @@ def _next_track_id(document: TimelineDocument, track_type: str) -> str:
     while f"{prefix}{index}" in existing:
         index += 1
     return f"{prefix}{index}"
+
+
+def _next_clip_base(document: TimelineDocument) -> str:
+    index = 1
+    for clip in document.clips:
+        match = re.match(r"^clip_(\d{3,})_", clip.id)
+        if match:
+            index = max(index, int(match.group(1)) + 1)
+    return f"clip_{index:03d}"
 
 
 def _edit_target_ids(document: TimelineDocument, clip_id: str, include_linked: bool) -> list[str] | dict[str, Any]:
@@ -425,6 +436,134 @@ def _remove_document_track(
     except ValidationError as exc:
         return _error("INVALID_TIMELINE", f"Edited timeline is invalid: {exc}")
     after = {"removed_track_id": track_id, "removed_clip_count": len(clips_on_track)}
+    return edited, before, after
+
+
+def _add_document_clip(
+    document: TimelineDocument,
+    track_id: str,
+    media: str,
+    source_in: float,
+    source_out: float,
+    timeline_in: float,
+    media_id: str | None,
+    clip_id: str | None,
+    speed: float,
+    create_linked_clip: bool,
+    linked_track_id: str | None,
+    source_segment_id: str | None,
+    reason: str | None,
+    require_media_exists: bool,
+) -> tuple[TimelineDocument, dict[str, Any], dict[str, Any]] | dict[str, Any]:
+    try:
+        media_path = ensure_media_path(media)
+    except SecurityError as exc:
+        return _security_error(exc)
+    if require_media_exists and not media_path.exists():
+        return _error("MEDIA_NOT_FOUND", f"Media file does not exist: {media_path}", media=str(media_path))
+
+    tracks_by_id = _track_map(document)
+    track = tracks_by_id.get(track_id)
+    if track is None:
+        return _error("INVALID_TRACK", f"Track does not exist: {track_id}")
+    if source_in < 0 or timeline_in < 0:
+        return _error("INVALID_TIMECODE", "source_in and timeline_in must be zero or greater.")
+    if source_out <= source_in:
+        return _error("INVALID_TIMECODE", "source_out must be greater than source_in.")
+    if speed <= 0:
+        return _error("INVALID_TIMECODE", "speed must be greater than zero.")
+
+    edited = document.model_copy(deep=True)
+    existing_ids = {clip.id for clip in edited.clips}
+    base = _next_clip_base(edited)
+    suffix = "_a" if track.type == "audio" else "_v"
+    primary_id = clip_id or f"{base}{suffix}"
+    if primary_id in existing_ids:
+        return _error("INVALID_CLIP", f"Clip already exists: {primary_id}")
+    existing_ids.add(primary_id)
+    final_media_id = media_id or f"media_{hashlib.sha1(str(media_path.resolve(strict=False)).encode('utf-8')).hexdigest()[:12]}"
+    duration = round((source_out - source_in) / speed, 6)
+    primary = TimelineClip(
+        id=primary_id,
+        track_id=track_id,
+        media_id=final_media_id,
+        media=str(media_path),
+        source_in=float(source_in),
+        source_out=float(source_out),
+        timeline_in=float(timeline_in),
+        timeline_out=round(float(timeline_in) + duration, 6),
+        speed=float(speed),
+        source_segment_id=source_segment_id,
+        reason=reason,
+    )
+    added = [primary]
+
+    if create_linked_clip:
+        if linked_track_id is None:
+            opposite_type = "audio" if track.type == "video" else "video"
+            linked_track = next((item for item in edited.tracks if item.type == opposite_type), None)
+        else:
+            linked_track = tracks_by_id.get(linked_track_id)
+        if linked_track is None:
+            return _error("INVALID_TRACK", "A linked track could not be resolved.")
+        if linked_track.type == track.type:
+            return _error("INVALID_TRACK", "Linked track must be the opposite media type.")
+        linked_suffix = "_a" if linked_track.type == "audio" else "_v"
+        linked_id = _unique_clip_id(existing_ids, f"{base}{linked_suffix}")
+        linked = primary.model_copy(deep=True)
+        linked.id = linked_id
+        linked.track_id = linked_track.id
+        primary.linked_clip_id = linked.id
+        linked.linked_clip_id = primary.id
+        added.append(linked)
+
+    before = {"clip_count": len(edited.clips)}
+    edited.clips.extend(added)
+    try:
+        edited = TimelineDocument.model_validate(edited.model_dump(mode="json", exclude_none=True))
+    except ValidationError as exc:
+        return _error("INVALID_TIMELINE", f"Edited timeline is invalid: {exc}")
+    after = {"clips": {clip.id: clip.model_dump(mode="json", exclude_none=True) for clip in added}}
+    return edited, before, after
+
+
+def _remove_document_clip(
+    document: TimelineDocument,
+    clip_id: str,
+    include_linked: bool,
+    remove_markers: bool,
+) -> tuple[TimelineDocument, dict[str, Any], dict[str, Any]] | dict[str, Any]:
+    target_ids = _edit_target_ids(document, clip_id, include_linked)
+    if isinstance(target_ids, dict):
+        return target_ids
+    edited = document.model_copy(deep=True)
+    clips_by_id = _clip_map(edited)
+    removed = [clips_by_id[target_id] for target_id in target_ids]
+    removed_ids = {clip.id for clip in removed}
+    marker_ranges = [(clip.timeline_in, clip.timeline_out) for clip in removed]
+    before = {"clips": {clip.id: clip.model_dump(mode="json", exclude_none=True) for clip in removed}}
+    edited.clips = [clip for clip in edited.clips if clip.id not in removed_ids]
+    for clip in edited.clips:
+        if clip.linked_clip_id in removed_ids:
+            clip.linked_clip_id = None
+    removed_markers: list[TimelineMarker] = []
+    if remove_markers:
+        kept_markers: list[TimelineMarker] = []
+        for marker in edited.markers:
+            if any(start <= marker.position < end for start, end in marker_ranges):
+                removed_markers.append(marker)
+            else:
+                kept_markers.append(marker)
+        edited.markers = kept_markers
+    try:
+        edited = TimelineDocument.model_validate(edited.model_dump(mode="json", exclude_none=True))
+    except ValidationError as exc:
+        return _error("INVALID_TIMELINE", f"Edited timeline is invalid: {exc}")
+    after = {
+        "removed_clip_ids": sorted(removed_ids),
+        "removed_marker_ids": [marker.id for marker in removed_markers],
+        "clip_count": len(edited.clips),
+    }
     return edited, before, after
 
 
@@ -984,6 +1123,96 @@ def remove_timeline_track(
     )
 
 
+def add_timeline_clip(
+    timeline_file: str,
+    track_id: str,
+    media: str,
+    source_in: float,
+    source_out: float,
+    timeline_in: float,
+    media_id: str | None = None,
+    clip_id: str | None = None,
+    speed: float = 1.0,
+    create_linked_clip: bool = False,
+    linked_track_id: str | None = None,
+    source_segment_id: str | None = None,
+    reason: str | None = None,
+    output_directory: str | None = None,
+    output_name: str | None = None,
+    overwrite: bool = False,
+    dry_run: bool = True,
+    check_media_exists: bool = True,
+) -> dict[str, Any]:
+    loaded = _load_timeline_from_allowed_output(timeline_file)
+    if isinstance(loaded, dict):
+        return loaded
+    timeline_path, document = loaded
+    edited_result = _add_document_clip(
+        document=document,
+        track_id=track_id,
+        media=media,
+        source_in=float(source_in),
+        source_out=float(source_out),
+        timeline_in=float(timeline_in),
+        media_id=media_id,
+        clip_id=clip_id,
+        speed=float(speed),
+        create_linked_clip=create_linked_clip,
+        linked_track_id=linked_track_id,
+        source_segment_id=source_segment_id,
+        reason=reason,
+        require_media_exists=check_media_exists,
+    )
+    if isinstance(edited_result, dict):
+        return edited_result
+    edited, before, after = edited_result
+    return _maybe_write_edited_timeline(
+        operation="add_timeline_clip",
+        source_path=timeline_path,
+        document=edited,
+        output_directory=output_directory,
+        name=output_name,
+        overwrite=overwrite,
+        dry_run=dry_run,
+        before=before,
+        after=after,
+        check_media_exists=check_media_exists,
+    )
+
+
+def remove_timeline_clip(
+    timeline_file: str,
+    clip_id: str,
+    include_linked: bool = True,
+    remove_markers: bool = False,
+    output_directory: str | None = None,
+    output_name: str | None = None,
+    overwrite: bool = False,
+    dry_run: bool = True,
+    check_media_exists: bool = False,
+) -> dict[str, Any]:
+    loaded = _load_timeline_from_allowed_output(timeline_file)
+    if isinstance(loaded, dict):
+        return loaded
+    timeline_path, document = loaded
+    edited_result = _remove_document_clip(document, clip_id, include_linked, remove_markers)
+    if isinstance(edited_result, dict):
+        return edited_result
+    edited, before, after = edited_result
+    return _maybe_write_edited_timeline(
+        operation="remove_timeline_clip",
+        source_path=timeline_path,
+        document=edited,
+        output_directory=output_directory,
+        name=output_name,
+        overwrite=overwrite,
+        dry_run=dry_run,
+        before=before,
+        after=after,
+        check_media_exists=check_media_exists,
+    )
+
+
 def apply_timeline_edits(
     timeline_file: str,
     edits: list[dict[str, Any]],
@@ -1009,10 +1238,44 @@ def apply_timeline_edits(
         operation = operation.removeprefix("timeline_").removesuffix("_timeline_clip")
         operation = operation.removesuffix("_clip")
         clip_id = edit.get("clip_id")
-        if not isinstance(clip_id, str) or clip_id == "":
+        if operation != "add" and (not isinstance(clip_id, str) or clip_id == ""):
             return _error("INVALID_CLIP", "Each edit requires a non-empty clip_id.", failed_step=index, steps=steps)
 
-        if operation == "trim":
+        if operation == "add":
+            for required_field in ("track_id", "media", "source_in", "source_out", "timeline_in"):
+                if required_field not in edit:
+                    return _error(
+                        "INVALID_ARGUMENT",
+                        f"add edit requires {required_field}.",
+                        failed_step=index,
+                        steps=steps,
+                    )
+            edited_result = _add_document_clip(
+                document=document,
+                track_id=str(edit["track_id"]),
+                media=str(edit["media"]),
+                source_in=float(edit["source_in"]),
+                source_out=float(edit["source_out"]),
+                timeline_in=float(edit["timeline_in"]),
+                media_id=edit.get("media_id"),
+                clip_id=clip_id if isinstance(clip_id, str) and clip_id else None,
+                speed=float(edit.get("speed", 1.0)),
+                create_linked_clip=bool(edit.get("create_linked_clip", False)),
+                linked_track_id=edit.get("linked_track_id"),
+                source_segment_id=edit.get("source_segment_id"),
+                reason=edit.get("reason"),
+                require_media_exists=check_media_exists,
+            )
+            step_clip_id = clip_id or str(edit.get("track_id"))
+        elif operation == "remove":
+            edited_result = _remove_document_clip(
+                document=document,
+                clip_id=clip_id,
+                include_linked=bool(edit.get("include_linked", True)),
+                remove_markers=bool(edit.get("remove_markers", False)),
+            )
+            step_clip_id = clip_id
+        elif operation == "trim":
             edited_result = _trim_document_clip(
                 document=document,
                 clip_id=clip_id,
@@ -1020,6 +1283,7 @@ def apply_timeline_edits(
                 source_out=edit.get("source_out"),
                 include_linked=bool(edit.get("include_linked", True)),
             )
+            step_clip_id = clip_id
         elif operation == "move":
             if "timeline_in" not in edit:
                 return _error("INVALID_TIMECODE", "move edit requires timeline_in.", failed_step=index, steps=steps)
@@ -1030,6 +1294,7 @@ def apply_timeline_edits(
                 include_linked=bool(edit.get("include_linked", True)),
                 move_markers=bool(edit.get("move_markers", True)),
             )
+            step_clip_id = clip_id
         elif operation == "split":
             if "split_at" not in edit:
                 return _error("INVALID_TIMECODE", "split edit requires split_at.", failed_step=index, steps=steps)
@@ -1039,12 +1304,13 @@ def apply_timeline_edits(
                 split_at=float(edit["split_at"]),
                 include_linked=bool(edit.get("include_linked", True)),
             )
+            step_clip_id = clip_id
         else:
             return _error(
                 "INVALID_ARGUMENT",
                 f"Unsupported timeline edit operation: {operation}",
                 failed_step=index,
-                supported_operations=["trim", "move", "split"],
+                supported_operations=["add", "remove", "trim", "move", "split"],
                 steps=steps,
             )
 
@@ -1060,7 +1326,7 @@ def apply_timeline_edits(
             {
                 "index": index,
                 "operation": operation,
-                "clip_id": clip_id,
+                "clip_id": step_clip_id,
                 "before": before,
                 "after": after,
             }

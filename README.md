@@ -203,10 +203,12 @@ Audio y analisis:
 - `create_timeline_track`: crea una pista audio/video en una copia de timeline MCP.
 - `update_timeline_track`: renombra, bloquea o silencia una pista en una copia de timeline MCP.
 - `remove_timeline_track`: elimina una pista vacia o elimina sus clips si se confirma explicitamente.
+- `add_timeline_clip`: agrega una referencia de clip a una copia de timeline MCP.
+- `remove_timeline_clip`: elimina un clip de una copia de timeline MCP.
 - `trim_timeline_clip`: recorta un clip en una copia de timeline MCP con `dry_run`.
 - `move_timeline_clip`: mueve un clip en una copia de timeline MCP con `dry_run`.
 - `split_timeline_clip`: divide un clip en una copia de timeline MCP con `dry_run`.
-- `apply_timeline_edits`: aplica varios trims/moves/splits como una transaccion copy-on-write.
+- `apply_timeline_edits`: aplica varios add/remove/trims/moves/splits como una transaccion copy-on-write.
 - `export_timeline_to_mlt_xml`: exporta una timeline MCP validada a MLT XML draft.
 - `export_timeline_to_kdenlive_template`: crea un `.kdenlive` draft desde una plantilla real y escribe guides/markers.
 - `create_vlog_rough_cut_project`: ejecuta el flujo carpeta -> plan -> timeline -> `.kdenlive`.
