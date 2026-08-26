@@ -307,6 +307,7 @@ probar tanto el caso permitido como el denegado.
 
 - `docs/ARCHITECTURE.md`: arquitectura y fronteras.
 - `docs/MCP_TOOLS.md`: contratos detallados de herramientas MCP.
+- `docs/PRODUCTION_CONTRACT.md`: funcionalidades indispensables antes de considerar el MCP apto para produccion.
 - `docs/VLOG_WORKFLOW.md`: guia practica para crear un rough cut `.kdenlive`.
 - `docs/SECURITY.md`: modelo de seguridad y reglas de rutas.
 - `docs/ENVIRONMENT.md`: reconocimiento del entorno local.
