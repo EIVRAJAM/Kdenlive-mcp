@@ -150,7 +150,8 @@ Decision:
 
 ```text
 The real user media folder validation gate is satisfied for commit 4bdcd70.
-Manual Kdenlive visual verification remains pending.
+Manual Kdenlive visual verification is satisfied by the 2026-08-25 screenshot
+recorded below.
 ```
 
 Manual verification command:
@@ -158,4 +159,51 @@ Manual verification command:
 ```bash
 flatpak run org.kde.kdenlive \
   "/home/abrahamc/Descargas/Investigación PLINK/Vídeos muestra_análisis de aplicaciones/kdenlive_mcp_real_validation.kdenlive"
+```
+
+## 2026-08-25 Manual Kdenlive Visual Verification
+
+Validated commit:
+
+```text
+1f65a9a
+```
+
+Machine date:
+
+```text
+2026-08-25T23:41:31-05:00
+```
+
+Screenshot:
+
+```text
+/home/abrahamc/Imágenes/Capturas de pantalla/Captura de pantalla_20260825_234056.png
+```
+
+Observed result:
+
+```text
+Kdenlive opened kdenlive_mcp_real_validation.kdenlive.
+Project profile is Vertical HD 30 fps.
+Project Bin contains Secuencia 1 and Video 1 [Estadísticas].
+The media item shows duration 00:00:08:00.
+Timeline contains an editable video clip on V2.
+Guide/marker rough_001 is visible above the timeline.
+The timeline duration shown by Kdenlive is 00:00:08:00.
+No offline-media warning is visible in the screenshot.
+```
+
+Note:
+
+```text
+The Project Monitor is black because the visible playhead is beyond the
+generated 8-second clip duration, not because the media failed to load.
+```
+
+Decision:
+
+```text
+Manual Kdenlive visual verification is satisfied for the generated real-user
+validation project.
 ```

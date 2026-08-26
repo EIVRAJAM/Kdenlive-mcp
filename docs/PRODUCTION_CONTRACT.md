@@ -559,17 +559,19 @@ zero original media checksum changes are allowed
 zero unstructured tool failures are allowed in production workflows
 ```
 
-## Required Before Calling It Production
+## Production-Local-Agent Status
 
-The current codebase has the automated P0/P1 evidence recorded. This final gate
-still requires human visual confirmation before calling it production-ready:
+The current codebase has the required P0/P1 evidence recorded for
+`production-local-agent-single-user`:
 
 ```text
-1. Open the recorded real-user generated .kdenlive project in Kdenlive and confirm the timeline visually.
+20-pass fixture workflow reliability check: recorded
+real user media folder validation: recorded
+manual Kdenlive visual verification: recorded
 ```
 
-These are mandatory because they affect agent reliability, user trust, and
-recoverability.
+This does not mean the project is feature-complete. It means the first local
+single-user agent production target has enough evidence to be considered closed.
 
 ## Implementation Order
 
@@ -609,6 +611,7 @@ Release evidence recorded:
 ```text
 20-pass fixture workflow reliability check: implemented and recorded in docs/RELEASE_EVIDENCE.md
 real user media folder validation: recorded in docs/RELEASE_EVIDENCE.md
+manual Kdenlive visual verification: recorded in docs/RELEASE_EVIDENCE.md
 ```
 
 ### P2 - Editing Surface Expansion
