@@ -426,6 +426,9 @@ create_timeline_from_rough_cut_plan
 save_timeline
 inspect_timeline
 validate_timeline
+create_timeline_track
+update_timeline_track
+remove_timeline_track
 trim_timeline_clip
 move_timeline_clip
 split_timeline_clip
@@ -530,6 +533,9 @@ create_timeline_from_rough_cut_plan
 save_timeline
 inspect_timeline
 validate_timeline
+create_timeline_track
+update_timeline_track
+remove_timeline_track
 trim_timeline_clip
 move_timeline_clip
 split_timeline_clip

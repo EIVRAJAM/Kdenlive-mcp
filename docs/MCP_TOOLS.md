@@ -841,6 +841,67 @@ Output:
 }
 ```
 
+### create_timeline_track
+
+Input:
+
+```json
+{
+  "timeline_file": "/home/abrahamc/Videos/vlog/timeline.timeline.json",
+  "track_type": "video",
+  "name": "B-roll",
+  "track_id": "track_v2",
+  "position": 1,
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "output_name": "timeline_tracks_001",
+  "dry_run": true
+}
+```
+
+Creates an audio or video track in a derived MCP timeline JSON file. If
+`track_id` is omitted, the service generates the next stable ID such as
+`track_v2` or `track_a2`.
+
+### update_timeline_track
+
+Input:
+
+```json
+{
+  "timeline_file": "/home/abrahamc/Videos/vlog/timeline.timeline.json",
+  "track_id": "track_a1",
+  "name": "Voice",
+  "locked": true,
+  "muted": false,
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "output_name": "timeline_tracks_002",
+  "dry_run": false
+}
+```
+
+Renames, locks, or mutes a track in a copy of the timeline. At least one of
+`name`, `locked`, or `muted` is required.
+
+### remove_timeline_track
+
+Input:
+
+```json
+{
+  "timeline_file": "/home/abrahamc/Videos/vlog/timeline.timeline.json",
+  "track_id": "track_a1",
+  "remove_clips": true,
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "output_name": "timeline_tracks_003",
+  "dry_run": false
+}
+```
+
+Removes a track from a derived timeline. By default, the tool refuses to remove
+a non-empty track and returns `TRACK_NOT_EMPTY`. If `remove_clips=true`, clips
+on the removed track are deleted and any remaining linked clip references to
+those clips are cleared before validation.
+
 ### trim_timeline_clip
 
 Input:

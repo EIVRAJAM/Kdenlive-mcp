@@ -307,3 +307,51 @@ Decision:
 Undo is covered as copy-on-write version restore. The MCP creates a new
 *_restored_001.kdenlive project instead of overwriting the active project.
 ```
+
+## 2026-08-26 Timeline Track Operations Validation
+
+Scope:
+
+```text
+P2 MCP-owned timeline track management
+```
+
+Validated behavior:
+
+```text
+create_timeline_track creates audio/video tracks in derived timeline JSON files
+update_timeline_track renames, locks, and mutes tracks copy-on-write
+remove_timeline_track refuses non-empty tracks by default
+remove_timeline_track can remove clips when remove_clips=true
+remaining linked clip references are cleared when their linked clip is removed
+tools/list exposes the track operation tools
+```
+
+Command:
+
+```bash
+scripts/dev_check.sh
+```
+
+Result:
+
+```text
+compileall: passed
+pytest: 140 passed in 29.07s
+```
+
+Specific integration coverage:
+
+```text
+test_create_timeline_track_writes_copy
+test_update_timeline_track_writes_copy
+test_remove_timeline_track_refuses_track_with_clips_by_default
+test_remove_timeline_track_with_clips_clears_remaining_links
+```
+
+Decision:
+
+```text
+Track management is available at the MCP-owned TimelineDocument layer. Export
+of multiple editable Kdenlive tracks remains a separate P2 writer task.
+```

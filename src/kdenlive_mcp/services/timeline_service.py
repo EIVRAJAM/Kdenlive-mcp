@@ -59,6 +59,19 @@ def _clip_map(document: TimelineDocument) -> dict[str, TimelineClip]:
     return {clip.id: clip for clip in document.clips}
 
 
+def _track_map(document: TimelineDocument) -> dict[str, TimelineTrack]:
+    return {track.id: track for track in document.tracks}
+
+
+def _next_track_id(document: TimelineDocument, track_type: str) -> str:
+    prefix = "track_v" if track_type == "video" else "track_a"
+    existing = {track.id for track in document.tracks}
+    index = 1
+    while f"{prefix}{index}" in existing:
+        index += 1
+    return f"{prefix}{index}"
+
+
 def _edit_target_ids(document: TimelineDocument, clip_id: str, include_linked: bool) -> list[str] | dict[str, Any]:
     clips_by_id = _clip_map(document)
     clip = clips_by_id.get(clip_id)
@@ -311,6 +324,107 @@ def _split_document_clip(
         "split_at": split_at,
         "clips": {target_id: after_clips[target_id].model_dump(mode="json", exclude_none=True) for target_id in after_clip_ids},
     }
+    return edited, before, after
+
+
+def _create_document_track(
+    document: TimelineDocument,
+    track_type: str,
+    name: str | None,
+    track_id: str | None,
+    position: int | None,
+) -> tuple[TimelineDocument, dict[str, Any], dict[str, Any]] | dict[str, Any]:
+    if track_type not in {"video", "audio"}:
+        return _error("INVALID_TRACK", "track_type must be video or audio.")
+    edited = document.model_copy(deep=True)
+    candidate_id = track_id or _next_track_id(edited, track_type)
+    if not candidate_id.strip():
+        return _error("INVALID_TRACK", "track_id must not be empty.")
+    if candidate_id in _track_map(edited):
+        return _error("INVALID_TRACK", f"Track already exists: {candidate_id}")
+    default_name = f"{track_type.title()} {sum(1 for track in edited.tracks if track.type == track_type) + 1}"
+    track_name = name or default_name
+    if not track_name.strip():
+        return _error("INVALID_TRACK", "Track name must not be empty.")
+    track = TimelineTrack(id=candidate_id, type=track_type, name=track_name)
+    before = {"tracks": [item.model_dump(mode="json", exclude_none=True) for item in edited.tracks]}
+    if position is None:
+        edited.tracks.append(track)
+    else:
+        if position < 0 or position > len(edited.tracks):
+            return _error("INVALID_TRACK", "position must be within the timeline track range.")
+        edited.tracks.insert(position, track)
+    try:
+        edited = TimelineDocument.model_validate(edited.model_dump(mode="json", exclude_none=True))
+    except ValidationError as exc:
+        return _error("INVALID_TIMELINE", f"Edited timeline is invalid: {exc}")
+    after = {"track": track.model_dump(mode="json", exclude_none=True), "position": position}
+    return edited, before, after
+
+
+def _update_document_track(
+    document: TimelineDocument,
+    track_id: str,
+    name: str | None,
+    locked: bool | None,
+    muted: bool | None,
+) -> tuple[TimelineDocument, dict[str, Any], dict[str, Any]] | dict[str, Any]:
+    edited = document.model_copy(deep=True)
+    tracks_by_id = _track_map(edited)
+    track = tracks_by_id.get(track_id)
+    if track is None:
+        return _error("INVALID_TRACK", f"Track does not exist: {track_id}")
+    before = {"track": track.model_dump(mode="json", exclude_none=True)}
+    if name is not None:
+        if not name.strip():
+            return _error("INVALID_TRACK", "Track name must not be empty.")
+        track.name = name
+    if locked is not None:
+        track.locked = bool(locked)
+    if muted is not None:
+        track.muted = bool(muted)
+    try:
+        edited = TimelineDocument.model_validate(edited.model_dump(mode="json", exclude_none=True))
+    except ValidationError as exc:
+        return _error("INVALID_TIMELINE", f"Edited timeline is invalid: {exc}")
+    after = {"track": _track_map(edited)[track_id].model_dump(mode="json", exclude_none=True)}
+    return edited, before, after
+
+
+def _remove_document_track(
+    document: TimelineDocument,
+    track_id: str,
+    remove_clips: bool,
+) -> tuple[TimelineDocument, dict[str, Any], dict[str, Any]] | dict[str, Any]:
+    edited = document.model_copy(deep=True)
+    tracks_by_id = _track_map(edited)
+    track = tracks_by_id.get(track_id)
+    if track is None:
+        return _error("INVALID_TRACK", f"Track does not exist: {track_id}")
+    clips_on_track = [clip for clip in edited.clips if clip.track_id == track_id]
+    if clips_on_track and not remove_clips:
+        return _error(
+            "TRACK_NOT_EMPTY",
+            "Track contains clips. Set remove_clips=true to remove the track and its clips.",
+            track_id=track_id,
+            clip_count=len(clips_on_track),
+        )
+    removed_clip_ids = {clip.id for clip in clips_on_track}
+    before = {
+        "track": track.model_dump(mode="json", exclude_none=True),
+        "removed_clips": [clip.model_dump(mode="json", exclude_none=True) for clip in clips_on_track],
+    }
+    edited.tracks = [item for item in edited.tracks if item.id != track_id]
+    if remove_clips:
+        edited.clips = [clip for clip in edited.clips if clip.track_id != track_id]
+        for clip in edited.clips:
+            if clip.linked_clip_id in removed_clip_ids:
+                clip.linked_clip_id = None
+    try:
+        edited = TimelineDocument.model_validate(edited.model_dump(mode="json", exclude_none=True))
+    except ValidationError as exc:
+        return _error("INVALID_TIMELINE", f"Edited timeline is invalid: {exc}")
+    after = {"removed_track_id": track_id, "removed_clip_count": len(clips_on_track)}
     return edited, before, after
 
 
@@ -760,6 +874,108 @@ def split_timeline_clip(
         document=edited,
         output_directory=output_directory,
         name=name,
+        overwrite=overwrite,
+        dry_run=dry_run,
+        before=before,
+        after=after,
+        check_media_exists=check_media_exists,
+    )
+
+
+def create_timeline_track(
+    timeline_file: str,
+    track_type: str,
+    name: str | None = None,
+    track_id: str | None = None,
+    position: int | None = None,
+    output_directory: str | None = None,
+    output_name: str | None = None,
+    overwrite: bool = False,
+    dry_run: bool = True,
+    check_media_exists: bool = False,
+) -> dict[str, Any]:
+    loaded = _load_timeline_from_allowed_output(timeline_file)
+    if isinstance(loaded, dict):
+        return loaded
+    timeline_path, document = loaded
+    edited_result = _create_document_track(document, track_type, name, track_id, position)
+    if isinstance(edited_result, dict):
+        return edited_result
+    edited, before, after = edited_result
+    return _maybe_write_edited_timeline(
+        operation="create_timeline_track",
+        source_path=timeline_path,
+        document=edited,
+        output_directory=output_directory,
+        name=output_name,
+        overwrite=overwrite,
+        dry_run=dry_run,
+        before=before,
+        after=after,
+        check_media_exists=check_media_exists,
+    )
+
+
+def update_timeline_track(
+    timeline_file: str,
+    track_id: str,
+    name: str | None = None,
+    locked: bool | None = None,
+    muted: bool | None = None,
+    output_directory: str | None = None,
+    output_name: str | None = None,
+    overwrite: bool = False,
+    dry_run: bool = True,
+    check_media_exists: bool = False,
+) -> dict[str, Any]:
+    if name is None and locked is None and muted is None:
+        return _error("INVALID_ARGUMENT", "name, locked, or muted is required.")
+    loaded = _load_timeline_from_allowed_output(timeline_file)
+    if isinstance(loaded, dict):
+        return loaded
+    timeline_path, document = loaded
+    edited_result = _update_document_track(document, track_id, name, locked, muted)
+    if isinstance(edited_result, dict):
+        return edited_result
+    edited, before, after = edited_result
+    return _maybe_write_edited_timeline(
+        operation="update_timeline_track",
+        source_path=timeline_path,
+        document=edited,
+        output_directory=output_directory,
+        name=output_name,
+        overwrite=overwrite,
+        dry_run=dry_run,
+        before=before,
+        after=after,
+        check_media_exists=check_media_exists,
+    )
+
+
+def remove_timeline_track(
+    timeline_file: str,
+    track_id: str,
+    remove_clips: bool = False,
+    output_directory: str | None = None,
+    output_name: str | None = None,
+    overwrite: bool = False,
+    dry_run: bool = True,
+    check_media_exists: bool = False,
+) -> dict[str, Any]:
+    loaded = _load_timeline_from_allowed_output(timeline_file)
+    if isinstance(loaded, dict):
+        return loaded
+    timeline_path, document = loaded
+    edited_result = _remove_document_track(document, track_id, remove_clips)
+    if isinstance(edited_result, dict):
+        return edited_result
+    edited, before, after = edited_result
+    return _maybe_write_edited_timeline(
+        operation="remove_timeline_track",
+        source_path=timeline_path,
+        document=edited,
+        output_directory=output_directory,
+        name=output_name,
         overwrite=overwrite,
         dry_run=dry_run,
         before=before,

@@ -30,6 +30,9 @@ create_timeline_from_rough_cut_plan is read-only conversion from allowed output 
 save_timeline writes only derived JSON timeline files in allowed output directories
 inspect_timeline is read-only and limited to allowed output directories
 validate_timeline is read-only and checks media references against the media allowlist
+create_timeline_track writes only copy-on-write derived JSON timeline files, and supports dry_run
+update_timeline_track writes only copy-on-write derived JSON timeline files, and supports dry_run
+remove_timeline_track writes only copy-on-write derived JSON timeline files, and supports dry_run
 trim_timeline_clip writes only copy-on-write derived JSON timeline files, and supports dry_run
 move_timeline_clip writes only copy-on-write derived JSON timeline files, and supports dry_run
 split_timeline_clip writes only copy-on-write derived JSON timeline files, and supports dry_run

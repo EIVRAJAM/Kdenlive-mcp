@@ -129,6 +129,90 @@ def test_validate_timeline_accepts_generated_timeline(monkeypatch, tmp_path: Pat
     assert result["issue_count"] == 0
 
 
+def test_create_timeline_track_writes_copy(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="track_create_source")
+
+    result = timeline_tools.create_timeline_track(
+        timeline_file=str(saved["timeline_file"]),
+        track_type="video",
+        name="B-roll",
+        output_directory=str(tmp_path),
+        output_name="track_create_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is True
+    assert result["after"]["track"] == {
+        "id": "track_v2",
+        "type": "video",
+        "name": "B-roll",
+        "locked": False,
+        "muted": False,
+    }
+    inspected = timeline_tools.inspect_timeline(str(result["timeline_file"]))
+    assert inspected["summary"]["track_count"] == 3
+    assert [track["id"] for track in inspected["data"]["tracks"]] == ["track_v1", "track_a1", "track_v2"]
+
+
+def test_update_timeline_track_writes_copy(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="track_update_source")
+
+    result = timeline_tools.update_timeline_track(
+        timeline_file=str(saved["timeline_file"]),
+        track_id="track_a1",
+        name="Voice",
+        locked=True,
+        muted=True,
+        output_directory=str(tmp_path),
+        output_name="track_update_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is True
+    assert result["before"]["track"]["name"] == "Audio 1"
+    assert result["after"]["track"]["name"] == "Voice"
+    assert result["after"]["track"]["locked"] is True
+    assert result["after"]["track"]["muted"] is True
+
+
+def test_remove_timeline_track_refuses_track_with_clips_by_default(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="track_remove_refuse_source")
+
+    result = timeline_tools.remove_timeline_track(
+        timeline_file=str(saved["timeline_file"]),
+        track_id="track_a1",
+        output_directory=str(tmp_path),
+        output_name="track_remove_refuse_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "TRACK_NOT_EMPTY"
+    assert result["clip_count"] == 2
+    assert not (tmp_path / "track_remove_refuse_result.timeline.json").exists()
+
+
+def test_remove_timeline_track_with_clips_clears_remaining_links(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="track_remove_source")
+
+    result = timeline_tools.remove_timeline_track(
+        timeline_file=str(saved["timeline_file"]),
+        track_id="track_a1",
+        remove_clips=True,
+        output_directory=str(tmp_path),
+        output_name="track_remove_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is True
+    assert result["after"]["removed_track_id"] == "track_a1"
+    assert result["after"]["removed_clip_count"] == 2
+    inspected = timeline_tools.inspect_timeline(str(result["timeline_file"]))
+    assert inspected["summary"]["track_count"] == 1
+    assert inspected["summary"]["clip_count"] == 2
+    assert all(clip.get("linked_clip_id") is None for clip in inspected["data"]["clips"])
+
+
 def test_trim_timeline_clip_dry_run_does_not_write(monkeypatch, tmp_path: Path) -> None:
     plan_file = _create_plan_file(monkeypatch, tmp_path)
     created = timeline_tools.create_timeline_from_rough_cut_plan(plan_file=str(plan_file))

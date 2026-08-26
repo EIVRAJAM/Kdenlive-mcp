@@ -200,6 +200,9 @@ Audio y analisis:
 - `save_timeline`: guarda una timeline MCP como JSON.
 - `inspect_timeline`: carga y valida una timeline MCP guardada.
 - `validate_timeline`: valida solapes, duraciones, links y referencias media.
+- `create_timeline_track`: crea una pista audio/video en una copia de timeline MCP.
+- `update_timeline_track`: renombra, bloquea o silencia una pista en una copia de timeline MCP.
+- `remove_timeline_track`: elimina una pista vacia o elimina sus clips si se confirma explicitamente.
 - `trim_timeline_clip`: recorta un clip en una copia de timeline MCP con `dry_run`.
 - `move_timeline_clip`: mueve un clip en una copia de timeline MCP con `dry_run`.
 - `split_timeline_clip`: divide un clip en una copia de timeline MCP con `dry_run`.
