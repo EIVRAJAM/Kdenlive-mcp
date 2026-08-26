@@ -316,6 +316,7 @@ probar tanto el caso permitido como el denegado.
 - `docs/CODEX_SETUP.md`: instalacion local y configuracion MCP para Codex.
 - `docs/MCP_TOOLS.md`: contratos detallados de herramientas MCP.
 - `docs/PRODUCTION_CONTRACT.md`: funcionalidades indispensables antes de considerar el MCP apto para produccion.
+- `docs/RELEASE_EVIDENCE.md`: evidencia registrada de gates de produccion local.
 - `docs/RELEASE_CHECKLIST.md`: checklist para validar un release local apto para agente.
 - `docs/SCHEMAS.md`: schemas versionados para JSON persistidos del MCP.
 - `docs/VLOG_WORKFLOW.md`: guia practica para crear un rough cut `.kdenlive`.

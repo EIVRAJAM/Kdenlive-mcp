@@ -565,8 +565,7 @@ The current codebase has the P0 workflow baseline automated. These gaps should
 still be closed before calling it production-ready:
 
 ```text
-1. Run and record the 20-pass fixture workflow reliability check.
-2. Run and record one real user media folder validation.
+1. Run and record one real user media folder validation.
 ```
 
 These are mandatory because they affect agent reliability, user trust, and
@@ -604,6 +603,12 @@ schema docs for timeline JSON: implemented
 
 This makes the project operable and debuggable outside a single development
 session.
+
+Release evidence recorded:
+
+```text
+20-pass fixture workflow reliability check: implemented and recorded in docs/RELEASE_EVIDENCE.md
+```
 
 ### P2 - Editing Surface Expansion
 
