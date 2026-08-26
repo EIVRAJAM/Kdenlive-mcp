@@ -64,7 +64,98 @@ The 20-pass fixture workflow reliability gate is satisfied for commit c3d418a.
 Remaining production-local-agent evidence:
 
 ```text
-real user media folder validation
 manual Kdenlive open verification for that generated project
-Flatpak melt validation for that generated project outside restrictive sandbox
+```
+
+## 2026-08-25 Real User Media Folder Validation
+
+Release target:
+
+```text
+production-local-agent-single-user
+```
+
+Validated commit:
+
+```text
+4bdcd70
+```
+
+Machine date:
+
+```text
+2026-08-25T23:26:59-05:00
+```
+
+Environment:
+
+```text
+Kdenlive Flatpak: org.kde.kdenlive 26.04.3
+FFmpeg: 7.1.4-0+deb13u1
+MLT melt: 7.40.0
+```
+
+Media folder:
+
+```text
+/home/abrahamc/Descargas/Investigación PLINK/Vídeos muestra_análisis de aplicaciones
+```
+
+Command shape:
+
+```text
+create_vlog_rough_cut_project(
+  target_duration=8,
+  recursive=False,
+  max_files=2,
+  remove_silence=False,
+  overwrite=True,
+  check_mlt=True
+)
+```
+
+Generated project:
+
+```text
+/home/abrahamc/Descargas/Investigación PLINK/Vídeos muestra_análisis de aplicaciones/kdenlive_mcp_real_validation.kdenlive
+```
+
+Generated artifacts:
+
+```text
+/home/abrahamc/Descargas/Investigación PLINK/Vídeos muestra_análisis de aplicaciones/kdenlive_mcp_real_validation_rough_cut_plan.rough-cut-plan.json
+/home/abrahamc/Descargas/Investigación PLINK/Vídeos muestra_análisis de aplicaciones/kdenlive_mcp_real_validation_timeline.timeline.json
+/home/abrahamc/Descargas/Investigación PLINK/Vídeos muestra_análisis de aplicaciones/kdenlive_mcp_real_validation.kdenlive
+```
+
+Result:
+
+```text
+workflow success: true
+planned_duration: 8.0
+selected_segment_count: 1
+track_count: 2
+clip_count: 2
+marker_count: 1
+guide_count: 1
+bin_media_count: 1
+timeline_clip_count: 2
+missing_media_count: 0
+MLT load check: valid true
+warnings: none
+media_checksums_unchanged: true
+```
+
+Decision:
+
+```text
+The real user media folder validation gate is satisfied for commit 4bdcd70.
+Manual Kdenlive visual verification remains pending.
+```
+
+Manual verification command:
+
+```bash
+flatpak run org.kde.kdenlive \
+  "/home/abrahamc/Descargas/Investigación PLINK/Vídeos muestra_análisis de aplicaciones/kdenlive_mcp_real_validation.kdenlive"
 ```

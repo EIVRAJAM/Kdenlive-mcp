@@ -561,11 +561,11 @@ zero unstructured tool failures are allowed in production workflows
 
 ## Required Before Calling It Production
 
-The current codebase has the P0 workflow baseline automated. These gaps should
-still be closed before calling it production-ready:
+The current codebase has the automated P0/P1 evidence recorded. This final gate
+still requires human visual confirmation before calling it production-ready:
 
 ```text
-1. Run and record one real user media folder validation.
+1. Open the recorded real-user generated .kdenlive project in Kdenlive and confirm the timeline visually.
 ```
 
 These are mandatory because they affect agent reliability, user trust, and
@@ -608,6 +608,7 @@ Release evidence recorded:
 
 ```text
 20-pass fixture workflow reliability check: implemented and recorded in docs/RELEASE_EVIDENCE.md
+real user media folder validation: recorded in docs/RELEASE_EVIDENCE.md
 ```
 
 ### P2 - Editing Surface Expansion
