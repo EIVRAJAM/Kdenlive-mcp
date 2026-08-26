@@ -157,7 +157,28 @@ workflow returns success true or structured warning for sandbox-only MLT limits
 logs contain one JSONL record per tool call
 ```
 
-## 8. Release Evidence Template
+## 8. Undo / Version Restore Check
+
+Run or verify the project-version flow:
+
+```text
+clone_project
+list_project_versions
+restore_project_version
+list_project_versions
+```
+
+Required result:
+
+```text
+current project remains unchanged
+selected version is copied into a new *_restored_001.kdenlive file
+backup is created before restore unless explicitly disabled
+restored project validates
+version list includes AI and restored copies
+```
+
+## 9. Release Evidence Template
 
 Copy this into release notes:
 
@@ -181,6 +202,7 @@ Manual Kdenlive project:
 Manual Kdenlive result:
 
 Original media integrity result:
+Undo/version restore result:
 
 Known warnings:
 Decision:

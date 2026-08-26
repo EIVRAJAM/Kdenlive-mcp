@@ -623,6 +623,7 @@ Release evidence recorded:
 real user media folder validation: recorded in docs/RELEASE_EVIDENCE.md
 manual Kdenlive visual verification: recorded in docs/RELEASE_EVIDENCE.md
 edited timeline export validation: recorded in docs/RELEASE_EVIDENCE.md
+undo/version restore workflow documentation: implemented in docs/UNDO_VERSIONING.md
 ```
 
 ### P2 - Editing Surface Expansion
@@ -631,7 +632,7 @@ edited timeline export validation: recorded in docs/RELEASE_EVIDENCE.md
 multi-track writer
 broader trim/split/move validation against more real Kdenlive project shapes
 round-trip tests for multi-track gaps, trims, and splits
-explicit undo/version restore workflow documentation
+automated real-project restore evidence per release
 ```
 
 This expands editing ability while staying inside the production contract.

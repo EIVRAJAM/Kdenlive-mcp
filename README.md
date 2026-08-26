@@ -325,6 +325,7 @@ probar tanto el caso permitido como el denegado.
 - `docs/RELEASE_CHECKLIST.md`: checklist para validar un release local apto para agente.
 - `docs/SCHEMAS.md`: schemas versionados para JSON persistidos del MCP.
 - `docs/VLOG_WORKFLOW.md`: guia practica para crear un rough cut `.kdenlive`.
+- `docs/UNDO_VERSIONING.md`: flujo seguro de versiones, restore y undo para agentes.
 - `docs/SECURITY.md`: modelo de seguridad y reglas de rutas.
 - `docs/ENVIRONMENT.md`: reconocimiento del entorno local.
 - `docs/KDENLIVE_PROJECT_FORMAT.md`: notas sobre el formato Kdenlive/MLT.

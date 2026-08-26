@@ -202,6 +202,11 @@ keeps lock files in allowed output directories.
 recommended pre-edit flow: create a working copy, preserve a backup, then lock
 the working copy for the current owner.
 
+The operator-level undo flow is documented in `docs/UNDO_VERSIONING.md`. Undo
+is implemented as copy-on-write restore: a selected valid version is copied into
+a new `_restored_001` style project, while the current project remains
+unchanged and is backed up first by default.
+
 ## Data Flow: Media Scan To Manifest
 
 ```text

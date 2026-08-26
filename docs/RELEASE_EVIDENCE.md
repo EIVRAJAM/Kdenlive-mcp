@@ -263,3 +263,47 @@ The MCP-owned timeline mutation layer can produce edited timeline JSON copies
 that export to structurally valid .kdenlive draft projects for the current
 single audio/video track template path.
 ```
+
+## 2026-08-26 Undo Versioning Workflow Validation
+
+Scope:
+
+```text
+P2 operator-level undo/version restore workflow
+```
+
+Validated behavior:
+
+```text
+clone_project creates incrementing AI copies
+restore_project_version copies a selected version into a new restored project
+restore_project_version backs up the current project by default
+list_project_versions reports AI copies, restored copies, and backups
+current project and selected source version remain unchanged
+```
+
+Command:
+
+```bash
+scripts/dev_check.sh
+```
+
+Result:
+
+```text
+compileall: passed
+pytest: 136 passed in 21.67s
+```
+
+Specific integration coverage:
+
+```text
+test_version_restore_flow_lists_restored_project
+```
+
+Decision:
+
+```text
+Undo is covered as copy-on-write version restore. The MCP creates a new
+*_restored_001.kdenlive project instead of overwriting the active project.
+```

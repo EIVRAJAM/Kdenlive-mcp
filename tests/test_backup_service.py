@@ -165,6 +165,48 @@ def test_restore_project_version_can_skip_backup(monkeypatch, tmp_path: Path) ->
     assert Path(result["restored_project"]).exists()
 
 
+def test_version_restore_flow_lists_restored_project(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", f"{RECON_DIR}:{tmp_path}")
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS", str(tmp_path))
+    first = clone_project(
+        project=str(SOURCE_PROJECT),
+        output_directory=str(tmp_path),
+        create_backup=False,
+    )
+    second = clone_project(
+        project=str(SOURCE_PROJECT),
+        output_directory=str(tmp_path),
+        create_backup=False,
+    )
+    assert first["success"] is True
+    assert second["success"] is True
+
+    restored = restore_project_version(
+        project=second["clone"],
+        version=first["clone"],
+        output_directory=str(tmp_path),
+        create_backup=True,
+    )
+    versions = list_project_versions(
+        project=str(SOURCE_PROJECT),
+        project_directory=str(tmp_path),
+        backup_directory=str(tmp_path / ".backups"),
+    )
+
+    assert restored["success"] is True
+    assert Path(restored["restored_project"]).name == "manual_two_clips_timeline_restored_001.kdenlive"
+    assert Path(restored["restored_project"]).read_bytes() == Path(first["clone"]).read_bytes()
+    assert Path(restored["backup"]).read_bytes() == Path(second["clone"]).read_bytes()
+    assert versions["success"] is True
+    assert versions["working_copy_count"] == 3
+    assert versions["backup_count"] == 1
+    assert [item["filename"] for item in versions["working_copies"]] == [
+        "manual_two_clips_timeline_ai_001.kdenlive",
+        "manual_two_clips_timeline_ai_002.kdenlive",
+        "manual_two_clips_timeline_restored_001.kdenlive",
+    ]
+
+
 def test_restore_project_version_requires_version_allowlist(monkeypatch, tmp_path: Path) -> None:
     version = tmp_path / "version.kdenlive"
     version.write_bytes(SOURCE_PROJECT.read_bytes())
