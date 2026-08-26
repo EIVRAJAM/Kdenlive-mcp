@@ -429,6 +429,7 @@ validate_timeline
 trim_timeline_clip
 move_timeline_clip
 split_timeline_clip
+apply_timeline_edits
 export_timeline_to_kdenlive_template
 create_vlog_rough_cut_project
 ```
@@ -531,6 +532,7 @@ validate_timeline
 trim_timeline_clip
 move_timeline_clip
 split_timeline_clip
+apply_timeline_edits
 export_timeline_to_kdenlive_template
 create_vlog_rough_cut_project
 ```

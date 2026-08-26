@@ -60,6 +60,7 @@ def test_tools_list_includes_health_check() -> None:
     assert "trim_timeline_clip" in tool_names
     assert "move_timeline_clip" in tool_names
     assert "split_timeline_clip" in tool_names
+    assert "apply_timeline_edits" in tool_names
     assert "export_timeline_to_mlt_xml" in tool_names
     assert "export_timeline_to_kdenlive_template" in tool_names
     assert "create_vlog_rough_cut_project" in tool_names

@@ -33,6 +33,7 @@ validate_timeline is read-only and checks media references against the media all
 trim_timeline_clip writes only copy-on-write derived JSON timeline files, and supports dry_run
 move_timeline_clip writes only copy-on-write derived JSON timeline files, and supports dry_run
 split_timeline_clip writes only copy-on-write derived JSON timeline files, and supports dry_run
+apply_timeline_edits writes only one copy-on-write derived JSON timeline file, and supports dry_run
 export_timeline_to_mlt_xml writes only derived MLT XML drafts in allowed output directories
 export_timeline_to_kdenlive_template writes only derived .kdenlive drafts in allowed project directories
 create_vlog_rough_cut_project composes allowed media/output/project operations only

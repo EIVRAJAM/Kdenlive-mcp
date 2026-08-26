@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from kdenlive_mcp.services.timeline_service import (
+    apply_timeline_edits,
     create_timeline_from_rough_cut_plan,
     export_timeline_to_mlt_xml,
     export_timeline_to_kdenlive_template,
@@ -131,6 +132,42 @@ TOOLS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "handler": split_timeline_clip,
+    },
+    "apply_timeline_edits": {
+        "description": "Apply an ordered batch of trim/move/split operations to an MCP timeline as one validated copy-on-write transaction.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "timeline_file": {"type": "string"},
+                "edits": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "operation": {"type": "string", "enum": ["trim", "move", "split"]},
+                            "clip_id": {"type": "string"},
+                            "source_in": {"type": "number"},
+                            "source_out": {"type": "number"},
+                            "timeline_in": {"type": "number"},
+                            "split_at": {"type": "number"},
+                            "include_linked": {"type": "boolean", "default": True},
+                            "move_markers": {"type": "boolean", "default": True},
+                        },
+                        "required": ["operation", "clip_id"],
+                        "additionalProperties": False,
+                    },
+                    "minItems": 1,
+                },
+                "output_directory": {"type": ["string", "null"], "default": None},
+                "name": {"type": ["string", "null"], "default": None},
+                "overwrite": {"type": "boolean", "default": False},
+                "dry_run": {"type": "boolean", "default": True},
+                "check_media_exists": {"type": "boolean", "default": False},
+            },
+            "required": ["timeline_file", "edits"],
+            "additionalProperties": False,
+        },
+        "handler": apply_timeline_edits,
     },
     "export_timeline_to_mlt_xml": {
         "description": "Export a validated MCP timeline to a draft MLT XML file without claiming Kdenlive project compatibility.",

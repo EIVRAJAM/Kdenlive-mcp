@@ -934,6 +934,69 @@ For `dry_run=false`, `timeline_file` contains the written copy. Invalid edits
 return structured errors such as `INVALID_CLIP`, `INVALID_TIMECODE`,
 `OUTPUT_EXISTS`, or `INVALID_TIMELINE`.
 
+### apply_timeline_edits
+
+Input:
+
+```json
+{
+  "timeline_file": "/home/abrahamc/Videos/vlog/timeline.timeline.json",
+  "edits": [
+    {
+      "operation": "trim",
+      "clip_id": "clip_001_v",
+      "source_out": 2.0
+    },
+    {
+      "operation": "split",
+      "clip_id": "clip_001_v",
+      "split_at": 1.0
+    },
+    {
+      "operation": "move",
+      "clip_id": "clip_002_v",
+      "timeline_in": 4.0
+    }
+  ],
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "name": "timeline_edit_001",
+  "dry_run": false,
+  "check_media_exists": false
+}
+```
+
+Applies an ordered batch of `trim`, `move`, and `split` operations to the
+MCP-owned timeline, then validates the final result before writing one derived
+timeline JSON file. This is the preferred tool when an agent wants to execute a
+small edit plan without producing one intermediate file per operation.
+
+If one edit has invalid arguments, the tool returns a structured error with
+`failed_step`, `failed_edit`, and the successful `steps` applied before that
+point. If all edits parse but the final timeline is invalid, for example due to
+overlap, the tool returns `INVALID_TIMELINE` and does not write the output.
+
+Output:
+
+```json
+{
+  "success": true,
+  "operation": "apply_timeline_edits",
+  "edit_count": 3,
+  "steps": [
+    {
+      "index": 1,
+      "operation": "trim",
+      "clip_id": "clip_001_v",
+      "before": {},
+      "after": {}
+    }
+  ],
+  "timeline_file": "/home/abrahamc/Videos/vlog/timeline_edit_001.timeline.json",
+  "validation": {},
+  "timeline": {}
+}
+```
+
 ### export_timeline_to_mlt_xml
 
 Input:

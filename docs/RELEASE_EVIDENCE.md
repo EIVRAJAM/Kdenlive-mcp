@@ -222,6 +222,7 @@ Validated behavior:
 trim_timeline_clip copy-on-write JSON mutation
 move_timeline_clip copy-on-write JSON mutation
 split_timeline_clip copy-on-write JSON mutation
+apply_timeline_edits batch copy-on-write JSON mutation
 edited TimelineDocument export to .kdenlive template
 KdenliveProjectAdapter inspection of exported trim/move/split projects
 ```
@@ -236,7 +237,7 @@ Result:
 
 ```text
 compileall: passed
-pytest: 127 passed in 22.75s
+pytest: 131 passed in 19.75s
 ```
 
 Specific integration coverage:
@@ -245,6 +246,9 @@ Specific integration coverage:
 test_export_trimmed_timeline_to_kdenlive_template
 test_export_moved_timeline_to_kdenlive_template_preserves_gap
 test_export_split_timeline_to_kdenlive_template
+test_apply_timeline_edits_writes_single_copy
+test_apply_timeline_edits_refuses_invalid_final_timeline
+test_apply_timeline_edits_export_to_kdenlive_template
 ```
 
 Decision:

@@ -203,6 +203,7 @@ Audio y analisis:
 - `trim_timeline_clip`: recorta un clip en una copia de timeline MCP con `dry_run`.
 - `move_timeline_clip`: mueve un clip en una copia de timeline MCP con `dry_run`.
 - `split_timeline_clip`: divide un clip en una copia de timeline MCP con `dry_run`.
+- `apply_timeline_edits`: aplica varios trims/moves/splits como una transaccion copy-on-write.
 - `export_timeline_to_mlt_xml`: exporta una timeline MCP validada a MLT XML draft.
 - `export_timeline_to_kdenlive_template`: crea un `.kdenlive` draft desde una plantilla real y escribe guides/markers.
 - `create_vlog_rough_cut_project`: ejecuta el flujo carpeta -> plan -> timeline -> `.kdenlive`.

@@ -271,6 +271,93 @@ def test_split_timeline_clip_rejects_out_of_range(monkeypatch, tmp_path: Path) -
     assert not (tmp_path / "split_invalid_result.timeline.json").exists()
 
 
+def test_apply_timeline_edits_writes_single_copy(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="batch_source")
+
+    result = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[
+            {"operation": "trim", "clip_id": "clip_001_v", "source_out": 2.0},
+            {"operation": "split", "clip_id": "clip_001_v", "split_at": 1.0},
+            {"operation": "move", "clip_id": "clip_002_v", "timeline_in": 4.0},
+        ],
+        output_directory=str(tmp_path),
+        name="batch_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is True
+    assert result["edit_count"] == 3
+    assert [step["operation"] for step in result["steps"]] == ["trim", "split", "move"]
+    assert Path(result["timeline_file"]).name == "batch_result.timeline.json"
+
+    inspected = timeline_tools.inspect_timeline(str(result["timeline_file"]))
+    assert inspected["summary"]["clip_count"] == 6
+    clips = {clip["id"]: clip for clip in inspected["data"]["clips"]}
+    assert clips["clip_001_v_part1"]["timeline_out"] == 1.0
+    assert clips["clip_001_v_part2"]["timeline_in"] == 1.0
+    assert clips["clip_002_v"]["timeline_in"] == 4.0
+
+
+def test_apply_timeline_edits_dry_run_does_not_write(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="batch_dry_run_source")
+
+    result = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[{"operation": "trim", "clip_id": "clip_001_v", "source_out": 2.0}],
+        output_directory=str(tmp_path),
+        name="batch_dry_run_result",
+        dry_run=True,
+    )
+
+    assert result["success"] is True
+    assert result["dry_run"] is True
+    assert result["timeline_file"] is None
+    assert result["edit_count"] == 1
+    assert not (tmp_path / "batch_dry_run_result.timeline.json").exists()
+
+
+def test_apply_timeline_edits_refuses_invalid_final_timeline(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="batch_invalid_source")
+
+    result = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[{"operation": "move", "clip_id": "clip_002_v", "timeline_in": 2.5}],
+        output_directory=str(tmp_path),
+        name="batch_invalid_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_TIMELINE"
+    assert result["edit_count"] == 1
+    assert "TIMELINE_OVERLAP" in {issue["code"] for issue in result["validation"]["issues"]}
+    assert not (tmp_path / "batch_invalid_result.timeline.json").exists()
+
+
+def test_apply_timeline_edits_export_to_kdenlive_template(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="batch_export_source")
+    batch = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[
+            {"operation": "trim", "clip_id": "clip_001_v", "source_out": 2.0},
+            {"operation": "split", "clip_id": "clip_001_v", "split_at": 1.0},
+            {"operation": "move", "clip_id": "clip_002_v", "timeline_in": 4.0},
+        ],
+        output_directory=str(tmp_path),
+        name="batch_export_timeline",
+        dry_run=False,
+    )
+    assert batch["success"] is True
+
+    exported = _export_project(monkeypatch, tmp_path, str(batch["timeline_file"]), "batch_export_project")
+
+    clips = _timeline_clips_from_exported_project(str(exported["project"]))
+    assert exported["inspection_summary"]["timeline_clip_count"] == 6
+    assert sorted(clip["start_frame"] for clip in clips if clip["media_id"] == "5") == [120, 120]
+    assert {clip["duration_frames"] for clip in clips if clip["media_id"] == "4"} == {30, 30}
+
+
 def test_validate_timeline_detects_overlap(monkeypatch, tmp_path: Path) -> None:
     plan_file = _create_plan_file(monkeypatch, tmp_path)
     created = timeline_tools.create_timeline_from_rough_cut_plan(plan_file=str(plan_file))
