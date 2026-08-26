@@ -1105,6 +1105,52 @@ When `check_mlt` is true, MLT load validation is included under
 `steps.mlt_load`. A real MLT failure fails the workflow. A Codex sandbox
 execution block is returned as a warning with `valid: null`.
 
+### edit_timeline_and_export_project
+
+Input:
+
+```json
+{
+  "timeline_file": "/home/abrahamc/Videos/vlog/timeline.timeline.json",
+  "edits": [
+    {
+      "operation": "trim",
+      "clip_id": "clip_001_v",
+      "source_out": 2.0
+    },
+    {
+      "operation": "move",
+      "clip_id": "clip_002_v",
+      "timeline_in": 4.0
+    }
+  ],
+  "template_project": "/home/abrahamc/Videos/templates/manual_empty_vertical.kdenlive",
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "name": "vlog_ai_002",
+  "dry_run": false,
+  "check_media_exists": true,
+  "check_mlt": false
+}
+```
+
+Applies a batch of timeline edits and exports the resulting timeline to a
+derived `.kdenlive` project. It is intended for agent workflows where Codex has
+already inspected a timeline and wants to produce the next reviewable project
+version in one call.
+
+The workflow performs preflight checks before writing. With `dry_run=true`, it
+does not write the edited timeline or project and returns the paths it would
+create. With `dry_run=false`, it writes:
+
+```text
+<name>_timeline.timeline.json
+<name>.kdenlive
+```
+
+Failures include `failed_step`, `step_result`, and `partial_outputs`. A failure
+during edit planning writes nothing. A later export or MLT validation failure
+reports any timeline/project artifacts already produced.
+
 ## Manifest Tools
 
 The manifest layer is an intermediate MCP-owned JSON format. It is not a

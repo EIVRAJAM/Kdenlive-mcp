@@ -432,6 +432,7 @@ split_timeline_clip
 apply_timeline_edits
 export_timeline_to_kdenlive_template
 create_vlog_rough_cut_project
+edit_timeline_and_export_project
 ```
 
 Acceptance:
@@ -535,6 +536,7 @@ split_timeline_clip
 apply_timeline_edits
 export_timeline_to_kdenlive_template
 create_vlog_rough_cut_project
+edit_timeline_and_export_project
 ```
 
 `export_timeline_to_mlt_xml` may remain available as a diagnostic/export helper,

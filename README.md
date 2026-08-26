@@ -207,6 +207,7 @@ Audio y analisis:
 - `export_timeline_to_mlt_xml`: exporta una timeline MCP validada a MLT XML draft.
 - `export_timeline_to_kdenlive_template`: crea un `.kdenlive` draft desde una plantilla real y escribe guides/markers.
 - `create_vlog_rough_cut_project`: ejecuta el flujo carpeta -> plan -> timeline -> `.kdenlive`.
+- `edit_timeline_and_export_project`: aplica un batch de ediciones y exporta el `.kdenlive`.
 
 Manifiestos:
 

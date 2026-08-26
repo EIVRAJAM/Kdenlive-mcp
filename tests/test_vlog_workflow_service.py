@@ -5,7 +5,8 @@ from pathlib import Path
 
 from kdenlive_mcp.adapters.commands import CommandResult
 from kdenlive_mcp.services import vlog_workflow_service
-from kdenlive_mcp.services.vlog_workflow_service import create_vlog_rough_cut_project
+from kdenlive_mcp.services.vlog_workflow_service import create_vlog_rough_cut_project, edit_timeline_and_export_project
+from kdenlive_mcp.tools import rough_cut_tools, timeline_tools
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +22,25 @@ def _allow(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_MEDIA_DIRS", str(RECON_DIR))
     monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS", str(tmp_path))
     monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", f"{RECON_DIR}:{tmp_path}")
+
+
+def _saved_timeline(monkeypatch, tmp_path: Path) -> str:
+    _allow(monkeypatch, tmp_path)
+    plan = rough_cut_tools.create_rough_cut_plan_file(
+        folder=str(RECON_DIR),
+        output_directory=str(tmp_path),
+        name="workflow_edit_plan",
+        target_duration=4.0,
+        recursive=False,
+        max_files=2,
+        remove_silence=False,
+    )
+    assert plan["success"] is True
+    timeline = timeline_tools.create_timeline_from_rough_cut_plan(plan_file=plan["plan_file"])
+    assert timeline["success"] is True
+    saved = timeline_tools.save_timeline(timeline["timeline"], str(tmp_path), name="workflow_edit_source")
+    assert saved["success"] is True
+    return str(saved["timeline_file"])
 
 
 def test_create_vlog_rough_cut_project(monkeypatch, tmp_path: Path) -> None:
@@ -201,3 +221,96 @@ def test_create_vlog_rough_cut_project_preflight_blocks_partial_writes(monkeypat
     assert result["failed_step"] == "preflight"
     assert result["error"] == "PERMISSION_DENIED"
     assert list(tmp_path.iterdir()) == []
+
+
+def test_edit_timeline_and_export_project_dry_run_does_not_write(monkeypatch, tmp_path: Path) -> None:
+    timeline_file = _saved_timeline(monkeypatch, tmp_path)
+
+    result = edit_timeline_and_export_project(
+        timeline_file=timeline_file,
+        edits=[{"operation": "trim", "clip_id": "clip_001_v", "source_out": 2.0}],
+        template_project=str(TEMPLATE),
+        output_directory=str(tmp_path),
+        name="edited_project",
+        dry_run=True,
+    )
+
+    assert result["success"] is True
+    assert result["operation"] == "edit_timeline_and_export_project"
+    assert result["dry_run"] is True
+    assert result["timeline_file"] is None
+    assert result["project"] is None
+    assert result["would_write"]["timeline"].endswith("edited_project_timeline.timeline.json")
+    assert result["would_write"]["kdenlive_project"].endswith("edited_project.kdenlive")
+    assert not (tmp_path / "edited_project_timeline.timeline.json").exists()
+    assert not (tmp_path / "edited_project.kdenlive").exists()
+
+
+def test_edit_timeline_and_export_project_writes_timeline_and_project(monkeypatch, tmp_path: Path) -> None:
+    timeline_file = _saved_timeline(monkeypatch, tmp_path)
+
+    result = edit_timeline_and_export_project(
+        timeline_file=timeline_file,
+        edits=[
+            {"operation": "trim", "clip_id": "clip_001_v", "source_out": 2.0},
+            {"operation": "move", "clip_id": "clip_002_v", "timeline_in": 4.0},
+        ],
+        template_project=str(TEMPLATE),
+        output_directory=str(tmp_path),
+        name="edited_project",
+        dry_run=False,
+    )
+
+    assert result["success"] is True
+    assert result["dry_run"] is False
+    assert Path(result["timeline_file"]).exists()
+    assert Path(result["project"]).exists()
+    assert result["artifacts"] == result["partial_outputs"]
+    assert result["steps"]["timeline_edits"]["edit_count"] == 2
+    assert result["steps"]["kdenlive_project"]["timeline_clip_count"] == 4
+    assert result["steps"]["kdenlive_project"]["missing_media_count"] == 0
+    assert result["steps"]["mlt_load"] == {"checked": False, "valid": None}
+
+
+def test_edit_timeline_and_export_project_preflight_refuses_existing_project(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    timeline_file = _saved_timeline(monkeypatch, tmp_path)
+    existing_project = tmp_path / "existing_project.kdenlive"
+    existing_project.write_text("already here", encoding="utf-8")
+
+    result = edit_timeline_and_export_project(
+        timeline_file=timeline_file,
+        edits=[{"operation": "trim", "clip_id": "clip_001_v", "source_out": 2.0}],
+        template_project=str(TEMPLATE),
+        output_directory=str(tmp_path),
+        name="existing_project",
+        dry_run=False,
+    )
+
+    assert result["success"] is False
+    assert result["failed_step"] == "preflight"
+    assert result["error"] == "OUTPUT_EXISTS"
+    assert result["partial_outputs"] == {}
+    assert not (tmp_path / "existing_project_timeline.timeline.json").exists()
+
+
+def test_edit_timeline_and_export_project_reports_failed_edit(monkeypatch, tmp_path: Path) -> None:
+    timeline_file = _saved_timeline(monkeypatch, tmp_path)
+
+    result = edit_timeline_and_export_project(
+        timeline_file=timeline_file,
+        edits=[{"operation": "move", "clip_id": "clip_002_v", "timeline_in": 2.5}],
+        template_project=str(TEMPLATE),
+        output_directory=str(tmp_path),
+        name="invalid_edit_project",
+        dry_run=False,
+    )
+
+    assert result["success"] is False
+    assert result["failed_step"] == "apply_timeline_edits"
+    assert result["error"] == "INVALID_TIMELINE"
+    assert result["partial_outputs"] == {}
+    assert not (tmp_path / "invalid_edit_project_timeline.timeline.json").exists()
+    assert not (tmp_path / "invalid_edit_project.kdenlive").exists()

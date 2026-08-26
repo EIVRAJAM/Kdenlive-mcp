@@ -223,6 +223,7 @@ trim_timeline_clip copy-on-write JSON mutation
 move_timeline_clip copy-on-write JSON mutation
 split_timeline_clip copy-on-write JSON mutation
 apply_timeline_edits batch copy-on-write JSON mutation
+edit_timeline_and_export_project composed batch-edit-to-.kdenlive workflow
 edited TimelineDocument export to .kdenlive template
 KdenliveProjectAdapter inspection of exported trim/move/split projects
 ```
@@ -237,7 +238,7 @@ Result:
 
 ```text
 compileall: passed
-pytest: 131 passed in 19.75s
+pytest: 135 passed in 24.08s
 ```
 
 Specific integration coverage:
@@ -249,6 +250,10 @@ test_export_split_timeline_to_kdenlive_template
 test_apply_timeline_edits_writes_single_copy
 test_apply_timeline_edits_refuses_invalid_final_timeline
 test_apply_timeline_edits_export_to_kdenlive_template
+test_edit_timeline_and_export_project_dry_run_does_not_write
+test_edit_timeline_and_export_project_writes_timeline_and_project
+test_edit_timeline_and_export_project_preflight_refuses_existing_project
+test_edit_timeline_and_export_project_reports_failed_edit
 ```
 
 Decision:
