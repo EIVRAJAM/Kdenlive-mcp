@@ -649,3 +649,100 @@ Any unhandled Python exception inside a tool handler is converted into a
 structured INTERNAL_ERROR response with isError=true, logged without a
 traceback, and never breaks the tools/list surface or the server loop.
 ```
+
+## 2026-08-31 MCP TypeError Boundary Classification
+
+Scope:
+
+```text
+Distinguish argument-binding errors from internal handler TypeErrors
+```
+
+Validated behavior:
+
+```text
+arguments are validated against the handler signature with inspect.signature().bind()
+missing or unexpected arguments return JSON-RPC -32602 with "Invalid arguments for <tool>"
+a handler that raises TypeError internally with valid arguments returns INTERNAL_ERROR with isError=true
+no traceback is exposed in the INTERNAL_ERROR response
+structured log records error_type=TypeError and the real internal message
+structured tool results with success=false remain unwrapped
+tools/list keeps working after an unexpected handler exception
+```
+
+Command:
+
+```bash
+scripts/dev_check.sh
+```
+
+Result:
+
+```text
+compileall: passed
+pytest: 168 passed in 29.27s
+```
+
+Specific integration coverage:
+
+```text
+test_tools_call_reports_missing_argument_as_jsonrpc_error
+test_tools_call_internal_type_error_is_not_argument_error
+test_tools_call_logs_internal_type_error
+```
+
+Decision:
+
+```text
+A TypeError raised internally by a handler is no longer misreported as an
+argument error. Binding failures stay as JSON-RPC -32602; internal failures
+become structured INTERNAL_ERROR responses with isError=true.
+```
+
+## 2026-09-01 MCP Tool-Call Argument Parsing
+
+Scope:
+
+```text
+Reject non-object tool arguments before handler binding
+```
+
+Validated behavior:
+
+```text
+arguments=[] is rejected with JSON-RPC -32602
+arguments="" is rejected with JSON-RPC -32602
+arguments=0 is rejected with JSON-RPC -32602
+arguments=False is rejected with JSON-RPC -32602
+arguments=None is accepted as {} for MCP tolerance
+non-object MCP arguments are rejected before signature binding
+structured tool results and internal error handling are unchanged
+```
+
+Command:
+
+```bash
+scripts/dev_check.sh
+```
+
+Result:
+
+```text
+compileall: passed
+pytest: 173 passed in 26.89s
+```
+
+Specific integration coverage:
+
+```text
+test_tools_call_rejects_non_object_arguments
+test_tools_call_accepts_none_arguments_as_empty
+```
+
+Decision:
+
+```text
+Only a JSON object (or None tolerated as an empty object) is accepted for tool
+arguments. Any other type fails fast with JSON-RPC -32602 before any handler
+signature binding or execution.
+```

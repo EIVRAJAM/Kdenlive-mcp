@@ -3,7 +3,9 @@ from __future__ import annotations
 import io
 import json
 
-from kdenlive_mcp.server import handle_request, read_message, write_message
+import pytest
+
+from kdenlive_mcp.server import McpError, _error_response, handle_request, read_message, write_message
 from kdenlive_mcp import server
 from kdenlive_mcp.logging import append_tool_log
 
@@ -22,6 +24,34 @@ def _exploding_tool_entry() -> dict[str, object]:
         "description": "Tool that raises for MCP boundary tests.",
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
         "handler": _raise_value_error,
+    }
+
+
+def _required_arg_tool(required_arg: str) -> dict[str, object]:
+    return {"success": True, "required_arg": required_arg}
+
+
+def _required_arg_tool_entry() -> dict[str, object]:
+    return {
+        "description": "Tool with a required argument for binding tests.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"required_arg": {"type": "string"}},
+            "required": ["required_arg"],
+        },
+        "handler": _required_arg_tool,
+    }
+
+
+def _internal_type_error_tool(**kwargs: object) -> dict[str, object]:
+    raise TypeError("internal boom")
+
+
+def _internal_type_error_tool_entry() -> dict[str, object]:
+    return {
+        "description": "Tool that raises TypeError internally for classification tests.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+        "handler": _internal_type_error_tool,
     }
 
 
@@ -246,3 +276,101 @@ def test_tools_call_logs_unexpected_exception(monkeypatch, tmp_path) -> None:
     assert records[0]["error"] == "INTERNAL_ERROR"
     assert records[0]["error_type"] == "ValueError"
     assert records[0]["message"] == "boom"
+
+
+def test_tools_call_reports_missing_argument_as_jsonrpc_error(monkeypatch) -> None:
+    monkeypatch.setitem(server.TOOLS, "required_arg_tool", _required_arg_tool_entry())
+
+    with pytest.raises(McpError) as excinfo:
+        handle_request(
+            {
+                "jsonrpc": "2.0",
+                "id": "bind-error",
+                "method": "tools/call",
+                "params": {"name": "required_arg_tool", "arguments": {}},
+            }
+        )
+
+    response = _error_response("bind-error", excinfo.value)
+    assert excinfo.value.code == -32602
+    assert excinfo.value.message.startswith("Invalid arguments for required_arg_tool")
+    assert response["jsonrpc"] == "2.0"
+    assert response["id"] == "bind-error"
+    assert response["error"]["code"] == -32602
+    assert response["error"]["message"].startswith("Invalid arguments for required_arg_tool")
+
+
+def test_tools_call_internal_type_error_is_not_argument_error(monkeypatch) -> None:
+    monkeypatch.setitem(server.TOOLS, "internal_type_error_tool", _internal_type_error_tool_entry())
+
+    response = handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": "boom-type",
+            "method": "tools/call",
+            "params": {"name": "internal_type_error_tool", "arguments": {}},
+        }
+    )
+
+    assert response is not None
+    result = response["result"]
+    assert result["isError"] is True
+    payload = json.loads(result["content"][0]["text"])
+    assert payload["success"] is False
+    assert payload["error"] == "INTERNAL_ERROR"
+    assert payload["message"] == "Tool execution failed unexpectedly."
+    assert payload["operation"] == "internal_type_error_tool"
+    assert "traceback" not in payload
+
+
+def test_tools_call_logs_internal_type_error(monkeypatch, tmp_path) -> None:
+    log_file = tmp_path / "kdenlive-mcp-typeerror.log"
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", str(log_file))
+    monkeypatch.setitem(server.TOOLS, "internal_type_error_tool", _internal_type_error_tool_entry())
+
+    response = handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": "boom-type-log",
+            "method": "tools/call",
+            "params": {"name": "internal_type_error_tool", "arguments": {}},
+        }
+    )
+
+    assert response is not None
+    assert response["result"]["isError"] is True
+    records = [json.loads(line) for line in log_file.read_text(encoding="utf-8").splitlines()]
+    assert len(records) == 1
+    assert records[0]["success"] is False
+    assert records[0]["error"] == "INTERNAL_ERROR"
+    assert records[0]["error_type"] == "TypeError"
+    assert records[0]["message"] == "internal boom"
+
+
+@pytest.mark.parametrize("bad_arguments", [[], "", 0, False])
+def test_tools_call_rejects_non_object_arguments(monkeypatch, bad_arguments) -> None:
+    with pytest.raises(McpError) as excinfo:
+        handle_request(
+            {
+                "jsonrpc": "2.0",
+                "id": "bad-args",
+                "method": "tools/call",
+                "params": {"name": "health_check", "arguments": bad_arguments},
+            }
+        )
+    assert excinfo.value.code == -32602
+    assert excinfo.value.message == "Tool arguments must be an object"
+
+
+def test_tools_call_accepts_none_arguments_as_empty() -> None:
+    response = handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": "none-args",
+            "method": "tools/call",
+            "params": {"name": "health_check", "arguments": None},
+        }
+    )
+
+    assert response is not None
+    assert response["result"]["isError"] is False

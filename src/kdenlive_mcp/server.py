@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import json
 import sys
 import time
@@ -118,16 +119,28 @@ def _call_tool(params: dict[str, Any], request_id: Any = None) -> dict[str, Any]
     if name not in TOOLS:
         raise McpError(-32602, f"Unknown tool: {name}")
 
-    arguments = params.get("arguments") or {}
+    arguments = params.get("arguments", {})
+    if arguments is None:
+        arguments = {}
     if not isinstance(arguments, dict):
         raise McpError(-32602, "Tool arguments must be an object")
+
+    handler = TOOLS[name]["handler"]
+    try:
+        signature = inspect.signature(handler)
+    except (TypeError, ValueError):
+        signature = None
+    if signature is not None:
+        try:
+            signature.bind(**arguments)
+        except TypeError as exc:
+            raise McpError(-32602, f"Invalid arguments for {name}: {exc}") from exc
+
     start = time.perf_counter()
     error_type: str | None = None
     error_message: str | None = None
     try:
-        result = TOOLS[name]["handler"](**arguments)
-    except TypeError as exc:
-        raise McpError(-32602, f"Invalid arguments for {name}: {exc}") from exc
+        result = handler(**arguments)
     except Exception as exc:  # defensive server boundary for unexpected tool failures
         error_type = type(exc).__name__
         error_message = str(exc)
