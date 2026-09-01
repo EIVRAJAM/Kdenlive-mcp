@@ -34,7 +34,7 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
 | Automated end-to-end workflow test | DONE | `tests/test_vlog_workflow_service.py`; `scripts/dev_check.sh` (`KDENLIVE_MCP_RUN_FIXTURE_WORKFLOW`); RELEASE_EVIDENCE (20 runs) | Gate opt-in por env, no CI permanente | Documentar ejecución en CI/release reproducible |
 | Original media checksum test | DONE | `scripts/fixture_reliability_check.py` (sha256); RELEASE_EVIDENCE `media_checksums_unchanged: true` | Evidencia puntual (2026-08-25), no por-release | Re-ejecutar por release y registrar checksum |
 | Generated .kdenlive inspect validation | DONE | RELEASE_EVIDENCE (export validation, clip/marker/guide counts); `tests/test_timeline_service.py` | — | — |
-| Optional workflow-level MLT load validation | PARTIAL | `tools/project_tools.py` `check_mlt`; `scripts/dev_check.sh` `KDENLIVE_MCP_RUN_MLT_CHECK`; tests con `melt` mockeado; evidencia real única 2026-08-25 (`MLT load check: valid true`) | La carga real por melt sólo se registró una vez en una máquina; en sandbox degrada a `unavailable` y no es reproducible | Re-ejecutar `KDENLIVE_MCP_RUN_MLT_CHECK=1 scripts/dev_check.sh` con proyecto real en la máquina objetivo y registrar por release |
+| Optional workflow-level MLT load validation | DONE | `tools/project_tools.py` `check_mlt`; `scripts/dev_check.sh` `KDENLIVE_MCP_RUN_MLT_CHECK`; tests con `melt` mockeado; evidencia real 2026-08-25 (`MLT load check: valid true`) y 2026-09-01 (proyecto generado por MCP, melt Flatpak exit 0, `status: loaded`) | La carga real requiere Flatpak y acceso al filesystem en cada máquina | Re-ejecutar `KDENLIVE_MCP_RUN_MLT_CHECK=1 scripts/dev_check.sh` con un proyecto real y registrar por release |
 | Partial-output cleanup or explicit partial-output reporting | DONE | `services/vlog_workflow_service.py` `_failed_step`/`partial_outputs`; `scripts/fixture_reliability_check.py` (assert partial_outputs) | Sólo reporting, sin cleanup (permitido por el contrato "or") | — |
 | Persistent structured logging | DONE | `src/kdenlive_mcp/logging.py` (JSONL, redacción, error_type/message); `tests/test_server_protocol.py` (logging tests) | Log default a `logs/` si no se configura | — |
 | Reproducible dev/release check command | DONE | `scripts/dev_check.sh`, `docs/RELEASE_CHECKLIST.md`; RELEASE_EVIDENCE (comandos exactos) | Checks de fiabilidad/MLT opt-in por env | Documentar la cadena completa de release en un único comando |
@@ -44,10 +44,10 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
 
 ## Atención especial a pendientes señalados
 
-- Validación real de carga Kdenlive/MLT fuera del sandbox: **PARTIAL**.
-  Implementada (`check_mlt`), probada con mock y registrada una vez (2026-08-25,
-  `MLT load check: valid true`, carpeta de usuario real). No reproducible en el
-  entorno actual; requiere evidencia por-release en la máquina objetivo.
+- Validación real de carga Kdenlive/MLT fuera del sandbox: **DONE**.
+  Implementada (`check_mlt`) y verificada con melt real de Flatpak sobre un
+  proyecto generado por el MCP (2026-09-01, exit 0, `status: loaded`, sin medios
+  faltantes). Re-ejecutar por-release en la máquina objetivo.
 - Checklist release reproducible: **DONE** (`docs/RELEASE_CHECKLIST.md`,
   `scripts/dev_check.sh`, RELEASE_EVIDENCE registra comandos exactos). Falta
   automatizar la parte manual Kdenlive-open (SHOULD).
@@ -68,24 +68,24 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
 ## Production Gate Verdict
 
 ```text
-VERDICTO PROVISIONAL: NOT_READY
+VERDICTO PROVISIONAL: READY
 ```
 
-Razón: 19/20 requisitos MUST están en DONE y el contrato declara evidencia P0/P1
-registrada, pero un MUST crítico queda en **PARTIAL**: la validación real de carga
-por Kdenlive/MLT sólo tiene evidencia puntual (2026-08-25, una máquina) y no es
-reproducible en el entorno actual. Dos gates adicionales (fiabilidad 20-runs y
-checksum de medios) también son registros puntuales, no verificación por-release.
-El target `production-local-agent-single-user` se puede cerrar, pero la
-reproducibilidad de la evidencia debe re-confirmarse en cada release.
+Razón: los 20 requisitos MUST del target `production-local-agent-single-user`
+están en DONE. El único PARTIAL restante (validación real de carga MLT/Kdenlive)
+quedó cubierto el 2026-09-01 con una validación real, no mockeada, de un proyecto
+generado por el MCP a través del melt de Flatpak (exit 0, `status: loaded`, sin
+medios faltantes). Los pendientes que siguen abiertos (locks/versioning e2e,
+más fixtures reales, smoke test Codex, evidencia por-release) son SHOULD o
+evidencia de mantenimiento, no bloqueos MUST del target.
 
-Conteo: DONE 19 · PARTIAL 1 · MISSING 0 · BLOCKED 0.
+Conteo: DONE 20 · PARTIAL 0 · MISSING 0 · BLOCKED 0.
 
 ## Top 5 acciones siguientes
 
-1. Re-ejecutar la validación real de MLT/Kdenlive en la máquina objetivo
-   (`KDENLIVE_MCP_RUN_MLT_CHECK=1 scripts/dev_check.sh` con un proyecto real) y
-   registrar la evidencia por-release. Mueve el MUST #14 de PARTIAL a DONE.
+1. Re-ejecutar el gate real de MLT/Kdenlive en cada release
+   (`KDENLIVE_MCP_RUN_MLT_CHECK=1 scripts/dev_check.sh` con un proyecto generado)
+   y registrar la evidencia en RELEASE_EVIDENCE para mantener el MUST #14 en DONE.
 2. Re-ejecutar el gate de fiabilidad (20 runs + checksum) por-release y registrar
    en RELEASE_EVIDENCE para hacer reproducible la evidencia de gates #4/#5.
 3. Agregar un test e2e que ejercite `PROJECT_LOCKED` y restore completo a través
