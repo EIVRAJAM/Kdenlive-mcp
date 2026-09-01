@@ -567,3 +567,141 @@ def test_move_timeline_clip_rejects_non_finite_timeline_in() -> None:
     assert excinfo.value.code == -32602
     assert "timeline_in" in excinfo.value.message
     assert "PERMISSION_DENIED" not in excinfo.value.message
+
+
+def _fixed_payload_entry(payload: object) -> dict[str, object]:
+    return {
+        "description": "Tool returning a fixed payload for output normalization tests.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+        "handler": lambda **kwargs: payload,
+    }
+
+
+def _call_fixed_tool(name: str) -> dict[str, object]:
+    response = handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": name,
+            "method": "tools/call",
+            "params": {"name": name, "arguments": {}},
+        }
+    )
+    assert response is not None
+    return json.loads(response["result"]["content"][0]["text"])
+
+
+def test_non_dict_handler_response_becomes_invalid_tool_response(monkeypatch) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", "off")
+    monkeypatch.setitem(server.TOOLS, "returns_list_tool", _fixed_payload_entry([]))
+
+    response = handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": "returns-list",
+            "method": "tools/call",
+            "params": {"name": "returns_list_tool", "arguments": {}},
+        }
+    )
+
+    assert response is not None
+    assert response["result"]["isError"] is True
+    payload = json.loads(response["result"]["content"][0]["text"])
+    assert payload["success"] is False
+    assert payload["error"] == "INVALID_TOOL_RESPONSE"
+    assert payload["message"] == "Tool returned an invalid response."
+    assert payload["operation"] == "returns_list_tool"
+
+
+def test_dict_without_success_becomes_invalid_tool_response(monkeypatch) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", "off")
+    monkeypatch.setitem(server.TOOLS, "returns_dict_tool", _fixed_payload_entry({"message": "ok-ish"}))
+
+    payload = _call_fixed_tool("returns_dict_tool")
+
+    assert payload["success"] is False
+    assert payload["error"] == "INVALID_TOOL_RESPONSE"
+    assert payload["operation"] == "returns_dict_tool"
+
+
+def test_failure_without_error_becomes_invalid_tool_response(monkeypatch) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", "off")
+    monkeypatch.setitem(server.TOOLS, "returns_bare_failure_tool", _fixed_payload_entry({"success": False}))
+
+    payload = _call_fixed_tool("returns_bare_failure_tool")
+
+    assert payload["success"] is False
+    assert payload["error"] == "INVALID_TOOL_RESPONSE"
+    assert payload["operation"] == "returns_bare_failure_tool"
+
+
+def test_valid_response_without_operation_gets_operation_injected(monkeypatch) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", "off")
+    monkeypatch.setitem(server.TOOLS, "schema_tool", _schema_tool_entry())
+
+    response = handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": "inject-op",
+            "method": "tools/call",
+            "params": {"name": "schema_tool", "arguments": {"folder": "x"}},
+        }
+    )
+    assert response is not None
+    payload = json.loads(response["result"]["content"][0]["text"])
+
+    assert payload["success"] is True
+    assert payload["operation"] == "schema_tool"
+    assert payload["folder"] == "x"
+
+
+def test_controlled_error_response_is_not_converted(monkeypatch) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", "off")
+    monkeypatch.setitem(
+        server.TOOLS,
+        "controlled_error_tool",
+        _fixed_payload_entry({"success": False, "error": "CUSTOM_ERROR", "message": "custom message"}),
+    )
+
+    payload = _call_fixed_tool("controlled_error_tool")
+
+    assert payload["success"] is False
+    assert payload["error"] == "CUSTOM_ERROR"
+    assert payload["message"] == "custom message"
+    assert payload["operation"] == "controlled_error_tool"
+
+
+def test_non_string_operation_becomes_invalid_tool_response(monkeypatch) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", "off")
+    monkeypatch.setitem(server.TOOLS, "op_int_tool", _fixed_payload_entry({"success": True, "operation": 123}))
+
+    payload = _call_fixed_tool("op_int_tool")
+
+    assert payload["success"] is False
+    assert payload["error"] == "INVALID_TOOL_RESPONSE"
+    assert payload["operation"] == "op_int_tool"
+
+
+def test_empty_operation_becomes_invalid_tool_response(monkeypatch) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", "off")
+    monkeypatch.setitem(server.TOOLS, "op_empty_tool", _fixed_payload_entry({"success": True, "operation": ""}))
+
+    payload = _call_fixed_tool("op_empty_tool")
+
+    assert payload["success"] is False
+    assert payload["error"] == "INVALID_TOOL_RESPONSE"
+    assert payload["operation"] == "op_empty_tool"
+
+
+def test_invalid_operation_on_failure_becomes_invalid_tool_response(monkeypatch) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", "off")
+    monkeypatch.setitem(
+        server.TOOLS,
+        "op_bad_failure_tool",
+        _fixed_payload_entry({"success": False, "error": "E", "message": "m", "operation": 123}),
+    )
+
+    payload = _call_fixed_tool("op_bad_failure_tool")
+
+    assert payload["success"] is False
+    assert payload["error"] == "INVALID_TOOL_RESPONSE"
+    assert payload["operation"] == "op_bad_failure_tool"

@@ -171,6 +171,15 @@ def _validate_tool_arguments_schema(tool_name: str, schema: dict[str, Any], argu
         raise McpError(-32602, f"Invalid arguments for {tool_name}: {'; '.join(errors)}")
 
 
+def _invalid_tool_response(tool_name: str) -> dict[str, Any]:
+    return {
+        "success": False,
+        "error": "INVALID_TOOL_RESPONSE",
+        "message": "Tool returned an invalid response.",
+        "operation": tool_name,
+    }
+
+
 def _tool_definitions() -> list[dict[str, Any]]:
     return [
         {
@@ -222,6 +231,27 @@ def _call_tool(params: dict[str, Any], request_id: Any = None) -> dict[str, Any]
             "message": "Tool execution failed unexpectedly.",
             "operation": name,
         }
+    if isinstance(result, dict) and result.get("operation") is None:
+        result["operation"] = name
+    if not isinstance(result, dict) or not isinstance(result.get("success"), bool):
+        error_type = "InvalidToolResponse"
+        error_message = "Tool returned an invalid response."
+        result = _invalid_tool_response(name)
+    elif result["success"] is False and (
+        not isinstance(result.get("error"), str)
+        or result["error"] == ""
+        or not isinstance(result.get("message"), str)
+        or result["message"] == ""
+    ):
+        error_type = "InvalidToolResponse"
+        error_message = "Tool returned an invalid response."
+        result = _invalid_tool_response(name)
+    elif result.get("operation") is not None and (
+        not isinstance(result["operation"], str) or result["operation"] == ""
+    ):
+        error_type = "InvalidToolResponse"
+        error_message = "Tool returned an invalid response."
+        result = _invalid_tool_response(name)
     duration_ms = (time.perf_counter() - start) * 1000
     try:
         append_tool_log(

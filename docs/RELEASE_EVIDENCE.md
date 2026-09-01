@@ -807,3 +807,95 @@ signature binding or execution. The contract announced by tools/list is now
 enforced at the MCP boundary with a lightweight internal validator, without
 adding a JSON Schema dependency.
 ```
+
+## 2026-09-01 MCP Tool Response Contract Audit
+
+Scope:
+
+```text
+Normalize tool response shape so agents can rely on success/operation/error/message
+```
+
+Tools reviewed:
+
+```text
+environment: health_check, get_environment, get_ffmpeg_version, get_ffprobe_version,
+get_mlt_version, get_kdenlive_version
+media: get_media_info, scan_media, list_media, validate_media
+analysis: extract_frames, detect_black_frames, detect_scene_changes, detect_freeze_frames,
+analyze_media, analyze_media_folder
+audio: detect_silence, plan_silence_removal
+rough_cut: plan_rough_cut, inspect_rough_cut_plan
+timeline: inspect_timeline, validate_timeline
+manifest: create_manifest, inspect_manifest, validate_manifest
+project: inspect_project, validate_project, get_project_lock
+workflow: create_vlog_rough_cut_project, edit_timeline_and_export_project
+```
+
+Validated behavior:
+
+```text
+every executed tool response contains a boolean success
+every controlled failure contains error and message strings
+every response produced by a handler contains operation naming the tool
+schema/protocol errors keep returning JSON-RPC -32602 without operation
+environment handlers now return operation directly on success
+version tool failures now include message alongside error
+server injects operation when a handler omits it (181 error sites audited)
+non-dict handler responses become INVALID_TOOL_RESPONSE
+dict responses without a boolean success become INVALID_TOOL_RESPONSE
+failures missing error or message become INVALID_TOOL_RESPONSE
+operation values that are not non-empty strings become INVALID_TOOL_RESPONSE
+valid controlled errors and INTERNAL_ERROR responses are preserved
+```
+
+Inconsistencies corrected:
+
+```text
+operation was missing on all error responses (~181 _error call sites)
+operation was missing on health_check, get_environment and version tool successes
+get_ffmpeg/get_ffprobe/get_mlt/get_kdenlive version failures lacked message
+malformed handler responses previously could leak to the agent
+```
+
+Command:
+
+```bash
+scripts/dev_check.sh
+```
+
+Result:
+
+```text
+compileall: passed
+pytest: 200 passed in 29.65s
+```
+
+Specific integration coverage:
+
+```text
+test_all_tool_definitions_declare_object_schema_and_handler
+test_cheap_tool_success_responses_meet_contract
+test_controlled_error_responses_meet_contract
+test_environment_handlers_include_operation_directly
+test_version_tool_failure_includes_error_message_and_operation
+test_mcp_boundary_guarantees_success_for_malformed_responses
+test_non_dict_handler_response_becomes_invalid_tool_response
+test_dict_without_success_becomes_invalid_tool_response
+test_failure_without_error_becomes_invalid_tool_response
+test_valid_response_without_operation_gets_operation_injected
+test_controlled_error_response_is_not_converted
+test_non_string_operation_becomes_invalid_tool_response
+test_empty_operation_becomes_invalid_tool_response
+test_invalid_operation_on_failure_becomes_invalid_tool_response
+```
+
+Decision:
+
+```text
+The MCP boundary guarantees that every handler-produced response carries a
+boolean success, that failures carry error and message, and that operation names
+the invoked tool. Fixes were applied at the service level where cheap
+(environment tools) and a minimal operation injection was added in the server
+because correcting ~181 error sites across eight modules would be a large refactor.
+```

@@ -19,13 +19,18 @@ def _first_line(text: str) -> str | None:
     return None
 
 
-def _version_payload(name: str, result: CommandResult) -> dict[str, Any]:
-    return {
-        "success": result.available and result.returncode == 0,
+def _version_payload(name: str, result: CommandResult, operation: str) -> dict[str, Any]:
+    success = result.available and result.returncode == 0
+    payload = {
+        "success": success,
+        "operation": operation,
         "tool": name,
         "version": _first_line(result.stdout) or _first_line(result.stderr),
         **result.to_dict(),
     }
+    if not success:
+        payload["message"] = result.error or f"Could not determine {name} version."
+    return payload
 
 
 def _flatpak_sandbox_error(result: CommandResult) -> bool:
@@ -81,6 +86,7 @@ def _installed_flatpak_mlt_version(flatpak_id: str) -> str | None:
 def health_check() -> dict[str, Any]:
     return {
         "success": True,
+        "operation": "health_check",
         "service": "kdenlive-mcp",
         "version": __version__,
         "status": "ok",
@@ -104,6 +110,7 @@ def get_environment() -> dict[str, Any]:
     }
     return {
         "success": True,
+        "operation": "get_environment",
         "python": {
             "executable": sys.executable,
             "version": platform.python_version(),
@@ -125,23 +132,24 @@ def get_environment() -> dict[str, Any]:
 
 
 def get_ffmpeg_version() -> dict[str, Any]:
-    return _version_payload("ffmpeg", run_command(["ffmpeg", "-version"]))
+    return _version_payload("ffmpeg", run_command(["ffmpeg", "-version"]), "get_ffmpeg_version")
 
 
 def get_ffprobe_version() -> dict[str, Any]:
-    return _version_payload("ffprobe", run_command(["ffprobe", "-version"]))
+    return _version_payload("ffprobe", run_command(["ffprobe", "-version"]), "get_ffprobe_version")
 
 
 def get_kdenlive_version() -> dict[str, Any]:
     settings = get_settings()
     flatpak_result = run_command(_flatpak_command(settings.kdenlive_flatpak_id, "kdenlive", "--version"))
     if flatpak_result.available and flatpak_result.returncode == 0:
-        return _version_payload("kdenlive_flatpak", flatpak_result)
+        return _version_payload("kdenlive_flatpak", flatpak_result, "get_kdenlive_version")
 
     flatpak_info = _flatpak_info(settings.kdenlive_flatpak_id)
     if "version" in flatpak_info:
         return {
             "success": True,
+            "operation": "get_kdenlive_version",
             "tool": "kdenlive_flatpak_info",
             "version": flatpak_info["version"],
             "source": "flatpak_info",
@@ -155,7 +163,7 @@ def get_kdenlive_version() -> dict[str, Any]:
         }
 
     host_result = run_command(["kdenlive", "--version"])
-    payload = _version_payload("kdenlive", host_result)
+    payload = _version_payload("kdenlive", host_result, "get_kdenlive_version")
     payload["flatpak_attempt"] = flatpak_result.to_dict()
     payload["flatpak_info"] = flatpak_info
     return payload
@@ -164,7 +172,7 @@ def get_kdenlive_version() -> dict[str, Any]:
 def get_mlt_version() -> dict[str, Any]:
     host_result = run_command(["melt", "-version"])
     if host_result.available and host_result.returncode == 0:
-        return _version_payload("melt", host_result)
+        return _version_payload("melt", host_result, "get_mlt_version")
 
     settings = get_settings()
     flatpak_result = run_command(_flatpak_command(settings.kdenlive_flatpak_id, "melt", "-version"))
@@ -172,6 +180,7 @@ def get_mlt_version() -> dict[str, Any]:
     if installed_version:
         return {
             "success": True,
+            "operation": "get_mlt_version",
             "tool": "melt_flatpak_installation",
             "version": f"melt {installed_version}",
             "mlt_version": installed_version,
@@ -185,7 +194,7 @@ def get_mlt_version() -> dict[str, Any]:
             "flatpak_attempt": flatpak_result.to_dict(),
         }
 
-    payload = _version_payload("melt_flatpak", flatpak_result)
+    payload = _version_payload("melt_flatpak", flatpak_result, "get_mlt_version")
     payload["host_attempt"] = host_result.to_dict()
     return payload
 
