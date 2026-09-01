@@ -1077,3 +1077,50 @@ Project locks and versioning are now exercised end-to-end at the MCP boundary.
 prepare_working_project honors the source lock with a minimal check that refuses
 to clone a locked project, closing the earlier lock/versioning e2e gap.
 ```
+
+## 2026-09-01 MCP Working Copy Edit Flow Restore
+
+Test name:
+
+```text
+test_working_copy_edit_flow_restore
+```
+
+Commands:
+
+```bash
+pytest tests/test_project_mcp_workflow.py
+```
+
+Flow validated through handle_request(tools/call):
+
+```text
+prepare_working_project creates _ai_001.kdenlive working copy and lock
+create_rough_cut_plan_file + create_timeline_from_rough_cut_plan + save_timeline
+apply_timeline_edits applies an insert_gap edit to the timeline JSON
+export_timeline_to_kdenlive_template uses the working copy as template -> edited .kdenlive
+list_project_versions sees the working copy
+restore_project_version creates _restored_001 from the working copy
+restored .kdenlive parses as XML
+original fixture checksum unchanged
+all MCP responses carry boolean success and operation
+```
+
+Result:
+
+```text
+test_working_copy_edit_flow_restore passed
+test_direct_kdenlive_working_copy_edit_is_pending skipped (explicit reason)
+full suite: 210 passed
+```
+
+Technical decision:
+
+```text
+No MCP tool edits a .kdenlive working copy in place; editing operates on
+MCP-owned .timeline.json documents exported through
+export_timeline_to_kdenlive_template using the working copy as template. The e2e
+test covers up to that real limit and restore/versioning inside the flow. Direct
+in-place .kdenlive editing is recorded as a pending SHOULD in the production
+readiness matrix.
+```

@@ -5,6 +5,8 @@ import json
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+import pytest
+
 from kdenlive_mcp.server import handle_request
 
 
@@ -34,6 +36,16 @@ def _allow(monkeypatch, tmp_path: Path) -> None:
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _assert_ok(payload: dict[str, object], operation: str) -> dict[str, object]:
+    assert isinstance(payload["success"], bool)
+    assert payload.get("operation") == operation
+    if "warnings" in payload:
+        assert isinstance(payload["warnings"], list)
+    if "partial_outputs" in payload:
+        assert isinstance(payload["partial_outputs"], dict)
+    return payload
 
 
 def test_lock_blocks_prepare_working_project(monkeypatch, tmp_path: Path) -> None:
@@ -139,3 +151,113 @@ def test_prepare_stops_before_clone_on_invalid_lock_directory(monkeypatch, tmp_p
     assert result["operation"] == "prepare_working_project"
     assert not list(tmp_path.glob("*_ai_*.kdenlive"))
     assert not list(tmp_path.glob("*.kdenlive"))
+
+
+def test_working_copy_edit_flow_restore(monkeypatch, tmp_path: Path) -> None:
+    _allow(monkeypatch, tmp_path)
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_MEDIA_DIRS", str(RECON_DIR))
+    project = str(SOURCE_PROJECT)
+    original_hash = _sha256(SOURCE_PROJECT)
+
+    prepared = _assert_ok(
+        _call(
+            "prepare_working_project",
+            {
+                "project": project,
+                "output_directory": str(tmp_path),
+                "lock_directory": str(tmp_path / "locks"),
+                "owner": "agent",
+            },
+        ),
+        "prepare_working_project",
+    )
+    working_copy = Path(prepared["working_project"])
+    assert working_copy.name == "manual_two_clips_timeline_ai_001.kdenlive"
+    assert working_copy.exists()
+    assert Path(prepared["lock_file"]).exists()
+    ET.parse(working_copy)
+
+    plan = _assert_ok(
+        _call(
+            "create_rough_cut_plan_file",
+            {
+                "folder": str(RECON_DIR),
+                "output_directory": str(tmp_path),
+                "name": "flow",
+                "target_duration": 4,
+                "recursive": False,
+                "max_files": 1,
+                "remove_silence": False,
+            },
+        ),
+        "create_rough_cut_plan_file",
+    )
+    timeline = _assert_ok(
+        _call("create_timeline_from_rough_cut_plan", {"plan_file": plan["plan_file"]}),
+        "create_timeline_from_rough_cut_plan",
+    )
+    saved = _assert_ok(
+        _call(
+            "save_timeline",
+            {"timeline": timeline["timeline"], "output_directory": str(tmp_path), "name": "flow_timeline"},
+        ),
+        "save_timeline",
+    )
+    edited = _assert_ok(
+        _call(
+            "apply_timeline_edits",
+            {
+                "timeline_file": saved["timeline_file"],
+                "edits": [{"operation": "insert_gap", "position": 3.0, "duration": 1.0}],
+                "output_directory": str(tmp_path),
+                "name": "flow_edited",
+                "dry_run": False,
+            },
+        ),
+        "apply_timeline_edits",
+    )
+    exported = _assert_ok(
+        _call(
+            "export_timeline_to_kdenlive_template",
+            {
+                "timeline_file": edited["timeline_file"],
+                "template_project": str(working_copy),
+                "output_directory": str(tmp_path),
+                "name": "edited_from_working",
+            },
+        ),
+        "export_timeline_to_kdenlive_template",
+    )
+    edited_project = Path(exported["project"])
+    assert edited_project.exists()
+    ET.parse(edited_project)
+
+    listed = _assert_ok(
+        _call("list_project_versions", {"project": project, "project_directory": str(tmp_path)}),
+        "list_project_versions",
+    )
+    working_names = {item["filename"] for item in listed["working_copies"]}
+    assert "manual_two_clips_timeline_ai_001.kdenlive" in working_names
+
+    restored = _assert_ok(
+        _call(
+            "restore_project_version",
+            {"project": project, "version": str(working_copy), "output_directory": str(tmp_path)},
+        ),
+        "restore_project_version",
+    )
+    restored_path = Path(restored["restored_project"])
+    assert restored_path.name == "manual_two_clips_timeline_restored_001.kdenlive"
+    assert restored_path.exists()
+    ET.parse(restored_path)
+
+    assert _sha256(SOURCE_PROJECT) == original_hash
+
+
+@pytest.mark.skip(
+    reason="No MCP tool edits a .kdenlive working copy in place. Editing operates on "
+    "MCP-owned .timeline.json documents exported through export_timeline_to_kdenlive_template. "
+    "Direct in-place .kdenlive editing is a pending SHOULD."
+)
+def test_direct_kdenlive_working_copy_edit_is_pending() -> None:
+    """Gap: direct in-place editing of a .kdenlive working copy is not implemented."""

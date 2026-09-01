@@ -69,6 +69,12 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
 - Pruebas con fixtures reales múltiples: **PARTIAL** (SHOULD). `examples/recon/`
   tiene 4 proyectos manuales + 1 carpeta de sesión real; falta generar más
   variantes desde la versión instalada (trims, gaps, transiciones, efectos).
+- Edición directa en sitio de un `.kdenlive` working copy: **SHOULD pendiente**.
+  No existe tool MCP que edite un `.kdenlive` en sitio; la edición opera sobre
+  `.timeline.json` (apply_timeline_edits) y se exporta vía
+  `export_timeline_to_kdenlive_template` usando la working copy como template.
+  El e2e `test_working_copy_edit_flow_restore` cubre el límite real existente;
+  hay un test skipped con la razón explícita.
 
 ## Production Gate Verdict
 
@@ -93,9 +99,10 @@ Conteo: DONE 20 · PARTIAL 0 · MISSING 0 · BLOCKED 0.
    y registrar la evidencia en RELEASE_EVIDENCE para mantener el MUST #14 en DONE.
 2. Re-ejecutar el gate de fiabilidad (20 runs + checksum) por-release y registrar
    en RELEASE_EVIDENCE para hacer reproducible la evidencia de gates #4/#5.
-3. Ejercitar restore dentro de un flujo de edición real end-to-end (el lock/versioning
-   e2e ya cubre `PROJECT_LOCKED` y restore; el siguiente paso es el flujo de edición
-   completo sobre una working copy).
+3. Implementar edición directa en sitio de una working copy `.kdenlive` (SHOULD
+   pendiente). Hoy la edición pasa por `.timeline.json` +
+   `export_timeline_to_kdenlive_template`; el e2e
+   `test_working_copy_edit_flow_restore` ya cubre el flujo real con restore.
 4. Generar más fixtures Kdenlive reales desde la versión instalada (trims, gaps,
    transiciones, efectos, multi-secuencia) para robustecer #5/#6/#14.
 5. Probar el descubrimiento desde un cliente Codex/MCP vivo (ya existe el smoke
