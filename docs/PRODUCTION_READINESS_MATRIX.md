@@ -28,8 +28,8 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
 | Kdenlive project inspect/validate | DONE | `adapters/kdenlive_xml.py`, `tools/project_tools.py`; `tests/test_kdenlive_project_adapter.py`, `test_kdenlive_project_fixtures.py` | Formato Kdenlive puede cambiar entre versiones | Re-verificar con la versión instalada en cada release |
 | Template-based .kdenlive draft generation | DONE | `services/timeline_service.py` `export_timeline_to_kdenlive_template`; `tests/test_timeline_service.py` (export tests); RELEASE_EVIDENCE 2026-08-25/26 | Sólo un par plantilla/perfil (vertical HD) validado | Ampliar plantillas a más perfiles (SHOULD) |
 | Internal TimelineDocument validation | DONE | `domain/timeline.py` (validators); `tests/test_timeline_service.py` | Ninguno mayor | — |
-| Copy-on-write project versioning | DONE | `services/backup_service.py`, `docs/UNDO_VERSIONING.md`; `tests/test_backup_service.py` | Restore probado a nivel unitario, no en workflow completo | Test e2e de restore en flujo de edición real |
-| Project lock handling | DONE | `services/lock_service.py`, `services/project_workflow_service.py`; `tests/test_lock_service.py`, `test_project_workflow_service.py` | Conflicto de lock no ejercitado end-to-end (multi-proceso) | Test MCP de `PROJECT_LOCKED` sobre proyecto bloqueado |
+| Copy-on-write project versioning | DONE | `services/backup_service.py`, `docs/UNDO_VERSIONING.md`; `tests/test_backup_service.py`, `tests/test_project_mcp_workflow.py` (clone/restore/list e2e) | Restore e2e cubierto; falta ejercitar restore dentro de un flujo de edición real | — |
+| Project lock handling | DONE | `services/lock_service.py`, `services/project_workflow_service.py`; `tests/test_lock_service.py`, `test_project_workflow_service.py`, `test_project_mcp_workflow.py` (`PROJECT_LOCKED` e2e) | Conflicto de lock multi-proceso no simulado (fuera del target single-user) | — |
 | Rough-cut workflow from folder to .kdenlive | DONE | `services/vlog_workflow_service.py`, `tools/rough_cut_tools.py`; `tests/test_vlog_workflow_service.py` | Depende de la plantilla fixture | — |
 | Automated end-to-end workflow test | DONE | `tests/test_vlog_workflow_service.py`; `scripts/dev_check.sh` (`KDENLIVE_MCP_RUN_FIXTURE_WORKFLOW`); RELEASE_EVIDENCE (20 runs) | Gate opt-in por env, no CI permanente | Documentar ejecución en CI/release reproducible |
 | Original media checksum test | DONE | `scripts/fixture_reliability_check.py` (sha256); RELEASE_EVIDENCE `media_checksums_unchanged: true` | Evidencia puntual (2026-08-25), no por-release | Re-ejecutar por release y registrar checksum |
@@ -51,9 +51,12 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
 - Checklist release reproducible: **DONE** (`docs/RELEASE_CHECKLIST.md`,
   `scripts/dev_check.sh`, RELEASE_EVIDENCE registra comandos exactos). Falta
   automatizar la parte manual Kdenlive-open (SHOULD).
-- Cobertura de project locks/versioning en workflow real: **PARTIAL**.
-  Unit-tests y docs (`UNDO_VERSIONING.md`) sólidos, pero no hay workflow e2e que
-  ejercite un `PROJECT_LOCKED` real ni un restore completo.
+- Cobertura de project locks/versioning en workflow real: **DONE**.
+  Unit-tests, docs (`UNDO_VERSIONING.md`) y e2e por MCP
+  (`tests/test_project_mcp_workflow.py`): `PROJECT_LOCKED` bloquea
+  `prepare_working_project`, clone/_ai_001/_ai_002, list, restore `_restored_001`,
+  y `PROJECT_NOT_FOUND` en restore de versión inexistente. `prepare_working_project`
+  ahora rechaza clonar un proyecto bloqueado.
 - Límites de Flatpak: **DONE**. Detección de sandbox
   (`FLATPAK_EXECUTION_UNAVAILABLE_IN_SANDBOX`), tests y docs (`context.md`).
 - Limpieza/reporting de outputs parciales: **DONE**. `partial_outputs` explícito en
@@ -90,8 +93,9 @@ Conteo: DONE 20 · PARTIAL 0 · MISSING 0 · BLOCKED 0.
    y registrar la evidencia en RELEASE_EVIDENCE para mantener el MUST #14 en DONE.
 2. Re-ejecutar el gate de fiabilidad (20 runs + checksum) por-release y registrar
    en RELEASE_EVIDENCE para hacer reproducible la evidencia de gates #4/#5.
-3. Agregar un test e2e que ejercite `PROJECT_LOCKED` y restore completo a través
-   del límite MCP (cierra el hueco de locks/versioning en workflow real).
+3. Ejercitar restore dentro de un flujo de edición real end-to-end (el lock/versioning
+   e2e ya cubre `PROJECT_LOCKED` y restore; el siguiente paso es el flujo de edición
+   completo sobre una working copy).
 4. Generar más fixtures Kdenlive reales desde la versión instalada (trims, gaps,
    transiciones, efectos, multi-secuencia) para robustecer #5/#6/#14.
 5. Probar el descubrimiento desde un cliente Codex/MCP vivo (ya existe el smoke

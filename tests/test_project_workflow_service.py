@@ -16,6 +16,7 @@ def test_prepare_working_project_clones_backs_up_and_locks(monkeypatch, tmp_path
         project=str(SOURCE_PROJECT),
         output_directory=str(tmp_path),
         owner="codex-test",
+        lock_directory=str(tmp_path / "locks"),
     )
 
     assert result["success"] is True

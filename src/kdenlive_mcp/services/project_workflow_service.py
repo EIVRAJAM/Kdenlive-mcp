@@ -5,7 +5,7 @@ from typing import Any
 
 from kdenlive_mcp.security import SecurityError, ensure_project_path
 from kdenlive_mcp.services.backup_service import clone_project
-from kdenlive_mcp.services.lock_service import lock_project
+from kdenlive_mcp.services.lock_service import get_project_lock, lock_project
 
 
 def _error(code: str, message: str, **extra: Any) -> dict[str, Any]:
@@ -26,6 +26,18 @@ def prepare_working_project(
             ensure_project_path(Path(output_directory) / "__kdenlive_mcp_permission_probe__.kdenlive")
         except SecurityError as exc:
             return _error(exc.code, exc.message)
+
+    lock_status = get_project_lock(project=project, lock_directory=lock_directory)
+    if not lock_status.get("success"):
+        return lock_status
+    if lock_status.get("locked"):
+        return _error(
+            "PROJECT_LOCKED",
+            "prepare_working_project refuses to clone a locked project.",
+            project=project,
+            lock_file=lock_status.get("lock_file"),
+            lock=lock_status.get("lock"),
+        )
 
     clone = clone_project(
         project=project,

@@ -1020,3 +1020,60 @@ in-process handle_request calls. The smoke test is also integrated behind
 KDENLIVE_MCP_RUN_STDIO_SMOKE=1 in scripts/dev_check.sh and as a pytest
 (test_mcp_stdio_smoke.py).
 ```
+
+## 2026-09-01 MCP Project Lock And Restore Workflow
+
+Scope:
+
+```text
+End-to-end lock, clone, restore and version listing through handle_request(tools/call)
+```
+
+Fixture used:
+
+```text
+examples/recon/manual_two_clips_timeline.kdenlive
+```
+
+Validated behavior:
+
+```text
+lock_project locks a project through the MCP boundary
+prepare_working_project refuses to clone a locked project with PROJECT_LOCKED
+no working copy is created while the source is locked
+unlock_project releases the lock and prepare_working_project then succeeds
+clone_project twice creates _ai_001 and _ai_002 versions
+list_project_versions sees both working copies
+restore_project_version creates _restored_001 from the selected version
+the restored .kdenlive parses as XML
+the original project checksum is unchanged after clone/restore
+restore_project_version with a missing version returns PROJECT_NOT_FOUND
+```
+
+Error codes observed:
+
+```text
+PROJECT_LOCKED when prepare_working_project targets a locked project
+PROJECT_NOT_FOUND when restore_project_version is given a missing version
+```
+
+Command:
+
+```bash
+pytest tests/test_project_mcp_workflow.py
+```
+
+Result:
+
+```text
+3 passed
+full suite: 209 passed
+```
+
+Decision:
+
+```text
+Project locks and versioning are now exercised end-to-end at the MCP boundary.
+prepare_working_project honors the source lock with a minimal check that refuses
+to clone a locked project, closing the earlier lock/versioning e2e gap.
+```
