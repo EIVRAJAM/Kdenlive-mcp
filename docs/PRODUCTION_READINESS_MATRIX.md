@@ -39,7 +39,7 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
 | Persistent structured logging | DONE | `src/kdenlive_mcp/logging.py` (JSONL, redacción, error_type/message); `tests/test_server_protocol.py` (logging tests) | Log default a `logs/` si no se configura | — |
 | Reproducible dev/release check command | DONE | `scripts/dev_check.sh`, `docs/RELEASE_CHECKLIST.md`; RELEASE_EVIDENCE (comandos exactos) | Checks de fiabilidad/MLT opt-in por env | Documentar la cadena completa de release en un único comando |
 | Schema documentation for persisted JSON files | DONE | `docs/SCHEMAS.md` (rough-cut plan, timeline, manifest) | Política de migración explícita aún SHOULD | Añadir política de migración versionada a SCHEMAS.md |
-| Codex MCP registration example | DONE | `examples/codex_mcp_config.toml`, `docs/CODEX_SETUP.md`, `README.md` | Sin smoke test de descubrimiento Codex real | Smoke test `tools/list` con la config oficial por STDIO |
+| Codex MCP registration example | DONE | `examples/codex_mcp_config.toml`, `docs/CODEX_SETUP.md`, `README.md`; smoke test STDIO real `scripts/mcp_stdio_smoke_test.py` (`initialize` + `tools/list`, 59 tools) | Smoke test cubre el canal STDIO real; falta descubrimiento desde un cliente Codex vivo | Smoke test `tools/list` desde un cliente MCP/Codex real |
 | Known limitations documented | DONE | `README.md` ("Limite importante"), `docs/PRODUCTION_CONTRACT.md` (Known Accepted Risks) | Las limitaciones crecen con cada feature | Actualizar README al expandir superficie de edición |
 
 ## Atención especial a pendientes señalados
@@ -60,7 +60,9 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
   `_failed_step`; la fiabilidad valida que `partial_outputs == artifacts` en éxito.
 - Documentación de schemas: **DONE** (`docs/SCHEMAS.md`).
 - Registro Codex MCP: **DONE** (`examples/codex_mcp_config.toml`,
-  `docs/CODEX_SETUP.md`). Falta smoke test de descubrimiento real.
+  `docs/CODEX_SETUP.md`) y smoke test real del canal STDIO
+  (`scripts/mcp_stdio_smoke_test.py`, `initialize` + `tools/list`, 59 tools).
+  Falta solo descubrimiento desde un cliente Codex vivo.
 - Pruebas con fixtures reales múltiples: **PARTIAL** (SHOULD). `examples/recon/`
   tiene 4 proyectos manuales + 1 carpeta de sesión real; falta generar más
   variantes desde la versión instalada (trims, gaps, transiciones, efectos).
@@ -92,5 +94,6 @@ Conteo: DONE 20 · PARTIAL 0 · MISSING 0 · BLOCKED 0.
    del límite MCP (cierra el hueco de locks/versioning en workflow real).
 4. Generar más fixtures Kdenlive reales desde la versión instalada (trims, gaps,
    transiciones, efectos, multi-secuencia) para robustecer #5/#6/#14.
-5. Agregar un smoke test de registro Codex (`tools/list` por STDIO con la config
-   oficial) para cerrar el checklist "MCP tool discovery works from Codex".
+5. Probar el descubrimiento desde un cliente Codex/MCP vivo (ya existe el smoke
+   test STDIO `scripts/mcp_stdio_smoke_test.py`; queda cerrar el checklist
+   "MCP tool discovery works from Codex" con un cliente real).

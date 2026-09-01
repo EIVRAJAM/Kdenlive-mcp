@@ -74,3 +74,28 @@ scripts/dev_check.sh
 
 The MLT check may require running outside restrictive Codex sandboxes because
 Flatpak can fail to allocate an instance inside the tool sandbox.
+
+Run the real STDIO smoke test (starts the server as a subprocess and executes
+`initialize` + `tools/list` over the real `Content-Length` framing):
+
+```bash
+python3 scripts/mcp_stdio_smoke_test.py
+```
+
+Or through the dev check:
+
+```bash
+KDENLIVE_MCP_RUN_STDIO_SMOKE=1 scripts/dev_check.sh
+```
+
+Expected output:
+
+```json
+{
+  "success": true,
+  "server": "kdenlive-mcp",
+  "tool_count": 59,
+  "required_tools_present": true,
+  "error": null
+}
+```

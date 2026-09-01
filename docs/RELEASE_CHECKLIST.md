@@ -157,6 +157,29 @@ workflow returns success true or structured warning for sandbox-only MLT limits
 logs contain one JSONL record per tool call
 ```
 
+Recommended STDIO smoke gate (independent of the Python test suite):
+
+```bash
+python3 scripts/mcp_stdio_smoke_test.py
+```
+
+Or:
+
+```bash
+KDENLIVE_MCP_RUN_STDIO_SMOKE=1 scripts/dev_check.sh
+```
+
+Required result:
+
+```text
+server starts as a subprocess over the real Content-Length/STDIO channel
+initialize returns serverInfo.name == kdenlive-mcp and capabilities.tools
+tools/list returns the production tool set non-empty
+health_check, get_environment, scan_media, create_vlog_rough_cut_project,
+export_timeline_to_kdenlive_template are present
+script exits 0
+```
+
 ## 8. Undo / Version Restore Check
 
 Run or verify the project-version flow:

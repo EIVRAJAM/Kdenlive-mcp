@@ -78,3 +78,7 @@ if [[ "${KDENLIVE_MCP_RUN_MLT_CHECK:-0}" == "1" ]]; then
     "$KDENLIVE_MCP_MLT_PROJECT" \
     -consumer null terminate_on_pause=1
 fi
+
+if [[ "${KDENLIVE_MCP_RUN_STDIO_SMOKE:-0}" == "1" ]]; then
+  python3 scripts/mcp_stdio_smoke_test.py
+fi

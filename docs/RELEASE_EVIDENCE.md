@@ -973,3 +973,50 @@ A real, non-mocked MLT/Kdenlive load validation passed for an MCP-generated
 MLT load requirement moves from PARTIAL to DONE in the production readiness
 matrix.
 ```
+
+## 2026-09-01 MCP STDIO Smoke Test
+
+Scope:
+
+```text
+Real Content-Length/STDIO server startup, initialize, and tools/list discovery
+```
+
+Command:
+
+```bash
+python3 scripts/mcp_stdio_smoke_test.py
+```
+
+Output:
+
+```json
+{
+  "success": true,
+  "server": "kdenlive-mcp",
+  "tool_count": 59,
+  "required_tools_present": true,
+  "error": null
+}
+```
+
+Validated behavior:
+
+```text
+server starts as a subprocess with shell=False using python3 src/kdenlive_mcp/server.py
+initialize returns serverInfo.name == kdenlive-mcp
+initialize returns capabilities.tools
+tools/list returns a non-empty tool set
+health_check, get_environment, scan_media, create_vlog_rough_cut_project and
+export_timeline_to_kdenlive_template are present
+process exits cleanly (stdin closed, no lingering child)
+```
+
+Decision:
+
+```text
+An agent can discover tools over the real MCP STDIO channel, not only through
+in-process handle_request calls. The smoke test is also integrated behind
+KDENLIVE_MCP_RUN_STDIO_SMOKE=1 in scripts/dev_check.sh and as a pytest
+(test_mcp_stdio_smoke.py).
+```
