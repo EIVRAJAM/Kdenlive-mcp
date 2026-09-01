@@ -44,6 +44,8 @@ def append_tool_log(
     arguments: dict[str, Any],
     result: dict[str, Any],
     duration_ms: float,
+    error_type: str | None = None,
+    message: str | None = None,
 ) -> None:
     settings = get_settings()
     if settings.log_file is None:
@@ -57,6 +59,8 @@ def append_tool_log(
         "duration_ms": round(duration_ms, 3),
         "success": bool(result.get("success", False)),
         "error": result.get("error"),
+        "error_type": error_type if error_type is not None else result.get("error_type"),
+        "message": message if message is not None else result.get("message"),
         "arguments": _redact(arguments),
         "artifacts": _artifact_paths(result),
     }

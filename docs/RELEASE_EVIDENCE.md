@@ -601,3 +601,51 @@ Decision:
 No invalid gap input raises a visible Python exception; every invalid entry
 responds with success=false and a structured error code.
 ```
+
+## 2026-08-31 MCP Tool-Call Exception Boundary
+
+Scope:
+
+```text
+Guarantee no tool call can break the MCP server or leak a raw exception
+```
+
+Validated behavior:
+
+```text
+unexpected handler exceptions return a valid MCP response with isError=true
+payload shape is success=false, error=INTERNAL_ERROR, operation=tool_name
+no full traceback is exposed to the agent
+structured tool results with success=false are not wrapped as INTERNAL_ERROR
+tools/list keeps working after an unexpected handler exception
+structured log records request_id, operation, error_type, message, duration and success=false
+```
+
+Command:
+
+```bash
+scripts/dev_check.sh
+```
+
+Result:
+
+```text
+compileall: passed
+pytest: 165 passed in 28.49s
+```
+
+Specific integration coverage:
+
+```text
+test_tools_call_wraps_unexpected_exception
+test_tools_list_unaffected_by_handler_exception
+test_tools_call_logs_unexpected_exception
+```
+
+Decision:
+
+```text
+Any unhandled Python exception inside a tool handler is converted into a
+structured INTERNAL_ERROR response with isError=true, logged without a
+traceback, and never breaks the tools/list surface or the server loop.
+```

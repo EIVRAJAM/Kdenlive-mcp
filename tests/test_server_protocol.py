@@ -4,12 +4,25 @@ import io
 import json
 
 from kdenlive_mcp.server import handle_request, read_message, write_message
+from kdenlive_mcp import server
 from kdenlive_mcp.logging import append_tool_log
 
 
 def _framed(payload: dict[str, object]) -> bytes:
     body = json.dumps(payload).encode("utf-8")
     return f"Content-Length: {len(body)}\r\n\r\n".encode("ascii") + body
+
+
+def _raise_value_error(**kwargs: object) -> dict[str, object]:
+    raise ValueError("boom")
+
+
+def _exploding_tool_entry() -> dict[str, object]:
+    return {
+        "description": "Tool that raises for MCP boundary tests.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+        "handler": _raise_value_error,
+    }
 
 
 def test_read_and_write_mcp_message() -> None:
@@ -164,3 +177,72 @@ def test_tools_call_logging_can_be_disabled(monkeypatch, tmp_path) -> None:
     assert response is not None
     assert response["result"]["isError"] is False
     assert not log_file.exists()
+
+
+def test_tools_call_wraps_unexpected_exception(monkeypatch) -> None:
+    monkeypatch.setitem(server.TOOLS, "exploding_tool", _exploding_tool_entry())
+
+    response = handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": "boom",
+            "method": "tools/call",
+            "params": {"name": "exploding_tool", "arguments": {}},
+        }
+    )
+
+    assert response is not None
+    result = response["result"]
+    assert result["isError"] is True
+    payload = json.loads(result["content"][0]["text"])
+    assert payload["success"] is False
+    assert payload["error"] == "INTERNAL_ERROR"
+    assert payload["message"] == "Tool execution failed unexpectedly."
+    assert payload["operation"] == "exploding_tool"
+    assert "traceback" not in payload
+
+
+def test_tools_list_unaffected_by_handler_exception(monkeypatch) -> None:
+    monkeypatch.setitem(server.TOOLS, "exploding_tool", _exploding_tool_entry())
+    handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": "boom",
+            "method": "tools/call",
+            "params": {"name": "exploding_tool", "arguments": {}},
+        }
+    )
+
+    response = handle_request({"jsonrpc": "2.0", "id": 4, "method": "tools/list", "params": {}})
+
+    assert response is not None
+    tool_names = {tool["name"] for tool in response["result"]["tools"]}
+    assert "health_check" in tool_names
+    assert "exploding_tool" in tool_names
+
+
+def test_tools_call_logs_unexpected_exception(monkeypatch, tmp_path) -> None:
+    log_file = tmp_path / "kdenlive-mcp-error.log"
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", str(log_file))
+    monkeypatch.setitem(server.TOOLS, "exploding_tool", _exploding_tool_entry())
+
+    response = handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": "boom-log",
+            "method": "tools/call",
+            "params": {"name": "exploding_tool", "arguments": {}},
+        }
+    )
+
+    assert response is not None
+    assert response["result"]["isError"] is True
+    records = [json.loads(line) for line in log_file.read_text(encoding="utf-8").splitlines()]
+    assert len(records) == 1
+    assert records[0]["event"] == "tool_call"
+    assert records[0]["request_id"] == "boom-log"
+    assert records[0]["operation"] == "exploding_tool"
+    assert records[0]["success"] is False
+    assert records[0]["error"] == "INTERNAL_ERROR"
+    assert records[0]["error_type"] == "ValueError"
+    assert records[0]["message"] == "boom"

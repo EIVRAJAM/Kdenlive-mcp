@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import sys
 import time
-import traceback
 from pathlib import Path
 from typing import Any, BinaryIO
 
@@ -123,16 +122,20 @@ def _call_tool(params: dict[str, Any], request_id: Any = None) -> dict[str, Any]
     if not isinstance(arguments, dict):
         raise McpError(-32602, "Tool arguments must be an object")
     start = time.perf_counter()
+    error_type: str | None = None
+    error_message: str | None = None
     try:
         result = TOOLS[name]["handler"](**arguments)
     except TypeError as exc:
         raise McpError(-32602, f"Invalid arguments for {name}: {exc}") from exc
-    except Exception as exc:  # pragma: no cover - defensive server boundary
+    except Exception as exc:  # defensive server boundary for unexpected tool failures
+        error_type = type(exc).__name__
+        error_message = str(exc)
         result = {
             "success": False,
-            "error": "TOOL_ERROR",
-            "message": str(exc),
-            "traceback": traceback.format_exc(),
+            "error": "INTERNAL_ERROR",
+            "message": "Tool execution failed unexpectedly.",
+            "operation": name,
         }
     duration_ms = (time.perf_counter() - start) * 1000
     try:
@@ -142,6 +145,8 @@ def _call_tool(params: dict[str, Any], request_id: Any = None) -> dict[str, Any]
             arguments=arguments,
             result=result,
             duration_ms=duration_ms,
+            error_type=error_type,
+            message=error_message,
         )
     except Exception:
         pass
