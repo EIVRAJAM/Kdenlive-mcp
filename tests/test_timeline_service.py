@@ -419,6 +419,105 @@ def test_remove_timeline_gap_rejects_non_empty_gap(monkeypatch, tmp_path: Path) 
     assert not (tmp_path / "gap_remove_non_empty_result.timeline.json").exists()
 
 
+def test_insert_timeline_gap_rejects_invalid_position(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="gap_invalid_position_source")
+
+    result = timeline_tools.insert_timeline_gap(
+        timeline_file=str(saved["timeline_file"]),
+        position=float("nan"),
+        duration=1.0,
+        output_directory=str(tmp_path),
+        output_name="gap_invalid_position_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_TIMECODE"
+    assert result["field"] == "position"
+    assert not (tmp_path / "gap_invalid_position_result.timeline.json").exists()
+
+
+def test_remove_timeline_gap_rejects_invalid_duration(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="gap_invalid_duration_source")
+
+    result = timeline_tools.remove_timeline_gap(
+        timeline_file=str(saved["timeline_file"]),
+        position=3.0,
+        duration=float("inf"),
+        output_directory=str(tmp_path),
+        output_name="gap_invalid_duration_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_TIMECODE"
+    assert result["field"] == "duration"
+    assert not (tmp_path / "gap_invalid_duration_result.timeline.json").exists()
+
+
+def test_apply_timeline_edits_reports_invalid_gap_timecode(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="batch_gap_invalid_timecode_source")
+
+    result = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[{"operation": "insert_gap", "position": 3.0, "duration": "not-a-number"}],
+        output_directory=str(tmp_path),
+        name="batch_gap_invalid_timecode_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_TIMECODE"
+    assert result["field"] == "duration"
+    assert result["failed_step"] == 1
+    assert not (tmp_path / "batch_gap_invalid_timecode_result.timeline.json").exists()
+
+
+def test_insert_timeline_gap_rejects_empty_track_ids(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="gap_empty_track_ids_source")
+
+    result = timeline_tools.insert_timeline_gap(
+        timeline_file=str(saved["timeline_file"]),
+        position=3.0,
+        duration=1.0,
+        track_ids=[],
+        output_directory=str(tmp_path),
+        output_name="gap_empty_track_ids_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_TRACK"
+    assert not (tmp_path / "gap_empty_track_ids_result.timeline.json").exists()
+
+
+def test_insert_timeline_gap_rejects_track_type_without_matches(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="gap_no_audio_source")
+    removed = timeline_tools.remove_timeline_track(
+        timeline_file=str(saved["timeline_file"]),
+        track_id="track_a1",
+        remove_clips=True,
+        output_directory=str(tmp_path),
+        output_name="gap_no_audio_only",
+        dry_run=False,
+    )
+    assert removed["success"] is True
+
+    result = timeline_tools.insert_timeline_gap(
+        timeline_file=str(removed["timeline_file"]),
+        position=3.0,
+        duration=1.0,
+        track_type="audio",
+        output_directory=str(tmp_path),
+        output_name="gap_no_audio_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_TRACK"
+    assert not (tmp_path / "gap_no_audio_result.timeline.json").exists()
+
+
 def test_trim_timeline_clip_dry_run_does_not_write(monkeypatch, tmp_path: Path) -> None:
     plan_file = _create_plan_file(monkeypatch, tmp_path)
     created = timeline_tools.create_timeline_from_rough_cut_plan(plan_file=str(plan_file))

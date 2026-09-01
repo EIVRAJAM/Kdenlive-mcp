@@ -553,3 +553,51 @@ Decision:
 Agents can now open or close empty timeline space without manually moving each
 clip, while preserving copy-on-write safety and timeline validation.
 ```
+
+## 2026-08-31 Timeline Gap Robustness
+
+Scope:
+
+```text
+Harden gap operations against invalid timecodes and track selections
+```
+
+Validated behavior:
+
+```text
+_coerce_finite_float rejects non-finite position and duration values
+NaN, inf and -inf never reach gap timeline arithmetic
+insert/remove gap return structured INVALID_TIMECODE errors instead of exceptions
+track_ids=[] and track_type values without matching tracks are rejected as INVALID_TRACK
+apply_timeline_edits reports invalid gap timecodes with failed_step and steps
+```
+
+Command:
+
+```bash
+scripts/dev_check.sh
+```
+
+Result:
+
+```text
+compileall: passed
+pytest: 162 passed in 39.32s
+```
+
+Specific integration coverage:
+
+```text
+test_insert_timeline_gap_rejects_invalid_position
+test_remove_timeline_gap_rejects_invalid_duration
+test_apply_timeline_edits_reports_invalid_gap_timecode
+test_insert_timeline_gap_rejects_empty_track_ids
+test_insert_timeline_gap_rejects_track_type_without_matches
+```
+
+Decision:
+
+```text
+No invalid gap input raises a visible Python exception; every invalid entry
+responds with success=false and a structured error code.
+```

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import math
 import re
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,18 @@ def _error(code: str, message: str, **extra: Any) -> dict[str, Any]:
 
 def _security_error(exc: SecurityError) -> dict[str, Any]:
     return _error(exc.code, exc.message)
+
+
+def _coerce_finite_float(value: Any, field_name: str) -> float | dict[str, Any]:
+    if isinstance(value, bool):
+        return _error("INVALID_TIMECODE", f"{field_name} must be a finite number.", field=field_name)
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return _error("INVALID_TIMECODE", f"{field_name} must be a finite number.", field=field_name)
+    if math.isnan(number) or math.isinf(number):
+        return _error("INVALID_TIMECODE", f"{field_name} must be a finite number.", field=field_name)
+    return number
 
 
 def timeline_path_for(directory: Path, name: str) -> Path:
@@ -631,8 +644,10 @@ def _gap_track_ids(
     if track_type is not None and track_type not in {"video", "audio"}:
         return _error("INVALID_TRACK", "track_type must be video or audio.")
     if track_ids is not None:
-        if not isinstance(track_ids, list) or any(not isinstance(track_id, str) or track_id == "" for track_id in track_ids):
-            return _error("INVALID_TRACK", "track_ids must be an array of non-empty strings.")
+        if not isinstance(track_ids, list) or len(track_ids) == 0 or any(
+            not isinstance(track_id, str) or track_id == "" for track_id in track_ids
+        ):
+            return _error("INVALID_TRACK", "track_ids must be a non-empty array of non-empty strings.")
         resolved_ids: list[str] = []
         for track_id in track_ids:
             if track_id not in tracks_by_id:
@@ -641,7 +656,10 @@ def _gap_track_ids(
                 return _error("INVALID_TRACK", f"Track does not match track_type: {track_id}", track_id=track_id)
             resolved_ids.append(track_id)
         return resolved_ids
-    return [track.id for track in document.tracks if track_type is None or track.type == track_type]
+    resolved_ids = [track.id for track in document.tracks if track_type is None or track.type == track_type]
+    if len(resolved_ids) == 0:
+        return _error("INVALID_TRACK", f"No {track_type} tracks are available for the edit.")
+    return resolved_ids
 
 
 def _insert_document_gap(
@@ -652,8 +670,14 @@ def _insert_document_gap(
     track_type: str | None,
     move_markers: bool,
 ) -> tuple[TimelineDocument, dict[str, Any], dict[str, Any]] | dict[str, Any]:
-    position = float(position)
-    duration = float(duration)
+    position_value = _coerce_finite_float(position, "position")
+    if isinstance(position_value, dict):
+        return position_value
+    position = position_value
+    duration_value = _coerce_finite_float(duration, "duration")
+    if isinstance(duration_value, dict):
+        return duration_value
+    duration = duration_value
     if position < 0:
         return _error("INVALID_TIMECODE", "position must be zero or greater.")
     if duration <= 0:
@@ -717,8 +741,14 @@ def _remove_document_gap(
     move_markers: bool,
     remove_markers_in_gap: bool,
 ) -> tuple[TimelineDocument, dict[str, Any], dict[str, Any]] | dict[str, Any]:
-    position = float(position)
-    duration = float(duration)
+    position_value = _coerce_finite_float(position, "position")
+    if isinstance(position_value, dict):
+        return position_value
+    position = position_value
+    duration_value = _coerce_finite_float(duration, "duration")
+    if isinstance(duration_value, dict):
+        return duration_value
+    duration = duration_value
     if position < 0:
         return _error("INVALID_TIMECODE", "position must be zero or greater.")
     if duration <= 0:
@@ -1661,10 +1691,26 @@ def apply_timeline_edits(
                         failed_step=index,
                         steps=steps,
                     )
+            position_value = _coerce_finite_float(edit["position"], "position")
+            if isinstance(position_value, dict):
+                return {
+                    **position_value,
+                    "failed_step": index,
+                    "failed_edit": edit,
+                    "steps": steps,
+                }
+            duration_value = _coerce_finite_float(edit["duration"], "duration")
+            if isinstance(duration_value, dict):
+                return {
+                    **duration_value,
+                    "failed_step": index,
+                    "failed_edit": edit,
+                    "steps": steps,
+                }
             edited_result = _insert_document_gap(
                 document=document,
-                position=float(edit["position"]),
-                duration=float(edit["duration"]),
+                position=position_value,
+                duration=duration_value,
                 track_ids=edit.get("track_ids"),
                 track_type=edit.get("track_type"),
                 move_markers=bool(edit.get("move_markers", True)),
@@ -1679,10 +1725,26 @@ def apply_timeline_edits(
                         failed_step=index,
                         steps=steps,
                     )
+            position_value = _coerce_finite_float(edit["position"], "position")
+            if isinstance(position_value, dict):
+                return {
+                    **position_value,
+                    "failed_step": index,
+                    "failed_edit": edit,
+                    "steps": steps,
+                }
+            duration_value = _coerce_finite_float(edit["duration"], "duration")
+            if isinstance(duration_value, dict):
+                return {
+                    **duration_value,
+                    "failed_step": index,
+                    "failed_edit": edit,
+                    "steps": steps,
+                }
             edited_result = _remove_document_gap(
                 document=document,
-                position=float(edit["position"]),
-                duration=float(edit["duration"]),
+                position=position_value,
+                duration=duration_value,
                 track_ids=edit.get("track_ids"),
                 track_type=edit.get("track_type"),
                 move_markers=bool(edit.get("move_markers", True)),
