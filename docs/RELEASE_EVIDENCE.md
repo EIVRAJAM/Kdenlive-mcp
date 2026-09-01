@@ -746,3 +746,64 @@ Only a JSON object (or None tolerated as an empty object) is accepted for tool
 arguments. Any other type fails fast with JSON-RPC -32602 before any handler
 signature binding or execution.
 ```
+
+## 2026-09-01 MCP inputSchema Argument Validation
+
+Scope:
+
+```text
+Enforce each tool's declared inputSchema before calling its handler
+```
+
+Validated behavior:
+
+```text
+missing required properties fail with JSON-RPC -32602 before the handler
+unexpected properties fail with additionalProperties=false
+wrong property types fail before the handler
+invalid enum values fail before the handler
+array items are validated recursively against the declared items schema
+minItems constraints are enforced for arrays
+NaN, inf and -inf are rejected as invalid numbers
+None is still tolerated as an empty arguments object
+valid calls keep working through the full MCP flow
+real tools enforce their schemas (move_timeline_clip, create_timeline_track, apply_timeline_edits)
+```
+
+Command:
+
+```bash
+scripts/dev_check.sh
+```
+
+Result:
+
+```text
+compileall: passed
+pytest: 186 passed in 28.61s
+```
+
+Specific integration coverage:
+
+```text
+test_schema_rejects_missing_required_field
+test_schema_rejects_unexpected_property
+test_schema_rejects_wrong_type
+test_schema_rejects_invalid_enum
+test_schema_rejects_array_with_non_string_item
+test_schema_accepts_valid_arguments
+test_move_timeline_clip_missing_timeline_in_fails_schema
+test_create_timeline_track_invalid_enum_fails_schema
+test_apply_timeline_edits_empty_edits_fails_schema
+test_schema_rejects_non_finite_number
+test_move_timeline_clip_rejects_non_finite_timeline_in
+```
+
+Decision:
+
+```text
+Arguments are validated against the tool's declared inputSchema before handler
+signature binding or execution. The contract announced by tools/list is now
+enforced at the MCP boundary with a lightweight internal validator, without
+adding a JSON Schema dependency.
+```

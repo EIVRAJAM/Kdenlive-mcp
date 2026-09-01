@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import inspect
 import json
+import math
 import sys
 import time
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import Any, BinaryIO, Callable
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -101,6 +102,75 @@ def _error_response(message_id: Any, error: McpError) -> dict[str, Any]:
     return {"jsonrpc": JSONRPC_VERSION, "id": message_id, "error": payload}
 
 
+_JSON_TYPE_CHECKS: dict[str, Callable[[Any], bool]] = {
+    "string": lambda value: isinstance(value, str),
+    "number": lambda value: (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and not math.isnan(value)
+        and not math.isinf(value)
+    ),
+    "integer": lambda value: isinstance(value, int) and not isinstance(value, bool),
+    "boolean": lambda value: isinstance(value, bool),
+    "array": lambda value: isinstance(value, list),
+    "object": lambda value: isinstance(value, dict),
+    "null": lambda value: value is None,
+}
+
+
+def _matches_json_type(value: Any, json_type: str) -> bool:
+    check = _JSON_TYPE_CHECKS.get(json_type)
+    if check is None:
+        return True
+    return check(value)
+
+
+def _schema_errors(schema: Any, value: Any, path: str) -> list[str]:
+    errors: list[str] = []
+    if not isinstance(schema, dict):
+        return errors
+
+    schema_type = schema.get("type")
+    if schema_type is not None:
+        allowed_types = schema_type if isinstance(schema_type, list) else [schema_type]
+        if not any(_matches_json_type(value, json_type) for json_type in allowed_types):
+            errors.append(f"'{path}' must be of type {allowed_types}")
+
+    if isinstance(value, dict):
+        properties = schema.get("properties") or {}
+        for required in schema.get("required") or []:
+            if required not in value:
+                errors.append(f"missing required property '{required}'")
+        if schema.get("additionalProperties") is False:
+            for key in value:
+                if key not in properties:
+                    errors.append(f"unexpected property '{key}'")
+        for key, prop_schema in properties.items():
+            if key in value:
+                child_path = f"{path}.{key}" if path else key
+                errors.extend(_schema_errors(prop_schema, value[key], child_path))
+    elif isinstance(value, list):
+        min_items = schema.get("minItems")
+        if min_items is not None and len(value) < min_items:
+            errors.append(f"'{path}' must have at least {min_items} item(s)")
+        items = schema.get("items")
+        if isinstance(items, dict):
+            for index, item in enumerate(value):
+                errors.extend(_schema_errors(items, item, f"{path}[{index}]"))
+
+    enum = schema.get("enum")
+    if enum is not None and value not in enum:
+        errors.append(f"'{path}' must be one of {enum}")
+
+    return errors
+
+
+def _validate_tool_arguments_schema(tool_name: str, schema: dict[str, Any], arguments: dict[str, Any]) -> None:
+    errors = _schema_errors(schema, arguments, "")
+    if errors:
+        raise McpError(-32602, f"Invalid arguments for {tool_name}: {'; '.join(errors)}")
+
+
 def _tool_definitions() -> list[dict[str, Any]]:
     return [
         {
@@ -124,6 +194,8 @@ def _call_tool(params: dict[str, Any], request_id: Any = None) -> dict[str, Any]
         arguments = {}
     if not isinstance(arguments, dict):
         raise McpError(-32602, "Tool arguments must be an object")
+
+    _validate_tool_arguments_schema(name, TOOLS[name]["inputSchema"], arguments)
 
     handler = TOOLS[name]["handler"]
     try:

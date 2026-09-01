@@ -55,6 +55,53 @@ def _internal_type_error_tool_entry() -> dict[str, object]:
     }
 
 
+def _schema_tool(
+    *,
+    folder: str,
+    level: int = 0,
+    tags: list[str] | None = None,
+    mode: str = "normal",
+    output: str | None = None,
+) -> dict[str, object]:
+    return {"success": True, "folder": folder}
+
+
+def _schema_tool_entry() -> dict[str, object]:
+    return {
+        "description": "Tool with a rich schema for argument validation tests.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "folder": {"type": "string"},
+                "level": {"type": "integer", "default": 0},
+                "tags": {"type": "array", "items": {"type": "string"}, "default": None},
+                "mode": {"type": "string", "enum": ["normal", "fast"], "default": "normal"},
+                "output": {"type": ["string", "null"], "default": None},
+            },
+            "required": ["folder"],
+            "additionalProperties": False,
+        },
+        "handler": _schema_tool,
+    }
+
+
+def _number_tool(*, value: float) -> dict[str, object]:
+    return {"success": True, "value": value}
+
+
+def _number_tool_entry() -> dict[str, object]:
+    return {
+        "description": "Tool with a single numeric argument for finite-number tests.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"value": {"type": "number"}},
+            "required": ["value"],
+            "additionalProperties": False,
+        },
+        "handler": _number_tool,
+    }
+
+
 def test_read_and_write_mcp_message() -> None:
     payload = {"jsonrpc": "2.0", "id": 1, "method": "ping"}
     stream = io.BytesIO(_framed(payload))
@@ -374,3 +421,149 @@ def test_tools_call_accepts_none_arguments_as_empty() -> None:
 
     assert response is not None
     assert response["result"]["isError"] is False
+
+
+def _call_schema_tool(arguments: dict[str, object]) -> dict[str, object]:
+    response = handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": "schema-tool",
+            "method": "tools/call",
+            "params": {"name": "schema_tool", "arguments": arguments},
+        }
+    )
+    assert response is not None
+    return response
+
+
+def test_schema_rejects_missing_required_field(monkeypatch) -> None:
+    monkeypatch.setitem(server.TOOLS, "schema_tool", _schema_tool_entry())
+
+    with pytest.raises(McpError) as excinfo:
+        _call_schema_tool({})
+    assert excinfo.value.code == -32602
+    assert "missing required property 'folder'" in excinfo.value.message
+
+
+def test_schema_rejects_unexpected_property(monkeypatch) -> None:
+    monkeypatch.setitem(server.TOOLS, "schema_tool", _schema_tool_entry())
+
+    with pytest.raises(McpError) as excinfo:
+        _call_schema_tool({"folder": "x", "bogus": 1})
+    assert excinfo.value.code == -32602
+    assert "unexpected property 'bogus'" in excinfo.value.message
+
+
+def test_schema_rejects_wrong_type(monkeypatch) -> None:
+    monkeypatch.setitem(server.TOOLS, "schema_tool", _schema_tool_entry())
+
+    with pytest.raises(McpError) as excinfo:
+        _call_schema_tool({"folder": 42})
+    assert excinfo.value.code == -32602
+    assert "'folder' must be of type" in excinfo.value.message
+
+
+def test_schema_rejects_invalid_enum(monkeypatch) -> None:
+    monkeypatch.setitem(server.TOOLS, "schema_tool", _schema_tool_entry())
+
+    with pytest.raises(McpError) as excinfo:
+        _call_schema_tool({"folder": "x", "mode": "turbo"})
+    assert excinfo.value.code == -32602
+    assert "'mode' must be one of" in excinfo.value.message
+
+
+def test_schema_rejects_array_with_non_string_item(monkeypatch) -> None:
+    monkeypatch.setitem(server.TOOLS, "schema_tool", _schema_tool_entry())
+
+    with pytest.raises(McpError) as excinfo:
+        _call_schema_tool({"folder": "x", "tags": [1]})
+    assert excinfo.value.code == -32602
+    assert "'tags[0]' must be of type" in excinfo.value.message
+
+
+def test_schema_accepts_valid_arguments(monkeypatch) -> None:
+    monkeypatch.setitem(server.TOOLS, "schema_tool", _schema_tool_entry())
+
+    response = _call_schema_tool({"folder": "x", "mode": "fast", "tags": ["a"], "level": 2, "output": None})
+
+    assert response["result"]["isError"] is False
+    payload = json.loads(response["result"]["content"][0]["text"])
+    assert payload["success"] is True
+    assert payload["folder"] == "x"
+
+
+def test_move_timeline_clip_missing_timeline_in_fails_schema() -> None:
+    with pytest.raises(McpError) as excinfo:
+        handle_request(
+            {
+                "jsonrpc": "2.0",
+                "id": "real-tool",
+                "method": "tools/call",
+                "params": {"name": "move_timeline_clip", "arguments": {"timeline_file": "x", "clip_id": "clip_001"}},
+            }
+        )
+    assert excinfo.value.code == -32602
+    assert "missing required property 'timeline_in'" in excinfo.value.message
+
+
+def test_create_timeline_track_invalid_enum_fails_schema() -> None:
+    with pytest.raises(McpError) as excinfo:
+        handle_request(
+            {
+                "jsonrpc": "2.0",
+                "id": "real-tool",
+                "method": "tools/call",
+                "params": {"name": "create_timeline_track", "arguments": {"timeline_file": "x", "track_type": "subtitle"}},
+            }
+        )
+    assert excinfo.value.code == -32602
+    assert "'track_type' must be one of" in excinfo.value.message
+
+
+def test_apply_timeline_edits_empty_edits_fails_schema() -> None:
+    with pytest.raises(McpError) as excinfo:
+        handle_request(
+            {
+                "jsonrpc": "2.0",
+                "id": "real-tool",
+                "method": "tools/call",
+                "params": {"name": "apply_timeline_edits", "arguments": {"timeline_file": "x", "edits": []}},
+            }
+        )
+    assert excinfo.value.code == -32602
+    assert "must have at least 1" in excinfo.value.message
+
+
+@pytest.mark.parametrize("bad_value", [float("nan"), float("inf"), float("-inf")])
+def test_schema_rejects_non_finite_number(monkeypatch, bad_value) -> None:
+    monkeypatch.setitem(server.TOOLS, "number_tool", _number_tool_entry())
+
+    with pytest.raises(McpError) as excinfo:
+        handle_request(
+            {
+                "jsonrpc": "2.0",
+                "id": "number-tool",
+                "method": "tools/call",
+                "params": {"name": "number_tool", "arguments": {"value": bad_value}},
+            }
+        )
+    assert excinfo.value.code == -32602
+    assert "'value' must be of type" in excinfo.value.message
+
+
+def test_move_timeline_clip_rejects_non_finite_timeline_in() -> None:
+    with pytest.raises(McpError) as excinfo:
+        handle_request(
+            {
+                "jsonrpc": "2.0",
+                "id": "real-tool",
+                "method": "tools/call",
+                "params": {
+                    "name": "move_timeline_clip",
+                    "arguments": {"timeline_file": "x", "clip_id": "clip_001", "timeline_in": float("nan")},
+                },
+            }
+        )
+    assert excinfo.value.code == -32602
+    assert "timeline_in" in excinfo.value.message
+    assert "PERMISSION_DENIED" not in excinfo.value.message
