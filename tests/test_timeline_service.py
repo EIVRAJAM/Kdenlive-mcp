@@ -325,6 +325,100 @@ def test_duplicate_timeline_clip_reports_overlap(monkeypatch, tmp_path: Path) ->
     assert not (tmp_path / "clip_duplicate_overlap_result.timeline.json").exists()
 
 
+def test_insert_timeline_gap_shifts_later_clips_and_markers(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="gap_insert_source")
+
+    result = timeline_tools.insert_timeline_gap(
+        timeline_file=str(saved["timeline_file"]),
+        position=3.0,
+        duration=1.0,
+        output_directory=str(tmp_path),
+        output_name="gap_insert_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is True
+    assert result["after"]["shifted_clip_ids"] == ["clip_002_a", "clip_002_v"]
+    assert result["after"]["shifted_marker_ids"] == ["marker_002"]
+    inspected = timeline_tools.inspect_timeline(str(result["timeline_file"]))
+    clips = {clip["id"]: clip for clip in inspected["data"]["clips"]}
+    markers = {marker["id"]: marker for marker in inspected["data"]["markers"]}
+    assert clips["clip_002_v"]["timeline_in"] == 4.0
+    assert clips["clip_002_v"]["timeline_out"] == 5.0
+    assert clips["clip_002_a"]["timeline_in"] == 4.0
+    assert markers["marker_002"]["position"] == 4.0
+    assert inspected["summary"]["duration"] == 5.0
+
+
+def test_insert_timeline_gap_rejects_intersecting_clip(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="gap_insert_intersect_source")
+
+    result = timeline_tools.insert_timeline_gap(
+        timeline_file=str(saved["timeline_file"]),
+        position=1.0,
+        duration=0.5,
+        output_directory=str(tmp_path),
+        output_name="gap_insert_intersect_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "GAP_INTERSECTS_CLIP"
+    assert result["clip_id"] == "clip_001_v"
+    assert not (tmp_path / "gap_insert_intersect_result.timeline.json").exists()
+
+
+def test_remove_timeline_gap_shifts_later_clips_and_markers(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="gap_remove_source")
+    inserted = timeline_tools.insert_timeline_gap(
+        timeline_file=str(saved["timeline_file"]),
+        position=3.0,
+        duration=1.0,
+        output_directory=str(tmp_path),
+        output_name="gap_remove_inserted",
+        dry_run=False,
+    )
+    assert inserted["success"] is True
+
+    result = timeline_tools.remove_timeline_gap(
+        timeline_file=str(inserted["timeline_file"]),
+        position=3.0,
+        duration=1.0,
+        output_directory=str(tmp_path),
+        output_name="gap_remove_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is True
+    assert result["after"]["shifted_clip_ids"] == ["clip_002_a", "clip_002_v"]
+    assert result["after"]["shifted_marker_ids"] == ["marker_002"]
+    inspected = timeline_tools.inspect_timeline(str(result["timeline_file"]))
+    clips = {clip["id"]: clip for clip in inspected["data"]["clips"]}
+    markers = {marker["id"]: marker for marker in inspected["data"]["markers"]}
+    assert clips["clip_002_v"]["timeline_in"] == 3.0
+    assert clips["clip_002_a"]["timeline_in"] == 3.0
+    assert markers["marker_002"]["position"] == 3.0
+    assert inspected["summary"]["duration"] == 4.0
+
+
+def test_remove_timeline_gap_rejects_non_empty_gap(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="gap_remove_non_empty_source")
+
+    result = timeline_tools.remove_timeline_gap(
+        timeline_file=str(saved["timeline_file"]),
+        position=2.5,
+        duration=0.5,
+        output_directory=str(tmp_path),
+        output_name="gap_remove_non_empty_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "GAP_NOT_EMPTY"
+    assert result["clip_id"] == "clip_001_v"
+    assert not (tmp_path / "gap_remove_non_empty_result.timeline.json").exists()
+
+
 def test_trim_timeline_clip_dry_run_does_not_write(monkeypatch, tmp_path: Path) -> None:
     plan_file = _create_plan_file(monkeypatch, tmp_path)
     created = timeline_tools.create_timeline_from_rough_cut_plan(plan_file=str(plan_file))
@@ -606,6 +700,48 @@ def test_apply_timeline_edits_can_duplicate_clip(monkeypatch, tmp_path: Path) ->
     assert {"clip_003_v", "clip_003_a"}.issubset({clip["id"] for clip in inspected["data"]["clips"]})
 
 
+def test_apply_timeline_edits_can_insert_and_remove_gap(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="batch_gap_source")
+
+    result = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[
+            {"operation": "insert_gap", "position": 3.0, "duration": 1.0},
+            {"operation": "remove_gap", "position": 3.0, "duration": 1.0},
+        ],
+        output_directory=str(tmp_path),
+        name="batch_gap_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is True
+    assert [step["operation"] for step in result["steps"]] == ["insert_gap", "remove_gap"]
+    inspected = timeline_tools.inspect_timeline(str(result["timeline_file"]))
+    clips = {clip["id"]: clip for clip in inspected["data"]["clips"]}
+    markers = {marker["id"]: marker for marker in inspected["data"]["markers"]}
+    assert clips["clip_002_v"]["timeline_in"] == 3.0
+    assert clips["clip_002_a"]["timeline_in"] == 3.0
+    assert markers["marker_002"]["position"] == 3.0
+    assert inspected["summary"]["duration"] == 4.0
+
+
+def test_apply_timeline_edits_reports_invalid_gap_track_ids(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="batch_gap_invalid_track_source")
+
+    result = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[{"operation": "insert_gap", "position": 3.0, "duration": 1.0, "track_ids": "track_v1"}],
+        output_directory=str(tmp_path),
+        name="batch_gap_invalid_track_result",
+        dry_run=False,
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_TRACK"
+    assert result["failed_step"] == 1
+    assert not (tmp_path / "batch_gap_invalid_track_result.timeline.json").exists()
+
+
 def test_validate_timeline_detects_overlap(monkeypatch, tmp_path: Path) -> None:
     plan_file = _create_plan_file(monkeypatch, tmp_path)
     created = timeline_tools.create_timeline_from_rough_cut_plan(plan_file=str(plan_file))
@@ -849,6 +985,26 @@ def test_export_duplicated_timeline_to_kdenlive_template(monkeypatch, tmp_path: 
     assert exported["inspection_summary"]["timeline_clip_count"] == 6
     second_media_starts = sorted(clip["start_frame"] for clip in clips if clip["media_id"] == "5")
     assert second_media_starts == [90, 90, 120, 120]
+
+
+def test_export_gap_edited_timeline_to_kdenlive_template(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="gap_export_source")
+    gap = timeline_tools.insert_timeline_gap(
+        timeline_file=str(saved["timeline_file"]),
+        position=3.0,
+        duration=1.0,
+        output_directory=str(tmp_path),
+        output_name="gap_export_timeline",
+        dry_run=False,
+    )
+    assert gap["success"] is True
+
+    exported = _export_project(monkeypatch, tmp_path, str(gap["timeline_file"]), "gap_export_project")
+
+    clips = _timeline_clips_from_exported_project(str(exported["project"]))
+    second_media_starts = sorted(clip["start_frame"] for clip in clips if clip["media_id"] == "5")
+    assert second_media_starts == [120, 120]
+    assert exported["inspection_summary"]["timeline_clip_count"] == 4
 
 
 def test_export_timeline_to_kdenlive_template_maps_extra_video_track(monkeypatch, tmp_path: Path) -> None:

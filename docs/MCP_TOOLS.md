@@ -975,6 +975,55 @@ When `include_linked=true`, the linked audio/video pair is duplicated and the
 new clips are linked to each other. Generated IDs are monotonic and do not
 reuse IDs deleted earlier in the same timeline.
 
+### insert_timeline_gap
+
+Input:
+
+```json
+{
+  "timeline_file": "/home/abrahamc/Videos/vlog/timeline.timeline.json",
+  "position": 3.0,
+  "duration": 1.0,
+  "track_ids": ["track_v1", "track_a1"],
+  "move_markers": true,
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "output_name": "timeline_gap_001",
+  "dry_run": false,
+  "check_media_exists": false
+}
+```
+
+Inserts empty timeline time by shifting clips that start at or after
+`position` on the selected tracks. If `track_ids` is omitted, all tracks are
+shifted. `track_type` can limit the edit to `video` or `audio` tracks.
+
+The tool refuses to insert inside a clip and returns `GAP_INTERSECTS_CLIP`.
+Split the clip first when the desired edit point is inside media.
+
+### remove_timeline_gap
+
+Input:
+
+```json
+{
+  "timeline_file": "/home/abrahamc/Videos/vlog/timeline.timeline.json",
+  "position": 3.0,
+  "duration": 1.0,
+  "track_type": "video",
+  "move_markers": true,
+  "remove_markers_in_gap": true,
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "output_name": "timeline_gap_removed_001",
+  "dry_run": false,
+  "check_media_exists": false
+}
+```
+
+Removes an empty range by shifting later clips backwards. The selected range
+must not intersect clips on the selected tracks; otherwise the tool returns
+`GAP_NOT_EMPTY`. Markers at or after the removed range move with the edit when
+`move_markers=true`.
+
 ### trim_timeline_clip
 
 Input:
@@ -1046,7 +1095,7 @@ with stable derived IDs such as `clip_001_v_part1` and `clip_001_v_part2`.
 When the clip has a linked audio/video pair, both halves are linked to their
 matching counterpart. `split_at` must be inside the clip range.
 
-All three mutation tools return:
+Mutation tools return:
 
 ```json
 {
@@ -1099,10 +1148,11 @@ Input:
 }
 ```
 
-Applies an ordered batch of `add`, `duplicate`, `remove`, `trim`, `move`, and `split` operations to the
-MCP-owned timeline, then validates the final result before writing one derived
-timeline JSON file. This is the preferred tool when an agent wants to execute a
-small edit plan without producing one intermediate file per operation.
+Applies an ordered batch of `add`, `duplicate`, `remove`, `insert_gap`,
+`remove_gap`, `trim`, `move`, and `split` operations to the MCP-owned timeline,
+then validates the final result before writing one derived timeline JSON file.
+This is the preferred tool when an agent wants to execute a small edit plan
+without producing one intermediate file per operation.
 
 If one edit has invalid arguments, the tool returns a structured error with
 `failed_step`, `failed_edit`, and the successful `steps` applied before that

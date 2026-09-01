@@ -622,6 +622,170 @@ def _duplicate_document_clip(
     return edited, before, after
 
 
+def _gap_track_ids(
+    document: TimelineDocument,
+    track_ids: Any,
+    track_type: str | None,
+) -> list[str] | dict[str, Any]:
+    tracks_by_id = _track_map(document)
+    if track_type is not None and track_type not in {"video", "audio"}:
+        return _error("INVALID_TRACK", "track_type must be video or audio.")
+    if track_ids is not None:
+        if not isinstance(track_ids, list) or any(not isinstance(track_id, str) or track_id == "" for track_id in track_ids):
+            return _error("INVALID_TRACK", "track_ids must be an array of non-empty strings.")
+        resolved_ids: list[str] = []
+        for track_id in track_ids:
+            if track_id not in tracks_by_id:
+                return _error("INVALID_TRACK", f"Track does not exist: {track_id}", track_id=track_id)
+            if track_type is not None and tracks_by_id[track_id].type != track_type:
+                return _error("INVALID_TRACK", f"Track does not match track_type: {track_id}", track_id=track_id)
+            resolved_ids.append(track_id)
+        return resolved_ids
+    return [track.id for track in document.tracks if track_type is None or track.type == track_type]
+
+
+def _insert_document_gap(
+    document: TimelineDocument,
+    position: float,
+    duration: float,
+    track_ids: list[str] | None,
+    track_type: str | None,
+    move_markers: bool,
+) -> tuple[TimelineDocument, dict[str, Any], dict[str, Any]] | dict[str, Any]:
+    position = float(position)
+    duration = float(duration)
+    if position < 0:
+        return _error("INVALID_TIMECODE", "position must be zero or greater.")
+    if duration <= 0:
+        return _error("INVALID_TIMECODE", "duration must be greater than zero.")
+    selected_track_ids = _gap_track_ids(document, track_ids, track_type)
+    if isinstance(selected_track_ids, dict):
+        return selected_track_ids
+    selected = set(selected_track_ids)
+
+    for clip in document.clips:
+        if clip.track_id in selected and clip.timeline_in < position < clip.timeline_out:
+            return _error(
+                "GAP_INTERSECTS_CLIP",
+                "insert_timeline_gap cannot insert inside a clip. Split the clip first.",
+                clip_id=clip.id,
+                track_id=clip.track_id,
+                position=position,
+            )
+
+    edited = document.model_copy(deep=True)
+    shifted_clip_ids: list[str] = []
+    shifted_marker_ids: list[str] = []
+    for clip in edited.clips:
+        if clip.track_id in selected and clip.timeline_in >= position:
+            clip.timeline_in = round(clip.timeline_in + duration, 6)
+            clip.timeline_out = round(clip.timeline_out + duration, 6)
+            shifted_clip_ids.append(clip.id)
+    if move_markers:
+        for marker in edited.markers:
+            if marker.position >= position:
+                marker.position = round(marker.position + duration, 6)
+                shifted_marker_ids.append(marker.id)
+
+    try:
+        edited = TimelineDocument.model_validate(edited.model_dump(mode="json", exclude_none=True))
+    except ValidationError as exc:
+        return _error("INVALID_TIMELINE", f"Edited timeline is invalid: {exc}")
+    before = {
+        "position": position,
+        "duration": duration,
+        "track_ids": selected_track_ids,
+        "summary": _timeline_summary(document),
+    }
+    after = {
+        "position": position,
+        "duration": duration,
+        "track_ids": selected_track_ids,
+        "shifted_clip_ids": sorted(shifted_clip_ids),
+        "shifted_marker_ids": sorted(shifted_marker_ids),
+        "summary": _timeline_summary(edited),
+    }
+    return edited, before, after
+
+
+def _remove_document_gap(
+    document: TimelineDocument,
+    position: float,
+    duration: float,
+    track_ids: list[str] | None,
+    track_type: str | None,
+    move_markers: bool,
+    remove_markers_in_gap: bool,
+) -> tuple[TimelineDocument, dict[str, Any], dict[str, Any]] | dict[str, Any]:
+    position = float(position)
+    duration = float(duration)
+    if position < 0:
+        return _error("INVALID_TIMECODE", "position must be zero or greater.")
+    if duration <= 0:
+        return _error("INVALID_TIMECODE", "duration must be greater than zero.")
+    selected_track_ids = _gap_track_ids(document, track_ids, track_type)
+    if isinstance(selected_track_ids, dict):
+        return selected_track_ids
+    selected = set(selected_track_ids)
+    gap_end = round(position + duration, 6)
+
+    for clip in document.clips:
+        intersects_gap = clip.timeline_in < gap_end and clip.timeline_out > position
+        if clip.track_id in selected and intersects_gap:
+            return _error(
+                "GAP_NOT_EMPTY",
+                "remove_timeline_gap can only remove an empty timeline range.",
+                clip_id=clip.id,
+                track_id=clip.track_id,
+                position=position,
+                duration=duration,
+            )
+
+    edited = document.model_copy(deep=True)
+    shifted_clip_ids: list[str] = []
+    removed_marker_ids: list[str] = []
+    shifted_marker_ids: list[str] = []
+    for clip in edited.clips:
+        if clip.track_id in selected and clip.timeline_in >= gap_end:
+            clip.timeline_in = round(clip.timeline_in - duration, 6)
+            clip.timeline_out = round(clip.timeline_out - duration, 6)
+            shifted_clip_ids.append(clip.id)
+    if move_markers:
+        kept_markers: list[TimelineMarker] = []
+        for marker in edited.markers:
+            if position <= marker.position < gap_end and remove_markers_in_gap:
+                removed_marker_ids.append(marker.id)
+                continue
+            if marker.position >= gap_end:
+                marker.position = round(marker.position - duration, 6)
+                shifted_marker_ids.append(marker.id)
+            kept_markers.append(marker)
+        edited.markers = kept_markers
+
+    try:
+        edited = TimelineDocument.model_validate(edited.model_dump(mode="json", exclude_none=True))
+    except ValidationError as exc:
+        return _error("INVALID_TIMELINE", f"Edited timeline is invalid: {exc}")
+    before = {
+        "position": position,
+        "duration": duration,
+        "gap_end": gap_end,
+        "track_ids": selected_track_ids,
+        "summary": _timeline_summary(document),
+    }
+    after = {
+        "position": position,
+        "duration": duration,
+        "gap_end": gap_end,
+        "track_ids": selected_track_ids,
+        "shifted_clip_ids": sorted(shifted_clip_ids),
+        "shifted_marker_ids": sorted(shifted_marker_ids),
+        "removed_marker_ids": sorted(removed_marker_ids),
+        "summary": _timeline_summary(edited),
+    }
+    return edited, before, after
+
+
 def _validate_rough_cut_plan(plan: Any) -> dict[str, Any] | None:
     if not isinstance(plan, dict):
         return _error("INVALID_ROUGH_CUT_PLAN", "Rough cut plan must be a JSON object.")
@@ -1302,6 +1466,85 @@ def duplicate_timeline_clip(
     )
 
 
+def insert_timeline_gap(
+    timeline_file: str,
+    position: float,
+    duration: float,
+    track_ids: list[str] | None = None,
+    track_type: str | None = None,
+    move_markers: bool = True,
+    output_directory: str | None = None,
+    output_name: str | None = None,
+    overwrite: bool = False,
+    dry_run: bool = True,
+    check_media_exists: bool = False,
+) -> dict[str, Any]:
+    loaded = _load_timeline_from_allowed_output(timeline_file)
+    if isinstance(loaded, dict):
+        return loaded
+    timeline_path, document = loaded
+    edited_result = _insert_document_gap(document, position, duration, track_ids, track_type, move_markers)
+    if isinstance(edited_result, dict):
+        return edited_result
+    edited, before, after = edited_result
+    return _maybe_write_edited_timeline(
+        operation="insert_timeline_gap",
+        source_path=timeline_path,
+        document=edited,
+        output_directory=output_directory,
+        name=output_name,
+        overwrite=overwrite,
+        dry_run=dry_run,
+        before=before,
+        after=after,
+        check_media_exists=check_media_exists,
+    )
+
+
+def remove_timeline_gap(
+    timeline_file: str,
+    position: float,
+    duration: float,
+    track_ids: list[str] | None = None,
+    track_type: str | None = None,
+    move_markers: bool = True,
+    remove_markers_in_gap: bool = True,
+    output_directory: str | None = None,
+    output_name: str | None = None,
+    overwrite: bool = False,
+    dry_run: bool = True,
+    check_media_exists: bool = False,
+) -> dict[str, Any]:
+    loaded = _load_timeline_from_allowed_output(timeline_file)
+    if isinstance(loaded, dict):
+        return loaded
+    timeline_path, document = loaded
+    edited_result = _remove_document_gap(
+        document,
+        position,
+        duration,
+        track_ids,
+        track_type,
+        move_markers,
+        remove_markers_in_gap,
+    )
+    if isinstance(edited_result, dict):
+        return edited_result
+    edited, before, after = edited_result
+    return _maybe_write_edited_timeline(
+        operation="remove_timeline_gap",
+        source_path=timeline_path,
+        document=edited,
+        output_directory=output_directory,
+        name=output_name,
+        overwrite=overwrite,
+        dry_run=dry_run,
+        before=before,
+        after=after,
+        check_media_exists=check_media_exists,
+    )
+
+
 def apply_timeline_edits(
     timeline_file: str,
     edits: list[dict[str, Any]],
@@ -1324,10 +1567,16 @@ def apply_timeline_edits(
         if not isinstance(edit, dict):
             return _error("INVALID_ARGUMENT", "Each edit must be an object.", failed_step=index, steps=steps)
         operation = str(edit.get("operation") or edit.get("type") or "")
-        operation = operation.removeprefix("timeline_").removesuffix("_timeline_clip")
-        operation = operation.removesuffix("_clip")
+        if operation in {"insert_timeline_gap", "timeline_insert_gap"}:
+            operation = "insert_gap"
+        elif operation in {"remove_timeline_gap", "timeline_remove_gap"}:
+            operation = "remove_gap"
+        else:
+            operation = operation.removeprefix("timeline_").removesuffix("_timeline_clip")
+            operation = operation.removesuffix("_clip")
         clip_id = edit.get("clip_id")
-        if operation != "add" and (not isinstance(clip_id, str) or clip_id == ""):
+        clipless_operations = {"add", "insert_gap", "remove_gap"}
+        if operation not in clipless_operations and (not isinstance(clip_id, str) or clip_id == ""):
             return _error("INVALID_CLIP", "Each edit requires a non-empty clip_id.", failed_step=index, steps=steps)
 
         if operation == "add":
@@ -1403,12 +1652,49 @@ def apply_timeline_edits(
                 include_linked=bool(edit.get("include_linked", True)),
             )
             step_clip_id = clip_id
+        elif operation == "insert_gap":
+            for required_field in ("position", "duration"):
+                if required_field not in edit:
+                    return _error(
+                        "INVALID_ARGUMENT",
+                        f"insert_gap edit requires {required_field}.",
+                        failed_step=index,
+                        steps=steps,
+                    )
+            edited_result = _insert_document_gap(
+                document=document,
+                position=float(edit["position"]),
+                duration=float(edit["duration"]),
+                track_ids=edit.get("track_ids"),
+                track_type=edit.get("track_type"),
+                move_markers=bool(edit.get("move_markers", True)),
+            )
+            step_clip_id = None
+        elif operation == "remove_gap":
+            for required_field in ("position", "duration"):
+                if required_field not in edit:
+                    return _error(
+                        "INVALID_ARGUMENT",
+                        f"remove_gap edit requires {required_field}.",
+                        failed_step=index,
+                        steps=steps,
+                    )
+            edited_result = _remove_document_gap(
+                document=document,
+                position=float(edit["position"]),
+                duration=float(edit["duration"]),
+                track_ids=edit.get("track_ids"),
+                track_type=edit.get("track_type"),
+                move_markers=bool(edit.get("move_markers", True)),
+                remove_markers_in_gap=bool(edit.get("remove_markers_in_gap", True)),
+            )
+            step_clip_id = None
         else:
             return _error(
                 "INVALID_ARGUMENT",
                 f"Unsupported timeline edit operation: {operation}",
                 failed_step=index,
-                supported_operations=["add", "duplicate", "remove", "trim", "move", "split"],
+                supported_operations=["add", "duplicate", "remove", "trim", "move", "split", "insert_gap", "remove_gap"],
                 steps=steps,
             )
 

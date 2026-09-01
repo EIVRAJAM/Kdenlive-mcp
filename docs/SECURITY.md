@@ -36,6 +36,8 @@ remove_timeline_track writes only copy-on-write derived JSON timeline files, and
 add_timeline_clip writes only media references into derived JSON timeline files, and supports dry_run
 remove_timeline_clip writes only copy-on-write derived JSON timeline files, and supports dry_run
 duplicate_timeline_clip writes only copy-on-write derived JSON timeline files, and supports dry_run
+insert_timeline_gap writes only copy-on-write derived JSON timeline files, and supports dry_run
+remove_timeline_gap writes only copy-on-write derived JSON timeline files, and supports dry_run
 trim_timeline_clip writes only copy-on-write derived JSON timeline files, and supports dry_run
 move_timeline_clip writes only copy-on-write derived JSON timeline files, and supports dry_run
 split_timeline_clip writes only copy-on-write derived JSON timeline files, and supports dry_run

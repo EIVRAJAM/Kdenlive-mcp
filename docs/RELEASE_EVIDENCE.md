@@ -499,3 +499,57 @@ Decision:
 Agents can now duplicate existing timeline clips safely before further trim,
 move, split, remove, or export operations.
 ```
+
+## 2026-08-31 Timeline Gap Validation
+
+Scope:
+
+```text
+P2 MCP-owned timeline gap insertion and removal
+```
+
+Validated behavior:
+
+```text
+insert_timeline_gap shifts later clips copy-on-write
+remove_timeline_gap shifts later clips backwards only when the range is empty
+gap operations can target all tracks, selected tracks, or one media track type
+markers move with gap edits by default
+insert_timeline_gap rejects edit points inside clips
+remove_timeline_gap rejects non-empty ranges before writing
+apply_timeline_edits supports insert_gap and remove_gap operations
+gap-edited timelines export to .kdenlive template with blank playlist ranges
+tools/list exposes insert_timeline_gap and remove_timeline_gap
+```
+
+Command:
+
+```bash
+scripts/dev_check.sh
+```
+
+Result:
+
+```text
+compileall: passed
+pytest: 157 passed in 35.95s
+```
+
+Specific integration coverage:
+
+```text
+test_insert_timeline_gap_shifts_later_clips_and_markers
+test_insert_timeline_gap_rejects_intersecting_clip
+test_remove_timeline_gap_shifts_later_clips_and_markers
+test_remove_timeline_gap_rejects_non_empty_gap
+test_apply_timeline_edits_can_insert_and_remove_gap
+test_apply_timeline_edits_reports_invalid_gap_track_ids
+test_export_gap_edited_timeline_to_kdenlive_template
+```
+
+Decision:
+
+```text
+Agents can now open or close empty timeline space without manually moving each
+clip, while preserving copy-on-write safety and timeline validation.
+```
