@@ -1240,3 +1240,44 @@ The server is MCP-client-agnostic. Codex remains a documented example, not a
 system requirement. Any MCP client over STDIO can register the server through
 the generic example and docs/MCP_CLIENT_SETUP.md.
 ```
+
+## 2026-09-01 Residual Codex-Specific Language Removed
+
+Scope:
+
+```text
+Remove remaining Codex-specific production language from the contract and checklist
+```
+
+Changes:
+
+```text
+acceptance criteria that named a specific client as the discovering/calling
+party are now generic ("an MCP-capable client can...")
+the P1 sample-config item is now a generic MCP client config, with that client
+kept as one example
+the final checklist discovery item now reads "works from an MCP client"
+the production-target description now reads "an MCP-capable agent"
+```
+
+Command:
+
+```bash
+# grep for the residual Codex-specific phrases (discovery/call/sample-config)
+# across docs/ and README.md; the pattern must return no matches
+```
+
+Result:
+
+```text
+no matches
+pytest tests/test_production_readiness_matrix.py tests/test_mcp_client_config.py: 9 passed
+full suite: 218 passed, 9 skipped
+```
+
+Decision:
+
+```text
+Residual Codex-specific production language is removed. Codex remains documented
+only as one possible client example; the production target is MCP-client-agnostic.
+```

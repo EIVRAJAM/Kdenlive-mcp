@@ -3,8 +3,8 @@
 This document defines what must be true before `kdenlive-mcp` is considered
 ready for real local use by an AI agent.
 
-Production-ready does not mean feature-complete. It means a Codex-like agent can
-run the MCP server repeatedly against real local media and produce
+Production-ready does not mean feature-complete. It means an MCP-capable agent
+can run the MCP server repeatedly against real local media and produce
 Kdenlive-reviewable projects with predictable behavior, clear errors, no
 destructive writes, and enough validation for the user to trust the output.
 
@@ -249,8 +249,8 @@ no stdout logging that corrupts MCP framing
 Acceptance:
 
 ```text
-Codex can discover every production tool
-Codex can call every production tool through STDIO
+an MCP-capable client can discover every production tool
+an MCP-capable client can call every production tool through STDIO
 invalid tool names return structured errors
 invalid arguments return structured errors
 all tool responses include success or error state
@@ -623,7 +623,7 @@ requires P1 operator-trust work and release evidence.
 ```text
 persistent structured logs: implemented
 scripts/dev_check.sh or Makefile validation command: implemented
-sample Codex MCP config: implemented
+generic MCP client config: implemented (Codex as one example)
 release checklist with manual Kdenlive open verification: implemented
 schema docs for rough-cut plan JSON: implemented
 schema docs for timeline JSON: implemented
@@ -776,7 +776,7 @@ original media files remain unchanged
 Do not mark production-ready until all are true:
 
 ```text
-[ ] MCP tool discovery works from Codex.
+[ ] MCP tool discovery works from an MCP client.
 [ ] Full pytest suite passes.
 [ ] End-to-end workflow test passes.
 [ ] Generated .kdenlive validates with inspect_project.
