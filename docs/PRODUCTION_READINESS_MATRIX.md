@@ -88,8 +88,10 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
   del bin por media, usar un chain de timeline compartido por audio/video y añadir
   `kdenlive:audio_index=1` (patrón confirmado por el oracle
   `roundtrip_ai_resaved_by_kdenlive.kdenlive`). El usuario reabrió el archivo regenerado
-  en Kdenlive 26.04.3 y el aviso ya no apareció. Riesgos residuales: Kdenlive puede
-  cambiar el formato; repetir la verificación manual por release cuando el writer cambie.
+  en Kdenlive 26.04.3 y el aviso ya no apareció. Además, `composite_edit_ai_generated.kdenlive`
+  (trim+gap+split exportado) mantiene el mismo patrón y pasa MLT real. Riesgos
+  residuales: Kdenlive puede cambiar el formato; repetir la verificación manual por
+  release cuando el writer cambie.
 
 ## Production Gate Verdict
 

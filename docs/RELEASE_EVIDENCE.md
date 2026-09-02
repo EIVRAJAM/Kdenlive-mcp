@@ -2063,3 +2063,64 @@ of the original bug, not proof of the corrected state. The round-trip risk is
 closed for this Kdenlive version; it should be re-verified by release when the
 writer changes.
 ```
+
+## 2026-09-02 Composite Timeline Edit Export
+
+Scope:
+
+```text
+Validate the corrected writer against a real edit sequence: trim + gap + split
+```
+
+Generated project:
+
+```text
+examples/recon/composite_edit_ai_generated.kdenlive
+```
+
+Edits applied via the MCP timeline tools:
+
+```text
+trim:      clip_001 trimmed to source_out 2.0 (src 0..3 -> 0..2)
+insert_gap: 0.5s gap inserted at timeline 2.0 (shifts clip_002)
+split:     clip_002 split at timeline 4.0 into part1/part2
+```
+
+Validated pattern:
+
+```text
+XML well-formed, profile vertical_hd_30, missing_media 0
+timeline contains clips (>= 4 entries after split)
+at least one trimmed entry (in != 0) and one real <blank length=...>
+bin/timeline references coherent: one shared timeline chain per media,
+control_uuid shared with the Project Bin, kdenlive:audio_index=1 on entries
+```
+
+Commands:
+
+```bash
+xmllint --noout examples/recon/composite_edit_ai_generated.kdenlive
+flatpak run --command=melt org.kde.kdenlive \
+  examples/recon/composite_edit_ai_generated.kdenlive \
+  -consumer null terminate_on_pause=1
+validate_project(check_mlt=True)
+pytest tests/test_kdenlive_project_fixtures.py
+```
+
+Results:
+
+```text
+xmllint: OK
+Flatpak melt: exit 0 (real load)
+validate_project: valid=true, mlt_load loaded, missing 0
+tests/test_kdenlive_project_fixtures.py: 33 passed
+full suite: 296 passed, 1 skipped
+```
+
+Decision:
+
+```text
+The corrected writer produces valid composite edits (trim + gap + split) with
+coherent bin/timeline references and passes real MLT load, without re-introducing
+the timeline-reference pattern Kdenlive repairs.
+```

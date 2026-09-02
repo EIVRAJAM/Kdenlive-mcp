@@ -29,6 +29,7 @@ ADDITIONAL_REFERENCE_PROJECTS = [
 
 ROUNDTRIP_GENERATED = "roundtrip_ai_generated.kdenlive"
 ROUNDTRIP_RESAVED = "roundtrip_ai_resaved_by_kdenlive.kdenlive"
+COMPOSITE_GENERATED = "composite_edit_ai_generated.kdenlive"
 
 _ROUNDTRIP_SKIP_REASON = (
     f"{ROUNDTRIP_RESAVED} requires opening {ROUNDTRIP_GENERATED} in Kdenlive and "
@@ -407,3 +408,83 @@ def test_dissolve_detector_fallback_for_non_default_service_without_internal() -
     root.append(_transition_element(in_out=False, internal=None, service="luma"))
 
     assert _has_dissolve_transition(root) is True
+
+
+@pytest.mark.parametrize("name", [ROUNDTRIP_GENERATED, COMPOSITE_GENERATED])
+def test_generated_projects_have_coherent_timeline_bin_references(name: str) -> None:
+    root = _parse(name)
+    bin_ids = _bin_chain_ids(root)
+    chains = _chain_props(root)
+    bin_media_uuids = {
+        chains[chain_id].get("kdenlive:id"): chains[chain_id].get("kdenlive:control_uuid")
+        for chain_id in bin_ids
+    }
+    timeline_producers: set[str] = set()
+    for producer, media_id, control_uuid in _timeline_entry_chains(root, bin_ids):
+        assert control_uuid == bin_media_uuids.get(media_id), (
+            f"{producer} control_uuid {control_uuid} does not match bin for media {media_id}"
+        )
+        timeline_producers.add(producer)
+
+    for media_id in {chains[producer].get("kdenlive:id") for producer in timeline_producers}:
+        matching = [producer for producer in timeline_producers if chains[producer].get("kdenlive:id") == media_id]
+        assert len(matching) == 1, f"media {media_id} has {len(matching)} timeline chains: {matching}"
+
+
+@pytest.mark.parametrize("name", [ROUNDTRIP_GENERATED, COMPOSITE_GENERATED])
+def test_generated_projects_timeline_entries_have_audio_index(name: str) -> None:
+    root = _parse(name)
+
+    for playlist in root.findall("playlist"):
+        if playlist.get("id") == "main_bin":
+            continue
+        for entry in playlist.findall("entry"):
+            assert _props(entry).get("kdenlive:audio_index") == "1"
+
+
+def test_composite_edit_project_is_well_formed_with_media_and_profile() -> None:
+    root = _parse(COMPOSITE_GENERATED)
+
+    assert root.tag == "mlt"
+    assert root.attrib["producer"] == "main_bin"
+    profile = root.find("profile")
+    assert profile is not None
+    assert profile.attrib["width"] == "1080"
+    assert profile.attrib["height"] == "1920"
+    assert profile.attrib["frame_rate_num"] == "30"
+    assert profile.attrib["frame_rate_den"] == "1"
+    assert profile.attrib["display_aspect_num"] == "9"
+    assert profile.attrib["display_aspect_den"] == "16"
+    for chain in root.findall("chain"):
+        resource = _props(chain).get("resource")
+        if resource and resource != "black":
+            assert (RECON_DIR / resource).exists()
+
+
+def test_composite_edit_project_inspects_cleanly() -> None:
+    inspection = KdenliveProjectAdapter().inspect(RECON_DIR / COMPOSITE_GENERATED)
+    active_sequence = next(
+        sequence for sequence in inspection["sequences"] if sequence["id"] == inspection["active_sequence_id"]
+    )
+
+    assert inspection["document"]["profile"] == "vertical_hd_30"
+    assert inspection["validation"]["missing_media_count"] == 0
+    assert len(active_sequence["timeline_clips"]) >= 4
+
+
+def test_composite_edit_project_contains_trim_gap_and_split() -> None:
+    root = _parse(COMPOSITE_GENERATED)
+
+    assert _has_trimmed_clip(root)
+    assert _has_real_gap(root)
+
+    bin_ids = _bin_chain_ids(root)
+    chains = _chain_props(root)
+    timeline_clip_count = sum(
+        1
+        for playlist in root.findall("playlist")
+        if playlist.get("id") != "main_bin"
+        for entry in playlist.findall("entry")
+        if entry.attrib.get("producer") in chains and entry.attrib.get("producer") not in bin_ids
+    )
+    assert timeline_clip_count >= 4  # split produces more entries than the base two-media timeline

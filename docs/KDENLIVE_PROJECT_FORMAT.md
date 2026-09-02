@@ -620,6 +620,23 @@ Manual verification (passed): the user reopened the regenerated
 `roundtrip_ai_generated.kdenlive` in Kdenlive 26.04.3 and the "referencia
 incorrecta en el panel Medios" dialog no longer appeared.
 
+### Composite Timeline Edit Export
+
+`examples/recon/composite_edit_ai_generated.kdenlive` is exported from an MCP
+timeline built with two media and a real edit sequence (trim + insert_gap +
+split), using the corrected writer. Verified pattern:
+
+```text
+trim:  at least one playlist entry with in != "00:00:00.000"
+gap:   <blank length="..."> elements between clips
+split: more timeline entries than the base two-media timeline
+bin/timeline references: one shared timeline chain per media, control_uuid
+shared with the Project Bin chain, kdenlive:audio_index=1 on entries
+```
+
+Validated with the same static invariant tests and with real Flatpak melt
+(exit 0).
+
 ## Current Write Boundary
 
 The project now has an experimental `export_timeline_to_mlt_xml` path that
