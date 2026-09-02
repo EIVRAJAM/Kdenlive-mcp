@@ -20,6 +20,76 @@ timecode conversion belongs at adapter boundaries only.
 
 Paths are stored as absolute normalized local paths after allowlist validation.
 
+## Schema Migration Policy
+
+This policy applies to every JSON file persisted by the MCP: rough-cut plans
+(`*.rough-cut-plan.json`), timeline documents (`*.timeline.json`), and project
+manifests (`*.kdenlive-mcp.json`).
+
+### Version Requirement
+
+```text
+schema_version is required in every persisted JSON file
+kind is required for rough-cut plans and timeline documents
+readers must reject higher or unsupported schema versions with a structured error
+```
+
+### Compatible Changes Allowed In v1
+
+```text
+adding optional fields
+adding optional values that are not required
+expanding metadata without changing field semantics
+```
+
+### Incompatible Changes That Require v2
+
+```text
+changing time units
+renaming or removing required fields
+changing the meaning of IDs
+changing the structure of tracks/clips/segments
+changing path semantics
+```
+
+### Agent Policy
+
+```text
+do not edit persisted JSON files manually except through the MCP tools
+preserve kind and schema_version when a tool rewrites a persisted file
+if a tool returns UNSUPPORTED_SCHEMA_VERSION, stop and request an explicit migration
+```
+
+### Future Migration Policy
+
+```text
+migrators must be explicit, never silent or automatic
+migration must support dry_run
+a backup must be created before writing a migration
+round-trip tests must cover the document before and after migration
+```
+
+### Current Error Codes (v1)
+
+```text
+rough-cut plan with unsupported schema_version: INVALID_ROUGH_CUT_PLAN
+project manifest that fails validation: INVALID_MANIFEST
+timeline with unsupported schema_version: no explicit check today (schema_version
+is an int field and load_timeline_document accepts the value)
+
+TODO(unify): introduce UNSUPPORTED_SCHEMA_VERSION as the single structured error
+code for unsupported schema versions across rough-cut plan, timeline document and
+project manifest.
+```
+
+### Persisted Kinds Covered
+
+```text
+kdenlive_mcp_rough_cut_plan  (rough-cut-plan.json, schema_version 1)
+kdenlive_mcp_timeline        (timeline.json, schema_version 1)
+kdenlive-mcp.json            (project manifest, schema_version "1.0")
+```
+
 ## Rough-Cut Plan Document v1
 
 Filename convention:

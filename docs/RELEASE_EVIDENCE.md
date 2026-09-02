@@ -1380,3 +1380,58 @@ The filesystem boundary is demonstrated for traversal, symlinks that escape an
 allowed root, symlinks that stay inside, and empty allowlists, across all three
 path categories and through the real MCP channel.
 ```
+
+## 2026-09-01 Schema Migration Policy Documented
+
+Scope:
+
+```text
+Explicit migration policy for persisted MCP JSON files
+```
+
+Changes:
+
+```text
+docs/SCHEMAS.md gained a "Schema Migration Policy" section covering the version
+requirement, compatible v1 changes, incompatible changes requiring v2, agent
+policy, and a future migration policy (explicit migrators, dry_run, backup,
+round-trip tests)
+current error codes are documented (INVALID_ROUGH_CUT_PLAN, INVALID_MANIFEST,
+no explicit timeline check) with a TODO to unify on UNSUPPORTED_SCHEMA_VERSION
+```
+
+Production change: none.
+
+```text
+no migrators were implemented; current formats and schema_version values are unchanged
+```
+
+Tests:
+
+```text
+tests/test_schema_docs.py (5 tests: policy section, UNSUPPORTED_SCHEMA_VERSION,
+dry_run, backup, coverage of rough-cut plan/timeline/manifest kinds)
+```
+
+Commands:
+
+```bash
+pytest tests/test_schema_docs.py
+pytest tests/test_rough_cut_tools.py tests/test_timeline_service.py
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+tests/test_schema_docs.py: 5 passed
+full suite: 241 passed, 9 skipped
+```
+
+Decision:
+
+```text
+The migration policy is documented and validated. No implementation changed;
+the existing error codes remain and a TODO documents the future unification.
+```
