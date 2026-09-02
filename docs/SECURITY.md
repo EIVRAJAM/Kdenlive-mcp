@@ -81,12 +81,31 @@ are denied.
 
 Paths are expanded and resolved before validation.
 
+`resolve_user_path()` runs `Path.expanduser()` and then
+`Path.resolve(strict=False)`. Resolving has two effects:
+
+```text
+.. components are normalized, so they cannot escape the allowed root
+symlinks are followed, so a link inside an allowed root that points outside is
+rejected after resolution
+```
+
+Symlink behavior:
+
+```text
+allowed/link_to_inside -> allowed/inside   accepted (resolves inside the root)
+allowed/link_to_outside -> ../outside      rejected (resolves outside the root)
+```
+
+An empty allowlist for a path category denies every path in that category.
+
 Rejected examples:
 
 ```text
 ../../.ssh/id_rsa
 /etc/passwd
 /home/abrahamc/.ssh/id_ed25519
+allowed/link_to_outside/media.mp4   (symlink escaping the allowed root)
 ```
 
 The current error shape is:

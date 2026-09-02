@@ -1331,3 +1331,52 @@ A single reproducible release gate now runs the deterministic, STDIO, and
 reliability gates, plus the optional real MLT load gate, in one command with a
 clear summary, failing on any mandatory gate failure.
 ```
+
+## 2026-09-01 Filesystem Security Boundary Tests
+
+Scope:
+
+```text
+Path traversal, symlink, and empty-allowlist behavior for media/project/output
+```
+
+Tests added (`tests/test_security.py`):
+
+```text
+parent .. traversal rejected for media, project, output
+symlink inside an allowed root pointing outside rejected for all three categories
+symlink inside an allowed root staying inside accepted and resolves inside
+empty allowlist rejects with PERMISSION_DENIED for all three categories
+get_media_info via the MCP boundary rejects a symlink escaping the media allowlist
+(success=false, error=PERMISSION_DENIED, message, operation)
+```
+
+Production change: none.
+
+```text
+security.py already resolves paths with Path.resolve(strict=False), which
+normalizes .. components and follows symlinks before allowlist comparison.
+```
+
+Commands:
+
+```bash
+pytest tests/test_security.py tests/test_media_tools.py
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+tests/test_security.py + tests/test_media_tools.py: 21 passed
+full suite: 236 passed, 9 skipped
+```
+
+Decision:
+
+```text
+The filesystem boundary is demonstrated for traversal, symlinks that escape an
+allowed root, symlinks that stay inside, and empty allowlists, across all three
+path categories and through the real MCP channel.
+```
