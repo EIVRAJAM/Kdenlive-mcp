@@ -1739,3 +1739,55 @@ check_mlt now has a documented, consistent contract: fail on a real MLT load
 failure, succeed with a sandbox warning when unavailable, and skip entirely when
 false.
 ```
+
+## 2026-09-02 Real Kdenlive Fixture Expansion
+
+Fixtures created manually in Kdenlive 26.04.3 and committed:
+
+```text
+examples/recon/manual_trimmed_clip.kdenlive
+examples/recon/manual_gap_timeline.kdenlive
+examples/recon/manual_transition_dissolve.kdenlive
+examples/recon/manual_basic_effect.kdenlive
+```
+
+XML findings per fixture:
+
+```text
+trim:  playlist entry in attribute != 0 (in="00:00:00.633"); entry in/out are
+       source ranges, not timeline positions
+gap:   <blank length="00:00:01.133"/> elements inside playlist0 and playlist6
+dissolve: transition2 mlt_service=composite kdenlive_id=wipe with
+       in="00:00:01.567" out="00:00:03.900" and no internal_added=237
+effect: filter6 (mlt_service=qtblend) nested inside a playlist entry (clip-level
+       filter); default per-track filters never appear inside entries
+```
+
+Commands:
+
+```bash
+xmllint --noout examples/recon/manual_*.kdenlive
+pytest tests/test_kdenlive_project_fixtures.py
+pytest tests/test_kdenlive_project_adapter.py tests/test_kdenlive_project_fixtures.py
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+tests/test_kdenlive_project_fixtures.py: 17 passed (no skips)
+tests/test_kdenlive_project_adapter.py + fixtures: 27 passed
+full suite: 279 passed, 1 skipped (only the direct in-place editing skip remains)
+```
+
+Decision:
+
+```text
+The SHOULD of multiple real Kdenlive fixtures is now closed. The four manual
+fixtures exercise real trim/gap/transition/effect XML patterns, the data-driven
+detectors pass against them, and the patterns are documented in
+docs/KDENLIVE_PROJECT_FORMAT.md. Remaining unknowns are limited to multi-effect
+stacks, multiple transitions per clip, proxies, subtitles and round-trip
+behavior.
+```

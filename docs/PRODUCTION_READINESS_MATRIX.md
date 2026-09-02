@@ -67,14 +67,13 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
   smoke test real del canal STDIO (`scripts/mcp_stdio_smoke_test.py`,
   `initialize` + `tools/list`, 60 tools). Falta probar desde un cliente MCP
   externo real.
-- Pruebas con fixtures reales múltiples: **PARTIAL** (SHOULD). `examples/recon/`
-  tiene 4 proyectos manuales validados (well-formed, vertical HD 30, medios
-  presentes) y 1 carpeta de sesión real. Los detectores de patrones
-  (trim/gap/transition/effect) ya están en `tests/test_kdenlive_project_fixtures.py`
-  con recetas manuales exactas en `docs/KDENLIVE_PROJECT_FORMAT.md`; los fixtures
-  `manual_trimmed_clip`, `manual_gap_timeline`, `manual_transition_dissolve` y
-  `manual_basic_effect` quedan pendientes de creación manual en Kdenlive y sus
-  tests se saltan hasta que existan.
+- Pruebas con fixtures reales múltiples: **DONE** (SHOULD). `examples/recon/`
+  tiene 4 proyectos manuales validados + 4 fixtures reales nuevos creados en
+  Kdenlive 26.04.3 (trim, gap, dissolve, efecto) con detectores que pasan:
+  `manual_trimmed_clip`, `manual_gap_timeline`, `manual_transition_dissolve`,
+  `manual_basic_effect`. Patrones XML documentados en
+  `docs/KDENLIVE_PROJECT_FORMAT.md`. Riesgo residual: falta el efecto con stack
+  múltiple y transiciones múltiples por clip.
 - Edición directa de una working copy `.kdenlive` (spike): **DONE**.
   `apply_timeline_to_working_project` aplica un timeline MCP a una working copy
   (`prepare_working_project`) y escribe un proyecto derivado nuevo
@@ -109,9 +108,9 @@ Conteo: DONE 20 · PARTIAL 0 · MISSING 0 · BLOCKED 0.
    operaciones directas sobre `.kdenlive` derivados (el spike
    `apply_timeline_to_working_project` ya aplica timeline a una working copy con
    copy-on-write; la edición in-place sigue sin implementarse por diseño).
-4. Crear los 4 fixtures manuales pendientes en Kdenlive (trim, gap, dissolve,
-   efecto) siguiendo las recetas de `docs/KDENLIVE_PROJECT_FORMAT.md`; los
-   detectores de test ya están listos y se activan al añadir cada archivo.
+4. Ampliar fixtures reales hacia stacks de efectos múltiples y transiciones
+   múltiples por clip (los fixtures de trim/gap/dissolve/efecto ya existen y los
+   patrones están documentados).
 5. Probar el descubrimiento desde un cliente MCP externo real (ya existe el smoke
    test STDIO `scripts/mcp_stdio_smoke_test.py`; queda cerrar el checklist
    "MCP tool discovery works" con un cliente real).

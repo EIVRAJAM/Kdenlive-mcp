@@ -322,104 +322,86 @@ adapter feature after basic sequence parsing exists.
 
 ## Trims
 
-The file named `manual_trim_marker.kdenlive` contains the marker, but the saved
-timeline entries still match `manual_two_clips_timeline.kdenlive`:
+Confirmed with `examples/recon/manual_trimmed_clip.kdenlive`:
 
 ```text
-in = 00:00:00.000
-out = 00:00:02.967
+a trimmed clip is a playlist entry whose in attribute is not 00:00:00.000
+
+playlist0 entry producer="chain0" in="00:00:00.633" out="00:00:02.967"
+playlist6 entry producer="chain2" in="00:00:00.633" out="00:00:02.967"
 ```
 
-Therefore this sample does not yet prove Kdenlive's trim representation. A new
-reference file is still needed where a clip is visibly trimmed and saved.
+`entry in/out` are SOURCE ranges (the visible portion of the chain producer),
+not timeline positions. The timeline position is implicit: accumulated entry
+durations plus blanks.
 
-Required next trim sample:
+## Timeline Gaps
+
+Confirmed with `examples/recon/manual_gap_timeline.kdenlive`:
 
 ```text
-examples/recon/manual_trimmed_clip.kdenlive
+a real gap is a <blank> element inside the playlist with a positive length
+
+playlist0: <blank length="00:00:01.133"/>
+playlist6: <blank length="00:00:01.133"/>
 ```
 
-Recommended manual action: trim the first clip so its source in-point is not
-zero and save a separate file.
+The blank sits between consecutive clip entries. `entry in/out` must never be
+used to infer a timeline gap, because they are source ranges.
 
-### Additional Fixture Recipes (Pending Manual Creation)
+## User Transitions (Dissolve)
 
-The fixtures below cannot be produced programmatically without guessing
-Kdenlive XML, so each one requires a short manual session in Kdenlive 26.04.3.
-A data-driven test validates each file as soon as it is added; until then the
-tests skip with an explicit reason.
-
-Base file for all recipes:
+Confirmed with `examples/recon/manual_transition_dissolve.kdenlive`:
 
 ```text
-examples/recon/manual_two_clips_timeline.kdenlive
+the user transition is stored among the track transitions with in/out
+attributes (clip-level) and no internal_added=237:
+
+transition2 mlt_service=composite kdenlive_id=wipe
+           in="00:00:01.567" out="00:00:03.900"
+
+defaults alongside it keep internal_added=237 and no in/out:
+transition0/1 mlt_service=mix     internal_added=237
+transition3/4 mlt_service=qtblend internal_added=237
 ```
 
-Shared setup: open the base file in Kdenlive, perform the edit, then
-`File > Save As` to the target fixture name.
+Distinguisher for a user transition: `in`/`out` attributes present, or a service
+outside mix/qtblend without `internal_added=237`.
 
-Recipe 1 - `manual_trimmed_clip.kdenlive`:
+## User Effects
+
+Confirmed with `examples/recon/manual_basic_effect.kdenlive`:
 
 ```text
-file base:   manual_two_clips_timeline.kdenlive
-manual steps:
-  1. select the first clip in the timeline
-  2. trim its source in-point so it starts later (e.g. 1s, frame 30)
-  3. keep the out-point unchanged or trim it as well
-  4. File > Save As examples/recon/manual_trimmed_clip.kdenlive
-expected XML:
-  at least one playlist entry with in != "00:00:00.000"
-  the corresponding chain/producer source is unchanged
-validation:
-  pytest tests/test_kdenlive_project_fixtures.py -k trimmed_clip_fixture
+a user effect on a clip is a <filter> nested inside a playlist <entry>:
+
+playlist6 entry producer="chain2" (in 0.000 out 0.600)
+  filter6 mlt_service=qtblend, kdenlive:collapsed=0
+           rect="00:00:00.000=0 0 1080 1920 1", rotation="00:00:00.000=0"
+
+default per-track filters (volume/panner/audiolevel) live at the tractor level,
+with disable=1 and internal_added=237, and never inside an entry.
 ```
 
-Recipe 2 - `manual_gap_timeline.kdenlive`:
+Distinguisher for a user effect: a `<filter>` nested inside a playlist
+`<entry>` (clip-level filter). Default filters are never inside entries.
+
+## Additional Fixture Recipes (Completed)
+
+All four fixtures were created manually in Kdenlive 26.04.3 from
+`manual_two_clips_timeline.kdenlive` and are now committed:
 
 ```text
-file base:   manual_two_clips_timeline.kdenlive
-manual steps:
-  1. select the second clip pair in the timeline
-  2. drag it right so a real blank remains between clip 1 and clip 2
-  3. File > Save As examples/recon/manual_gap_timeline.kdenlive
-expected XML:
-  a playlist containing a <blank length="..."> element with a positive length,
-  or whichever real representation Kdenlive 26.04.3 writes after moving the
-  second clip
-  note: entry in/out attributes are SOURCE ranges, not timeline positions, and
-  must not be assumed to encode where a clip sits on the timeline
-validation:
-  pytest tests/test_kdenlive_project_fixtures.py -k gap_timeline_fixture
+manual_trimmed_clip.kdenlive          trim (entry in != 0)
+manual_gap_timeline.kdenlive          <blank length="..."> in playlists
+manual_transition_dissolve.kdenlive   composite/wipe transition with in/out
+manual_basic_effect.kdenlive          clip-level filter inside an entry
 ```
 
-Recipe 3 - `manual_transition_dissolve.kdenlive`:
+Validation:
 
-```text
-file base:   manual_two_clips_timeline.kdenlive
-manual steps:
-  1. overlap the two video clips slightly in the timeline
-  2. add a Dissolve transition between them (Kdenlive adds a luma transition)
-  3. File > Save As examples/recon/manual_transition_dissolve.kdenlive
-expected XML:
-  a transition whose mlt_service is luma, or a transition element carrying
-  in/out attributes (clip-level transition)
-validation:
-  pytest tests/test_kdenlive_project_fixtures.py -k transition_fixture
-```
-
-Recipe 4 - `manual_basic_effect.kdenlive`:
-
-```text
-file base:   manual_two_clips_timeline.kdenlive
-manual steps:
-  1. select the first video clip in the timeline
-  2. add a simple effect, e.g. Brightness/Contrast
-  3. File > Save As examples/recon/manual_basic_effect.kdenlive
-expected XML:
-  a filter element whose mlt_service is not one of the disabled defaults
-  (volume / panner / audiolevel)
-validation:
-  pytest tests/test_kdenlive_project_fixtures.py -k effect_fixture
+```bash
+pytest tests/test_kdenlive_project_fixtures.py -k "trimmed_clip_fixture or gap_timeline_fixture or transition_fixture or effect_fixture"
 ```
 
 ## Default Transitions And Filters (Observed)
@@ -533,22 +515,21 @@ The domain model must not manipulate XML nodes directly.
 
 ## Remaining Unknowns
 
+Confirmed by the new fixtures (see sections above): trim entry in/out, playlist
+`<blank>` gaps, user transitions (composite/wipe with in/out), and clip-level
+effects (filter inside a playlist entry).
+
 Still not confirmed enough for writing:
 
 ```text
-Trimmed clip source in/out representation (fixture manual_trimmed_clip pending)
-Timeline blanks/gaps after moving clips (fixture manual_gap_timeline pending)
 Track rename, lock, mute, and height metadata
 Explicit folder/bin nesting beyond the default sequence folder
 Proxy attachment fields
 Subtitle track representation
-Effect stack representation (fixture manual_basic_effect pending)
-Fade and dissolve representation (fixture manual_transition_dissolve pending)
+Effect STACK composition across multiple effects on one clip
+Multiple user transitions on the same clip
 Kdenlive behavior after round-tripping an AI-written project
 ```
-
-The pending trim/gap/transition/effect fixtures have exact manual recipes above;
-the data-driven tests skip until each file is created in Kdenlive.
 
 ## Current Write Boundary
 

@@ -74,21 +74,29 @@ def _has_real_gap(root: ET.Element) -> bool:
 
 
 def _has_dissolve_transition(root: ET.Element) -> bool:
+    # Default track transitions (mix/qtblend) carry internal_added=237 and no
+    # in/out attributes. A user clip transition (e.g. dissolve/wipe) is stored
+    # with in/out attributes AND no internal_added=237.
     for transition in root.iter("transition"):
-        service = _props(transition).get("mlt_service")
-        if transition.get("in") is not None and transition.get("out") is not None:
+        props = _props(transition)
+        has_in_out = transition.get("in") is not None and transition.get("out") is not None
+        is_user = props.get("internal_added") != "237"
+        if has_in_out and is_user:
             return True
-        if service not in DEFAULT_TRANSITION_SERVICES:
+        # Fallback: a non-default service without internal_added=237.
+        if is_user and props.get("mlt_service") not in DEFAULT_TRANSITION_SERVICES:
             return True
     return False
 
 
 def _has_basic_effect(root: ET.Element) -> bool:
-    for filter_ in root.iter("filter"):
-        props = _props(filter_)
-        service = props.get("mlt_service")
-        if service and service not in DEFAULT_FILTER_SERVICES:
-            return True
+    # A user effect on a clip is a <filter> nested inside a playlist <entry>.
+    # Default per-track filters (volume/panner/audiolevel) live at the tractor
+    # level, not inside entries.
+    for playlist in root.findall("playlist"):
+        for entry in playlist.findall("entry"):
+            if entry.findall("filter"):
+                return True
     return False
 
 
@@ -235,3 +243,40 @@ def test_transition_fixture_contains_real_dissolve(name: str) -> None:
 @pytest.mark.parametrize("name", _skip_when_missing(["manual_basic_effect.kdenlive"]))
 def test_effect_fixture_contains_real_basic_effect(name: str) -> None:
     assert _has_basic_effect(_parse(name))
+
+
+def _transition_element(in_out: bool, internal: str | None, service: str) -> ET.Element:
+    attrs: dict[str, str] = {}
+    if in_out:
+        attrs["in"] = "00:00:01.000"
+        attrs["out"] = "00:00:03.000"
+    transition = ET.Element("transition", attrs)
+    properties = [("mlt_service", service)]
+    if internal is not None:
+        properties.append(("internal_added", internal))
+    for name, value in properties:
+        prop = ET.SubElement(transition, "property")
+        prop.set("name", name)
+        prop.text = value
+    return transition
+
+
+def test_dissolve_detector_ignores_clip_transition_marked_internal() -> None:
+    root = ET.Element("mlt")
+    root.append(_transition_element(in_out=True, internal="237", service="mix"))
+
+    assert _has_dissolve_transition(root) is False
+
+
+def test_dissolve_detector_finds_user_transition_with_in_out() -> None:
+    root = ET.Element("mlt")
+    root.append(_transition_element(in_out=True, internal=None, service="composite"))
+
+    assert _has_dissolve_transition(root) is True
+
+
+def test_dissolve_detector_fallback_for_non_default_service_without_internal() -> None:
+    root = ET.Element("mlt")
+    root.append(_transition_element(in_out=False, internal=None, service="luma"))
+
+    assert _has_dissolve_transition(root) is True
