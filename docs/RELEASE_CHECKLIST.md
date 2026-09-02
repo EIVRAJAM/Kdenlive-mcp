@@ -196,6 +196,20 @@ export_timeline_to_kdenlive_template are present
 script exits 0
 ```
 
+Recommended real-client SDK gate (when the official Python MCP SDK is
+installed; reports a structured blocker otherwise):
+
+```bash
+python3 scripts/mcp_client_sdk_smoke_test.py
+```
+
+Required result:
+
+```text
+exit 0 with success=true, server kdenlive-mcp, tool_count 60
+OR exit 2 with blocked=mcp-sdk-unavailable when the SDK is not installed
+```
+
 ## 8. Undo / Version Restore Check
 
 Run or verify the project-version flow:

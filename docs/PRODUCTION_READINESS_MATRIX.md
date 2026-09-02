@@ -39,7 +39,7 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
 | Persistent structured logging | DONE | `src/kdenlive_mcp/logging.py` (JSONL, redacción, error_type/message); `tests/test_server_protocol.py` (logging tests) | Log default a `logs/` si no se configura | — |
 | Reproducible dev/release check command | DONE | `scripts/dev_check.sh`, `scripts/release_gate.sh` (dev + STDIO smoke + reliability + MLT opcional), `docs/RELEASE_CHECKLIST.md`; RELEASE_EVIDENCE (comandos exactos) | Checks de fiabilidad/MLT opt-in por env y MLT requiere Flatpak | — |
 | Schema documentation for persisted JSON files | DONE | `docs/SCHEMAS.md` (rough-cut plan, timeline, manifest; "Schema Migration Policy"; códigos actuales con `UNSUPPORTED_SCHEMA_VERSION` unificado), `tests/test_schema_docs.py`, `tests/test_rough_cut_tools.py`, `tests/test_timeline_service.py`, `tests/test_manifest_tools.py` | No hay migradores todavía (por diseño, pendiente futuro) | Implementar migradores explícitos cuando exista v2 |
-| Generic MCP client registration example | DONE | `examples/mcp_client_config.toml`, `docs/MCP_CLIENT_SETUP.md`, `examples/codex_mcp_config.toml`, `docs/CODEX_SETUP.md`; smoke test STDIO real `scripts/mcp_stdio_smoke_test.py` (`initialize` + `tools/list`, 60 tools) | No probado contra todos los clientes MCP, pero sí contra el protocolo STDIO real | Smoke test `tools/list` desde un cliente MCP externo real |
+| Generic MCP client registration example | DONE | `examples/mcp_client_config.toml`, `docs/MCP_CLIENT_SETUP.md`, `examples/codex_mcp_config.toml`, `docs/CODEX_SETUP.md`; smoke test STDIO real `scripts/mcp_stdio_smoke_test.py` (`initialize` + `tools/list`, 60 tools); smoke SDK reproducible `scripts/mcp_client_sdk_smoke_test.py` (bloqueado localmente por SDK ausente) | No probado contra todos los clientes MCP; el smoke de SDK real queda bloqueado hasta instalar `mcp>=1.0` localmente | Ejecutar `scripts/mcp_client_sdk_smoke_test.py` con el SDK `mcp` instalado |
 | Known limitations documented | DONE | `README.md` ("Limite importante"), `docs/PRODUCTION_CONTRACT.md` (Known Accepted Risks) | Las limitaciones crecen con cada feature | Actualizar README al expandir superficie de edición |
 
 ## Atención especial a pendientes señalados
@@ -65,8 +65,9 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
 - Registro MCP genérico: **DONE** (`examples/mcp_client_config.toml`,
   `docs/MCP_CLIENT_SETUP.md`, `docs/CODEX_SETUP.md` como ejemplo específico) y
   smoke test real del canal STDIO (`scripts/mcp_stdio_smoke_test.py`,
-  `initialize` + `tools/list`, 60 tools). Falta probar desde un cliente MCP
-  externo real.
+  `initialize` + `tools/list`, 60 tools). El smoke de cliente SDK real está
+  documentado y es reproducible (`scripts/mcp_client_sdk_smoke_test.py`), pero
+  queda **bloqueado localmente** hasta instalar el SDK `mcp`.
 - Pruebas con fixtures reales múltiples: **DONE** (SHOULD). `examples/recon/`
   tiene 4 proyectos manuales validados + 4 fixtures reales nuevos creados en
   Kdenlive 26.04.3 (trim, gap, dissolve, efecto) con detectores que pasan:
@@ -111,6 +112,6 @@ Conteo: DONE 20 · PARTIAL 0 · MISSING 0 · BLOCKED 0.
 4. Ampliar fixtures reales hacia stacks de efectos múltiples y transiciones
    múltiples por clip (los fixtures de trim/gap/dissolve/efecto ya existen y los
    patrones están documentados).
-5. Probar el descubrimiento desde un cliente MCP externo real (ya existe el smoke
-   test STDIO `scripts/mcp_stdio_smoke_test.py`; queda cerrar el checklist
-   "MCP tool discovery works" con un cliente real).
+5. Ejecutar el smoke de cliente SDK real (`scripts/mcp_client_sdk_smoke_test.py`)
+   una vez instalado el SDK oficial `mcp` (`pip install 'mcp>=1.0'`), para cerrar
+   el checklist "MCP tool discovery works" con un cliente MCP real.

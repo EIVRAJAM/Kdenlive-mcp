@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import json
+import subprocess
+import sys
 import tomllib
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GENERIC_CONFIG = REPO_ROOT / "examples" / "mcp_client_config.toml"
 CODEX_CONFIG = REPO_ROOT / "examples" / "codex_mcp_config.toml"
+SDK_SMOKE = REPO_ROOT / "scripts" / "mcp_client_sdk_smoke_test.py"
 
 DANGEROUS_ROOTS = {"/", "/etc", "/usr", "/boot", "~/.ssh"}
 
@@ -70,3 +74,27 @@ def test_codex_config_stays_aligned_with_generic() -> None:
     for key in ALLOWLIST_KEYS:
         for part in str(codex_env[key]).split(":"):
             assert part not in DANGEROUS_ROOTS, f"{key} contains dangerous root: {part}"
+
+
+def test_mcp_client_sdk_smoke_script_reports_blocked_or_success() -> None:
+    result = subprocess.run(
+        [sys.executable, str(SDK_SMOKE)],
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+        timeout=60,
+        shell=False,
+    )
+
+    # exit 0 = smoke passed with the SDK installed; exit 2 = SDK absent (blocked).
+    # Any other exit (notably 1 = real smoke failure) must fail the test.
+    assert result.returncode in (0, 2), f"unexpected exit {result.returncode}\n{result.stdout}\n{result.stderr}"
+    output = json.loads(result.stdout)
+    if result.returncode == 2:
+        assert output["blocked"] == "mcp-sdk-unavailable"
+        assert "pip install" in output["install"]
+    else:
+        assert output["success"] is True
+        assert output["server"] == "kdenlive-mcp"
+        assert output["tool_count"] == 60
+        assert output["required_tools_present"] is True

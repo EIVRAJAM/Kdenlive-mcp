@@ -117,6 +117,37 @@ Expected output:
 }
 ```
 
+### Real MCP Client SDK Smoke (optional)
+
+The STDIO smoke above tests the protocol channel directly. To validate that a
+real MCP client SDK discovers the server, run:
+
+```bash
+python3 scripts/mcp_client_sdk_smoke_test.py
+```
+
+This uses the official Python MCP SDK (`mcp`) as a stdio client: it starts
+`src/kdenlive_mcp/server.py`, runs `initialize`, `tools/list`, and checks the
+server name and the 60-tool set.
+
+If the SDK is not installed locally, the script reports a structured blocker
+(exit 2) instead of installing anything:
+
+```json
+{
+  "success": false,
+  "blocked": "mcp-sdk-unavailable",
+  "install": "python3 -m pip install 'mcp>=1.0'"
+}
+```
+
+Reproducible instruction once the SDK is available:
+
+```bash
+python3 -m pip install 'mcp>=1.0'
+python3 scripts/mcp_client_sdk_smoke_test.py
+```
+
 ## Codex As One Example
 
 Codex is supported as a specific example, not as the only client:

@@ -1791,3 +1791,66 @@ docs/KDENLIVE_PROJECT_FORMAT.md. Remaining unknowns are limited to multi-effect
 stacks, multiple transitions per clip, proxies, subtitles and round-trip
 behavior.
 ```
+
+## 2026-09-02 Real MCP Client SDK Smoke
+
+Scope:
+
+```text
+Separate "the server speaks STDIO correctly" from "a real MCP client SDK can discover it"
+```
+
+Environment check:
+
+```text
+official Python MCP SDK (mcp): absent
+fastmcp: absent
+anthropic SDK: absent
+openai SDK: installed but this version exposes no MCP client integration
+```
+
+Decision:
+
+```text
+No usable MCP client SDK is installed locally, and installing one was not
+performed (out of scope). A reproducible SDK smoke script was added instead:
+scripts/mcp_client_sdk_smoke_test.py. It runs initialize + tools/list through
+the official mcp stdio client when the SDK is present, and reports a structured
+blocker (exit 2, blocked=mcp-sdk-unavailable) otherwise.
+```
+
+Script behavior:
+
+```text
+mcp SDK installed -> validates server name kdenlive-mcp, tool_count 60, and the
+required minimal tool set (health_check, get_environment, scan_media,
+create_vlog_rough_cut_project, apply_timeline_to_working_project)
+mcp SDK absent -> exit 2 with blocked=mcp-sdk-unavailable and install hint
+```
+
+Commands:
+
+```bash
+python3 scripts/mcp_client_sdk_smoke_test.py
+python3 scripts/mcp_stdio_smoke_test.py
+pytest tests/test_mcp_stdio_smoke.py tests/test_mcp_client_config.py
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+python3 scripts/mcp_client_sdk_smoke_test.py: exit 2, blocked=mcp-sdk-unavailable
+python3 scripts/mcp_stdio_smoke_test.py: success true, tool_count 60
+tests/test_mcp_stdio_smoke.py + tests/test_mcp_client_config.py: 6 passed
+full suite: 283 passed, 1 skipped
+```
+
+Risk status:
+
+```text
+Real-client discovery remains pending until the mcp SDK is installed locally;
+the STDIO protocol channel is already validated, and the SDK smoke is
+reproducible via "python3 -m pip install 'mcp>=1.0'" + the script.
+```
