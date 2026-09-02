@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from kdenlive_mcp.server import handle_request
+from kdenlive_mcp.tools import project_tools
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -378,6 +379,152 @@ def test_apply_timeline_to_working_project_rejects_unsupported_timeline_schema(
     assert result["success"] is False
     assert result["error"] == "UNSUPPORTED_SCHEMA_VERSION"
     assert result["operation"] == "apply_timeline_to_working_project"
+
+
+def _prepare_working_copy_and_timeline(monkeypatch, tmp_path: Path) -> tuple[str, str]:
+    _allow(monkeypatch, tmp_path)
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_MEDIA_DIRS", str(RECON_DIR))
+    project = str(SOURCE_PROJECT)
+    prepared = _assert_ok(
+        _call(
+            "prepare_working_project",
+            {
+                "project": project,
+                "output_directory": str(tmp_path),
+                "lock_directory": str(tmp_path / "locks"),
+                "owner": "agent",
+            },
+        ),
+        "prepare_working_project",
+    )
+    plan = _assert_ok(
+        _call(
+            "create_rough_cut_plan_file",
+            {
+                "folder": str(RECON_DIR),
+                "output_directory": str(tmp_path),
+                "name": "mlt_flow",
+                "target_duration": 4,
+                "recursive": False,
+                "max_files": 1,
+                "remove_silence": False,
+            },
+        ),
+        "create_rough_cut_plan_file",
+    )
+    timeline = _assert_ok(
+        _call("create_timeline_from_rough_cut_plan", {"plan_file": plan["plan_file"]}),
+        "create_timeline_from_rough_cut_plan",
+    )
+    saved = _assert_ok(
+        _call(
+            "save_timeline",
+            {"timeline": timeline["timeline"], "output_directory": str(tmp_path), "name": "mlt_timeline"},
+        ),
+        "save_timeline",
+    )
+    return prepared["working_project"], saved["timeline_file"]
+
+
+def _apply_with_check_mlt(working_project: str, timeline_file: str, tmp_path: Path, check_mlt: bool) -> dict[str, object]:
+    return _call(
+        "apply_timeline_to_working_project",
+        {
+            "working_project": working_project,
+            "timeline_file": timeline_file,
+            "output_directory": str(tmp_path),
+            "check_mlt": check_mlt,
+        },
+    )
+
+
+def test_apply_timeline_check_mlt_loaded(monkeypatch, tmp_path: Path) -> None:
+    working_project, timeline_file = _prepare_working_copy_and_timeline(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        project_tools,
+        "validate_project",
+        lambda project, check_mlt=False: {
+            "success": True,
+            "valid": True,
+            "checks": {"mlt_load": {"checked": True, "valid": True, "status": "loaded", "returncode": 0}},
+        },
+    )
+
+    result = _apply_with_check_mlt(working_project, timeline_file, tmp_path, check_mlt=True)
+
+    assert result["success"] is True
+    assert result["mlt_load"]["valid"] is True
+    assert result["mlt_load"]["status"] == "loaded"
+
+
+def test_apply_timeline_check_mlt_failed(monkeypatch, tmp_path: Path) -> None:
+    working_project, timeline_file = _prepare_working_copy_and_timeline(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        project_tools,
+        "validate_project",
+        lambda project, check_mlt=False: {
+            "success": True,
+            "valid": False,
+            "checks": {"mlt_load": {"checked": True, "valid": False, "status": "failed", "returncode": 1}},
+        },
+    )
+
+    result = _apply_with_check_mlt(working_project, timeline_file, tmp_path, check_mlt=True)
+
+    assert result["success"] is False
+    assert result["error"] == "MLT_ERROR"
+    assert result["operation"] == "apply_timeline_to_working_project"
+    assert result["warnings"] == []
+
+
+def test_apply_timeline_check_mlt_unavailable(monkeypatch, tmp_path: Path) -> None:
+    working_project, timeline_file = _prepare_working_copy_and_timeline(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        project_tools,
+        "validate_project",
+        lambda project, check_mlt=False: {
+            "success": True,
+            "valid": True,
+            "checks": {
+                "mlt_load": {
+                    "checked": True,
+                    "valid": None,
+                    "status": "unavailable",
+                    "error": "FLATPAK_EXECUTION_UNAVAILABLE_IN_SANDBOX",
+                }
+            },
+        },
+    )
+
+    result = _apply_with_check_mlt(working_project, timeline_file, tmp_path, check_mlt=True)
+
+    assert result["success"] is True
+    assert result["mlt_load"]["valid"] is None
+    assert isinstance(result["warnings"], list)
+    assert len(result["warnings"]) == 1
+    warning = result["warnings"][0]
+    assert isinstance(warning, dict)
+    assert warning["code"] == "FLATPAK_EXECUTION_UNAVAILABLE_IN_SANDBOX"
+    assert isinstance(warning["message"], str) and warning["message"]
+
+
+def test_apply_timeline_check_mlt_false_skips_validate(monkeypatch, tmp_path: Path) -> None:
+    working_project, timeline_file = _prepare_working_copy_and_timeline(monkeypatch, tmp_path)
+    calls: list[object] = []
+    monkeypatch.setattr(
+        project_tools,
+        "validate_project",
+        lambda project, check_mlt=False: calls.append(project) or {
+            "success": True,
+            "valid": True,
+            "checks": {"mlt_load": {"checked": True, "valid": True, "status": "loaded"}},
+        },
+    )
+
+    result = _apply_with_check_mlt(working_project, timeline_file, tmp_path, check_mlt=False)
+
+    assert result["success"] is True
+    assert calls == []
 
 
 @pytest.mark.skip(

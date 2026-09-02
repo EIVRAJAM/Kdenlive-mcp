@@ -1680,3 +1680,62 @@ Decision:
 The working-copy editing spike is delivered as a copy-on-write MCP tool. In-place
 editing of the working copy file remains a documented future step.
 ```
+
+## 2026-09-01 apply_timeline_to_working_project check_mlt Semantics
+
+Scope:
+
+```text
+Explicit semantics for check_mlt on the working-copy timeline apply wrapper
+```
+
+Decision:
+
+```text
+check_mlt=true must fail when the real MLT load fails; it stays success=true
+with a structured warning when MLT is unavailable due to a known sandbox
+(FLATPAK_EXECUTION_UNAVAILABLE_IN_SANDBOX); check_mlt=false runs no MLT.
+Error code for a real MLT failure: MLT_ERROR (existing coherent code).
+```
+
+Behavior:
+
+```text
+check_mlt=false                  -> no validate_project call
+check_mlt=true, loaded           -> success=true, mlt_load.valid=true
+check_mlt=true, failed           -> success=false, error=MLT_ERROR, warnings=[]
+check_mlt=true, unavailable      -> success=true + FLATPAK_EXECUTION_UNAVAILABLE_IN_SANDBOX warning
+check_mlt=true, validate fails   -> its structured error is returned
+```
+
+Tests:
+
+```text
+test_apply_timeline_check_mlt_loaded
+test_apply_timeline_check_mlt_failed
+test_apply_timeline_check_mlt_unavailable
+test_apply_timeline_check_mlt_false_skips_validate
+```
+
+Commands:
+
+```bash
+pytest tests/test_project_mcp_workflow.py tests/test_timeline_service.py
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+tests/test_project_mcp_workflow.py: 12 passed, 1 skipped
+full suite: 271 passed, 9 skipped
+```
+
+Decision:
+
+```text
+check_mlt now has a documented, consistent contract: fail on a real MLT load
+failure, succeed with a sandbox warning when unavailable, and skip entirely when
+false.
+```

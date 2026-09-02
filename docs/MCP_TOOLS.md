@@ -1272,10 +1272,21 @@ Applies an MCP timeline to a working copy `.kdenlive` produced by
 (`<working_stem>_edited.kdenlive`). This is copy-on-write: the working copy is
 never modified in place.
 
-Internally it reuses `export_timeline_to_kdenlive_template` with the working
-copy as template, after validating that the working copy parses as a Kdenlive
-project. When `check_mlt=true`, the output is additionally validated with a
-Flatpak melt load through `validate_project` (reported under `mlt_load`).
+Internally it reuses `export_timeline_to_kdenlive_template` with the working copy
+as template, after validating that the working copy parses as a Kdenlive project.
+
+`check_mlt` semantics:
+
+```text
+check_mlt=false (default): no MLT load is run
+check_mlt=true: the output is validated with a Flatpak melt load through
+  validate_project; the result is reported under mlt_load
+  - loaded (valid true)  -> success=true, mlt_load.valid=true
+  - failed (valid false) -> success=false, error=MLT_ERROR
+  - unavailable sandbox (valid None) -> success=true plus a
+    FLATPAK_EXECUTION_UNAVAILABLE_IN_SANDBOX warning
+  - validate_project itself fails -> its structured error is returned
+```
 
 Response includes:
 

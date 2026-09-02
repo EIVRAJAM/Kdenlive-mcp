@@ -1971,5 +1971,32 @@ def apply_timeline_to_working_project(
         from kdenlive_mcp.tools.project_tools import validate_project
 
         mlt = validate_project(exported["project"], check_mlt=True)
-        result["mlt_load"] = mlt.get("checks", {}).get("mlt_load", {})
+        mlt_load = mlt.get("checks", {}).get("mlt_load", {})
+        result["mlt_load"] = mlt_load
+        if not mlt.get("success"):
+            return {
+                **mlt,
+                "operation": "apply_timeline_to_working_project",
+                "working_project": str(working_path),
+                "output_project": exported["project"],
+                "warnings": [],
+            }
+        if mlt_load.get("valid") is False:
+            return {
+                "success": False,
+                "operation": "apply_timeline_to_working_project",
+                "error": "MLT_ERROR",
+                "message": "Generated Kdenlive project failed MLT load validation.",
+                "working_project": str(working_path),
+                "output_project": exported["project"],
+                "mlt_load": mlt_load,
+                "warnings": [],
+            }
+        if mlt_load.get("valid") is None:
+            result["warnings"] = result.get("warnings", []) + [
+                {
+                    "code": mlt_load.get("error", "MLT_VALIDATION_UNAVAILABLE"),
+                    "message": "MLT load validation was requested but could not run in this environment.",
+                }
+            ]
     return result
