@@ -47,6 +47,11 @@ def _assert_contract(payload: dict[str, object]) -> None:
         assert isinstance(payload["message"], str) and payload["message"]
 
 
+def _assert_mcp_contract(payload: dict[str, object]) -> None:
+    _assert_contract(payload)
+    assert isinstance(payload["warnings"], list)
+
+
 def test_all_tool_definitions_declare_object_schema_and_handler() -> None:
     for name, definition in server.TOOLS.items():
         assert definition["inputSchema"]["type"] == "object"
@@ -60,7 +65,7 @@ def test_cheap_tool_success_responses_meet_contract(monkeypatch) -> None:
     for name in SUCCESS_TOOLS:
         payload = _call_tool(name, {})
         assert payload["operation"] == name
-        _assert_contract(payload)
+        _assert_mcp_contract(payload)
 
 
 def test_controlled_error_responses_meet_contract(monkeypatch, tmp_path: Path) -> None:
@@ -74,7 +79,7 @@ def test_controlled_error_responses_meet_contract(monkeypatch, tmp_path: Path) -
         assert payload["success"] is False
         assert payload["error"] == expected_error
         assert payload["operation"] == name
-        _assert_contract(payload)
+        _assert_mcp_contract(payload)
 
 
 def test_environment_handlers_include_operation_directly() -> None:
@@ -120,7 +125,7 @@ def test_mcp_boundary_guarantees_success_for_malformed_responses(monkeypatch) ->
 
     payload = _call_tool("malformed_tool", {})
 
-    _assert_contract(payload)
+    _assert_mcp_contract(payload)
     assert payload["success"] is False
     assert payload["error"] == "INVALID_TOOL_RESPONSE"
     assert payload["operation"] == "malformed_tool"

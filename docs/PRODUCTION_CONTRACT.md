@@ -669,6 +669,11 @@ include:
 }
 ```
 
+`warnings` is always a list in valid tool payloads. When a tool has no
+warnings, the MCP boundary injects `warnings: []`; `warnings` is preserved when
+the tool returns a list. Payloads that return a non-list `warnings` are rejected
+as `INVALID_TOOL_RESPONSE`.
+
 Failures should include:
 
 ```json

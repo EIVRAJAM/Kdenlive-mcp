@@ -705,3 +705,73 @@ def test_invalid_operation_on_failure_becomes_invalid_tool_response(monkeypatch)
     assert payload["success"] is False
     assert payload["error"] == "INVALID_TOOL_RESPONSE"
     assert payload["operation"] == "op_bad_failure_tool"
+
+
+def test_valid_response_without_warnings_gets_empty_warnings(monkeypatch) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", "off")
+    monkeypatch.setitem(server.TOOLS, "no_warnings_tool", _fixed_payload_entry({"success": True}))
+
+    payload = _call_fixed_tool("no_warnings_tool")
+
+    assert payload["success"] is True
+    assert payload["warnings"] == []
+
+
+def test_valid_response_preserves_warnings_list(monkeypatch) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", "off")
+    monkeypatch.setitem(
+        server.TOOLS, "with_warnings_tool", _fixed_payload_entry({"success": True, "warnings": ["warn_one"]})
+    )
+
+    payload = _call_fixed_tool("with_warnings_tool")
+
+    assert payload["success"] is True
+    assert payload["warnings"] == ["warn_one"]
+
+
+def test_non_list_warnings_becomes_invalid_tool_response(monkeypatch) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", "off")
+    monkeypatch.setitem(
+        server.TOOLS, "bad_warnings_tool", _fixed_payload_entry({"success": True, "warnings": "oops"})
+    )
+
+    payload = _call_fixed_tool("bad_warnings_tool")
+
+    assert payload["success"] is False
+    assert payload["error"] == "INVALID_TOOL_RESPONSE"
+    assert payload["warnings"] == []
+
+
+def test_controlled_error_without_warnings_gets_empty_warnings(monkeypatch) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", "off")
+    monkeypatch.setitem(
+        server.TOOLS,
+        "error_no_warnings_tool",
+        _fixed_payload_entry({"success": False, "error": "CUSTOM_ERROR", "message": "custom"}),
+    )
+
+    payload = _call_fixed_tool("error_no_warnings_tool")
+
+    assert payload["success"] is False
+    assert payload["error"] == "CUSTOM_ERROR"
+    assert payload["warnings"] == []
+
+
+def test_internal_error_response_includes_warnings(monkeypatch) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", "off")
+    monkeypatch.setitem(server.TOOLS, "exploding_tool", _exploding_tool_entry())
+
+    payload = _call_fixed_tool("exploding_tool")
+
+    assert payload["error"] == "INTERNAL_ERROR"
+    assert payload["warnings"] == []
+
+
+def test_invalid_tool_response_includes_warnings(monkeypatch) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", "off")
+    monkeypatch.setitem(server.TOOLS, "returns_list_tool", _fixed_payload_entry([]))
+
+    payload = _call_fixed_tool("returns_list_tool")
+
+    assert payload["error"] == "INVALID_TOOL_RESPONSE"
+    assert payload["warnings"] == []

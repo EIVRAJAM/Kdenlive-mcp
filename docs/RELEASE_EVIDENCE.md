@@ -1435,3 +1435,61 @@ Decision:
 The migration policy is documented and validated. No implementation changed;
 the existing error codes remain and a TODO documents the future unification.
 ```
+
+## 2026-09-01 Warnings Field Normalized At MCP Boundary
+
+Scope:
+
+```text
+Guarantee warnings is always a list in valid tools/call payloads
+```
+
+Behavior:
+
+```text
+valid tool response without warnings -> warnings: [] injected
+valid tool response with warnings list -> preserved
+tool response with non-list warnings -> INVALID_TOOL_RESPONSE
+controlled error without warnings -> warnings: []
+INTERNAL_ERROR -> warnings: []
+INVALID_TOOL_RESPONSE -> warnings: []
+```
+
+Implementation:
+
+```text
+normalized in src/kdenlive_mcp/server.py _call_tool after success/operation
+validation and before serialization; _invalid_tool_response and the INTERNAL_ERROR
+payload now carry warnings: []; McpError JSON-RPC responses are untouched
+```
+
+Tests:
+
+```text
+tests/test_server_protocol.py: 6 new warnings cases
+tests/test_tool_response_contract.py: MCP boundary assertions now require
+warnings to be a list for cheap environment tools, controlled errors, and
+INVALID_TOOL_RESPONSE
+```
+
+Commands:
+
+```bash
+pytest tests/test_server_protocol.py tests/test_tool_response_contract.py
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+tests/test_server_protocol.py + tests/test_tool_response_contract.py: 51 passed
+full suite: 247 passed, 9 skipped
+```
+
+Decision:
+
+```text
+A valid tools/call payload now always carries warnings as a list, removing the
+per-tool inconsistency without refactoring the tool handlers.
+```

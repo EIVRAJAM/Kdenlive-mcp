@@ -177,6 +177,7 @@ def _invalid_tool_response(tool_name: str) -> dict[str, Any]:
         "error": "INVALID_TOOL_RESPONSE",
         "message": "Tool returned an invalid response.",
         "operation": tool_name,
+        "warnings": [],
     }
 
 
@@ -230,6 +231,7 @@ def _call_tool(params: dict[str, Any], request_id: Any = None) -> dict[str, Any]
             "error": "INTERNAL_ERROR",
             "message": "Tool execution failed unexpectedly.",
             "operation": name,
+            "warnings": [],
         }
     if isinstance(result, dict) and result.get("operation") is None:
         result["operation"] = name
@@ -252,6 +254,14 @@ def _call_tool(params: dict[str, Any], request_id: Any = None) -> dict[str, Any]
         error_type = "InvalidToolResponse"
         error_message = "Tool returned an invalid response."
         result = _invalid_tool_response(name)
+    if isinstance(result, dict):
+        warnings = result.get("warnings")
+        if warnings is None:
+            result["warnings"] = []
+        elif not isinstance(warnings, list):
+            error_type = "InvalidToolResponse"
+            error_message = "Tool returned an invalid response."
+            result = _invalid_tool_response(name)
     duration_ms = (time.perf_counter() - start) * 1000
     try:
         append_tool_log(
