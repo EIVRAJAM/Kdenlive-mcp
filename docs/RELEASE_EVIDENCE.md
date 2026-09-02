@@ -1493,3 +1493,71 @@ Decision:
 A valid tools/call payload now always carries warnings as a list, removing the
 per-tool inconsistency without refactoring the tool handlers.
 ```
+
+## 2026-09-01 Unsupported Schema Version Unified
+
+Scope:
+
+```text
+Reject unsupported schema versions in all persisted JSON readers
+```
+
+Behavior by JSON type:
+
+```text
+rough-cut plan with schema_version != 1 -> UNSUPPORTED_SCHEMA_VERSION
+timeline document with schema_version != 1 -> UNSUPPORTED_SCHEMA_VERSION
+project manifest with schema_version != "1.0" -> UNSUPPORTED_SCHEMA_VERSION
+```
+
+Implementation:
+
+```text
+rough_cut_tools.py maps schema_version mismatch to UNSUPPORTED_SCHEMA_VERSION
+timeline_service.py raises UnsupportedSchemaVersion in load_timeline_document and
+maps it at _load_timeline_from_allowed_output, inspect_timeline, and both export
+readers
+manifest_service.py raises UnsupportedSchemaVersion in load_manifest and maps it
+in inspect_manifest and scan_media_to_manifest
+INVALID_ROUGH_CUT_PLAN / INVALID_TIMELINE / INVALID_MANIFEST are kept for
+malformed structure unrelated to version
+```
+
+Format change: none.
+
+```text
+current schema_version values (1 and "1.0") are unchanged; no migrators added
+```
+
+Tests:
+
+```text
+test_rough_cut_tools.py: schema_version=2 plan -> UNSUPPORTED_SCHEMA_VERSION
+test_timeline_service.py: schema_version=2 timeline -> UNSUPPORTED_SCHEMA_VERSION
+test_manifest_tools.py: schema_version="2.0" manifest -> UNSUPPORTED_SCHEMA_VERSION
+test_tool_response_contract.py: MCP boundary inspect_timeline with schema_version=2
+-> success=false, error, message, operation, warnings list
+```
+
+Commands:
+
+```bash
+pytest tests/test_rough_cut_tools.py tests/test_timeline_service.py tests/test_manifest_tools.py tests/test_tool_response_contract.py
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+targeted tests: 79 passed
+full suite: 251 passed, 9 skipped
+```
+
+Decision:
+
+```text
+UNSUPPORTED_SCHEMA_VERSION is now the single structured error for unsupported
+schema versions across rough-cut plans, timeline documents and project
+manifests, closing the documented TODO without changing current formats.
+```

@@ -69,18 +69,28 @@ a backup must be created before writing a migration
 round-trip tests must cover the document before and after migration
 ```
 
-### Current Error Codes (v1)
+### Current Error Codes
 
 ```text
-rough-cut plan with unsupported schema_version: INVALID_ROUGH_CUT_PLAN
-project manifest that fails validation: INVALID_MANIFEST
-timeline with unsupported schema_version: no explicit check today (schema_version
-is an int field and load_timeline_document accepts the value)
-
-TODO(unify): introduce UNSUPPORTED_SCHEMA_VERSION as the single structured error
-code for unsupported schema versions across rough-cut plan, timeline document and
-project manifest.
+rough-cut plan with unsupported schema_version: UNSUPPORTED_SCHEMA_VERSION
+timeline document with unsupported schema_version: UNSUPPORTED_SCHEMA_VERSION
+project manifest with unsupported schema_version: UNSUPPORTED_SCHEMA_VERSION
 ```
+
+`UNSUPPORTED_SCHEMA_VERSION` is the single structured error code used when a
+persisted JSON file declares a schema version the readers do not support. The
+message includes the received version and the supported version.
+
+Invalid structure unrelated to version keeps its existing codes:
+
+```text
+rough-cut plan malformed/unknown kind: INVALID_ROUGH_CUT_PLAN
+timeline malformed: INVALID_TIMELINE
+project manifest malformed: INVALID_MANIFEST
+```
+
+No migrators exist yet: a future version migrator must be explicit (dry_run,
+backup before writing, round-trip tests), never a silent automatic step.
 
 ### Persisted Kinds Covered
 

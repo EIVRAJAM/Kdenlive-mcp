@@ -17,6 +17,13 @@ def _error(code: str, message: str, **extra: Any) -> dict[str, Any]:
     return {"success": False, "error": code, "message": message, **extra}
 
 
+SUPPORTED_MANIFEST_SCHEMA_VERSION = "1.0"
+
+
+class UnsupportedSchemaVersion(ValueError):
+    pass
+
+
 def _security_error(exc: SecurityError) -> dict[str, Any]:
     return _error(exc.code, exc.message)
 
@@ -38,6 +45,11 @@ def manifest_path_for(directory: Path, name: str) -> Path:
 
 def load_manifest(path: Path) -> ProjectManifest:
     data = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(data, dict) and data.get("schema_version") != SUPPORTED_MANIFEST_SCHEMA_VERSION:
+        raise UnsupportedSchemaVersion(
+            f"Manifest schema_version {data.get('schema_version')!r} is not supported; "
+            f"supported version is {SUPPORTED_MANIFEST_SCHEMA_VERSION}."
+        )
     return ProjectManifest.model_validate(data)
 
 
@@ -82,6 +94,8 @@ def inspect_manifest(manifest: str) -> dict[str, Any]:
         return _error("MANIFEST_NOT_FOUND", f"Manifest does not exist: {path}")
     try:
         data = load_manifest(path)
+    except UnsupportedSchemaVersion as exc:
+        return _error("UNSUPPORTED_SCHEMA_VERSION", str(exc))
     except (json.JSONDecodeError, ValidationError) as exc:
         return _error("INVALID_MANIFEST", f"Manifest is invalid: {exc}")
     return {
@@ -134,6 +148,8 @@ def scan_media_to_manifest(
 
     try:
         data = load_manifest(manifest_path)
+    except UnsupportedSchemaVersion as exc:
+        return _error("UNSUPPORTED_SCHEMA_VERSION", str(exc))
     except (json.JSONDecodeError, ValidationError) as exc:
         return _error("INVALID_MANIFEST", f"Manifest is invalid: {exc}")
 

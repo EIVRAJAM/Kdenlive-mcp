@@ -58,7 +58,11 @@ def _validate_plan_document(data: Any) -> dict[str, Any] | None:
     if data.get("kind") != "kdenlive_mcp_rough_cut_plan":
         return _error("INVALID_ROUGH_CUT_PLAN", "Unsupported rough cut plan kind.")
     if data.get("schema_version") != 1:
-        return _error("INVALID_ROUGH_CUT_PLAN", "Unsupported rough cut plan schema_version.")
+        return _error(
+            "UNSUPPORTED_SCHEMA_VERSION",
+            f"Rough cut plan schema_version {data.get('schema_version')!r} is not supported; "
+            "supported version is 1.",
+        )
     return _validate_rough_cut_plan(data.get("plan"))
 
 

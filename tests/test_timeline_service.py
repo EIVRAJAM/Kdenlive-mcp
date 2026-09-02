@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
@@ -111,6 +112,30 @@ def test_save_and_inspect_timeline(monkeypatch, tmp_path: Path) -> None:
     assert inspected["summary"]["clip_count"] == 4
     assert inspected["summary"]["marker_count"] == 2
     assert inspected["data"]["clips"][0]["track_id"] == "track_v1"
+
+
+def test_inspect_timeline_rejects_unsupported_schema_version(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS", str(tmp_path))
+    timeline = tmp_path / "future.timeline.json"
+    timeline.write_text(json.dumps({"kind": "kdenlive_mcp_timeline", "schema_version": 2}), encoding="utf-8")
+
+    result = timeline_tools.inspect_timeline(str(timeline))
+
+    assert result["success"] is False
+    assert result["error"] == "UNSUPPORTED_SCHEMA_VERSION"
+    assert "schema_version" in result["message"]
+
+
+def test_inspect_timeline_rejects_non_object_root(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS", str(tmp_path))
+    timeline = tmp_path / "array.timeline.json"
+    timeline.write_text("[]", encoding="utf-8")
+
+    result = timeline_tools.inspect_timeline(str(timeline))
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_TIMELINE"
+    assert isinstance(result["message"], str) and result["message"]
 
 
 def test_validate_timeline_accepts_generated_timeline(monkeypatch, tmp_path: Path) -> None:

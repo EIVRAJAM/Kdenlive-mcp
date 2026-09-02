@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from kdenlive_mcp.services.manifest_service import media_id_for_path, slugify_name
@@ -101,3 +102,27 @@ def test_manifest_output_allowlist_required(monkeypatch, tmp_path: Path) -> None
 
     assert result["success"] is False
     assert result["error"] == "PERMISSION_DENIED"
+
+
+def test_inspect_manifest_rejects_unsupported_schema_version(monkeypatch, tmp_path: Path) -> None:
+    _allow(monkeypatch, tmp_path)
+    manifest = tmp_path / "future.kdenlive-mcp.json"
+    manifest.write_text(json.dumps({"schema_version": "2.0", "name": "future"}), encoding="utf-8")
+
+    result = manifest_tools.inspect_manifest(str(manifest))
+
+    assert result["success"] is False
+    assert result["error"] == "UNSUPPORTED_SCHEMA_VERSION"
+    assert "schema_version" in result["message"]
+
+
+def test_inspect_manifest_rejects_non_object_root(monkeypatch, tmp_path: Path) -> None:
+    _allow(monkeypatch, tmp_path)
+    manifest = tmp_path / "array.kdenlive-mcp.json"
+    manifest.write_text("[]", encoding="utf-8")
+
+    result = manifest_tools.inspect_manifest(str(manifest))
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_MANIFEST"
+    assert isinstance(result["message"], str) and result["message"]

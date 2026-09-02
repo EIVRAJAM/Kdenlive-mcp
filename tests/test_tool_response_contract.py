@@ -129,3 +129,33 @@ def test_mcp_boundary_guarantees_success_for_malformed_responses(monkeypatch) ->
     assert payload["success"] is False
     assert payload["error"] == "INVALID_TOOL_RESPONSE"
     assert payload["operation"] == "malformed_tool"
+
+
+def test_mcp_boundary_rejects_unsupported_schema_version(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", "off")
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS", str(tmp_path))
+    timeline = tmp_path / "future.timeline.json"
+    timeline.write_text(json.dumps({"kind": "kdenlive_mcp_timeline", "schema_version": 2}), encoding="utf-8")
+
+    payload = _call_tool("inspect_timeline", {"timeline_file": str(timeline)})
+
+    _assert_mcp_contract(payload)
+    assert payload["success"] is False
+    assert payload["error"] == "UNSUPPORTED_SCHEMA_VERSION"
+    assert isinstance(payload["message"], str) and payload["message"]
+    assert payload["operation"] == "inspect_timeline"
+
+
+def test_mcp_boundary_maps_non_object_timeline_root_to_invalid_timeline(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", "off")
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS", str(tmp_path))
+    timeline = tmp_path / "array.timeline.json"
+    timeline.write_text("[]", encoding="utf-8")
+
+    payload = _call_tool("inspect_timeline", {"timeline_file": str(timeline)})
+
+    _assert_mcp_contract(payload)
+    assert payload["success"] is False
+    assert payload["error"] == "INVALID_TIMELINE"
+    assert isinstance(payload["message"], str) and payload["message"]
+    assert payload["operation"] == "inspect_timeline"

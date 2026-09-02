@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -156,3 +157,15 @@ def test_save_rough_cut_plan_rejects_failed_plan(tmp_path: Path) -> None:
 
     assert result["success"] is False
     assert result["error"] == "INVALID_ROUGH_CUT_PLAN"
+
+
+def test_inspect_rough_cut_plan_rejects_unsupported_schema_version(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS", str(tmp_path))
+    plan = tmp_path / "future.rough-cut-plan.json"
+    plan.write_text(json.dumps({"kind": "kdenlive_mcp_rough_cut_plan", "schema_version": 2}), encoding="utf-8")
+
+    result = rough_cut_tools.inspect_rough_cut_plan(str(plan))
+
+    assert result["success"] is False
+    assert result["error"] == "UNSUPPORTED_SCHEMA_VERSION"
+    assert "schema_version" in result["message"]

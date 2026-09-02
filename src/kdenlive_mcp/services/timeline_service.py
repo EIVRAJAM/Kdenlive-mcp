@@ -20,6 +20,13 @@ def _error(code: str, message: str, **extra: Any) -> dict[str, Any]:
     return {"success": False, "error": code, "message": message, **extra}
 
 
+SUPPORTED_TIMELINE_SCHEMA_VERSION = 1
+
+
+class UnsupportedSchemaVersion(ValueError):
+    pass
+
+
 def _security_error(exc: SecurityError) -> dict[str, Any]:
     return _error(exc.code, exc.message)
 
@@ -66,6 +73,8 @@ def _load_timeline_from_allowed_output(timeline_file: str) -> tuple[Path, Timeli
         return _error("TIMELINE_NOT_FOUND", f"Timeline does not exist: {path}")
     try:
         return path, load_timeline_document(path)
+    except UnsupportedSchemaVersion as exc:
+        return _error("UNSUPPORTED_SCHEMA_VERSION", str(exc))
     except (json.JSONDecodeError, ValidationError) as exc:
         return _error("INVALID_TIMELINE", f"Timeline is invalid: {exc}")
 
@@ -927,6 +936,11 @@ def save_timeline_document(path: Path, timeline: TimelineDocument) -> None:
 
 def load_timeline_document(path: Path) -> TimelineDocument:
     data = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(data, dict) and data.get("schema_version") != SUPPORTED_TIMELINE_SCHEMA_VERSION:
+        raise UnsupportedSchemaVersion(
+            f"Timeline schema_version {data.get('schema_version')!r} is not supported; "
+            f"supported version is {SUPPORTED_TIMELINE_SCHEMA_VERSION}."
+        )
     return TimelineDocument.model_validate(data)
 
 
@@ -1125,6 +1139,8 @@ def inspect_timeline(timeline_file: str) -> dict[str, Any]:
 
     try:
         document = load_timeline_document(path)
+    except UnsupportedSchemaVersion as exc:
+        return _error("UNSUPPORTED_SCHEMA_VERSION", str(exc))
     except (json.JSONDecodeError, ValidationError) as exc:
         return _error("INVALID_TIMELINE", f"Timeline is invalid: {exc}")
 
@@ -1816,6 +1832,8 @@ def export_timeline_to_mlt_xml(
 
     try:
         document = load_timeline_document(timeline_path)
+    except UnsupportedSchemaVersion as exc:
+        return _error("UNSUPPORTED_SCHEMA_VERSION", str(exc))
     except (json.JSONDecodeError, ValidationError) as exc:
         return _error("INVALID_TIMELINE", f"Timeline is invalid: {exc}")
 
@@ -1864,6 +1882,8 @@ def export_timeline_to_kdenlive_template(
 
     try:
         document = load_timeline_document(timeline_path)
+    except UnsupportedSchemaVersion as exc:
+        return _error("UNSUPPORTED_SCHEMA_VERSION", str(exc))
     except (json.JSONDecodeError, ValidationError) as exc:
         return _error("INVALID_TIMELINE", f"Timeline is invalid: {exc}")
 
