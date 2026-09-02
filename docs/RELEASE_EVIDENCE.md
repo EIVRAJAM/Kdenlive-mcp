@@ -1854,3 +1854,65 @@ Real-client discovery remains pending until the mcp SDK is installed locally;
 the STDIO protocol channel is already validated, and the SDK smoke is
 reproducible via "python3 -m pip install 'mcp>=1.0'" + the script.
 ```
+
+## 2026-09-02 Full Release Gate Re-Run
+
+Scope:
+
+```text
+Reproduce the complete release gate against the current repository state
+```
+
+Command:
+
+```bash
+KDENLIVE_MCP_MLT_PROJECT=/data/PROYECTOS/kdenlive-mcp/examples/recon/mlt_gate_20260901.kdenlive \
+  bash scripts/release_gate.sh
+```
+
+Result:
+
+```text
+exit 0
+dev_check:   OK (compileall + pytest)
+stdio_smoke: OK
+reliability: OK (runs 20, media_checksums_unchanged true, overwrite_refusal_checked true)
+mlt_load:    OK (real Flatpak melt run against mlt_gate_20260901.kdenlive, not skipped)
+```
+
+Real MLT result:
+
+```text
+flatpak run --command=melt org.kde.kdenlive \
+  /data/PROYECTOS/kdenlive-mcp/examples/recon/mlt_gate_20260901.kdenlive \
+  -consumer null terminate_on_pause=1
+exit 0 (project loaded and consumed)
+```
+
+Additional commands:
+
+```bash
+python3 scripts/mcp_stdio_smoke_test.py
+python3 scripts/mcp_client_sdk_smoke_test.py
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+STDIO smoke: success true, tool_count 60
+SDK smoke:   exit 2, blocked=mcp-sdk-unavailable (mcp>=1.0 not installed)
+pytest:      283 passed, 1 skipped
+dev_check.sh: 283 passed, 1 skipped
+git diff --check: clean
+```
+
+Decision:
+
+```text
+The release gate is reproducible against the current repository state: all
+mandatory gates pass, the real MLT load runs (not skipped), and the remaining
+SDK-client smoke is blocked only by the absent local mcp SDK. This represents a
+release-state run, not just a collection of loose tests.
+```

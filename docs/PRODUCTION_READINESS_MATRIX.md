@@ -32,9 +32,9 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
 | Project lock handling | DONE | `services/lock_service.py`, `services/project_workflow_service.py`; `tests/test_lock_service.py`, `test_project_workflow_service.py`, `test_project_mcp_workflow.py` (`PROJECT_LOCKED` e2e) | Conflicto de lock multi-proceso no simulado (fuera del target single-user) | — |
 | Rough-cut workflow from folder to .kdenlive | DONE | `services/vlog_workflow_service.py`, `tools/rough_cut_tools.py`; `tests/test_vlog_workflow_service.py` | Depende de la plantilla fixture | — |
 | Automated end-to-end workflow test | DONE | `tests/test_vlog_workflow_service.py`; `scripts/dev_check.sh` (`KDENLIVE_MCP_RUN_FIXTURE_WORKFLOW`); RELEASE_EVIDENCE (20 runs) | Gate opt-in por env, no CI permanente | Documentar ejecución en CI/release reproducible |
-| Original media checksum test | DONE | `scripts/fixture_reliability_check.py` (sha256); RELEASE_EVIDENCE `media_checksums_unchanged: true` | Evidencia puntual (2026-08-25), no por-release | Re-ejecutar por release y registrar checksum |
+| Original media checksum test | DONE | `scripts/fixture_reliability_check.py` (sha256); RELEASE_EVIDENCE `media_checksums_unchanged: true` (2026-08-25 y re-ejecutado por-release 2026-09-02) | Depende de ejecución del gate por-release | Re-ejecutar el gate en cada release y registrar |
 | Generated .kdenlive inspect validation | DONE | RELEASE_EVIDENCE (export validation, clip/marker/guide counts); `tests/test_timeline_service.py` | — | — |
-| Optional workflow-level MLT load validation | DONE | `tools/project_tools.py` `check_mlt`; `scripts/dev_check.sh` `KDENLIVE_MCP_RUN_MLT_CHECK`; tests con `melt` mockeado; evidencia real 2026-08-25 (`MLT load check: valid true`) y 2026-09-01 (proyecto generado por MCP, melt Flatpak exit 0, `status: loaded`) | La carga real requiere Flatpak y acceso al filesystem en cada máquina | Re-ejecutar `KDENLIVE_MCP_RUN_MLT_CHECK=1 scripts/dev_check.sh` con un proyecto real y registrar por release |
+| Optional workflow-level MLT load validation | DONE | `tools/project_tools.py` `check_mlt`; `scripts/dev_check.sh` `KDENLIVE_MCP_RUN_MLT_CHECK`; tests con `melt` mockeado; evidencia real 2026-08-25 (`MLT load check: valid true`), 2026-09-01 (proyecto generado por MCP, melt Flatpak exit 0, `status: loaded`) y re-ejecutado por-release 2026-09-02 (release_gate, `mlt_load: OK`) | La carga real requiere Flatpak y acceso al filesystem en cada máquina | Re-ejecutar `KDENLIVE_MCP_RUN_MLT_CHECK=1 scripts/dev_check.sh` (o el release gate) en cada release |
 | Partial-output cleanup or explicit partial-output reporting | DONE | `services/vlog_workflow_service.py` `_failed_step`/`partial_outputs`; `scripts/fixture_reliability_check.py` (assert partial_outputs) | Sólo reporting, sin cleanup (permitido por el contrato "or") | — |
 | Persistent structured logging | DONE | `src/kdenlive_mcp/logging.py` (JSONL, redacción, error_type/message); `tests/test_server_protocol.py` (logging tests) | Log default a `logs/` si no se configura | — |
 | Reproducible dev/release check command | DONE | `scripts/dev_check.sh`, `scripts/release_gate.sh` (dev + STDIO smoke + reliability + MLT opcional), `docs/RELEASE_CHECKLIST.md`; RELEASE_EVIDENCE (comandos exactos) | Checks de fiabilidad/MLT opt-in por env y MLT requiere Flatpak | — |
@@ -103,8 +103,9 @@ Conteo: DONE 20 · PARTIAL 0 · MISSING 0 · BLOCKED 0.
 1. Re-ejecutar el gate real de MLT/Kdenlive en cada release
    (`KDENLIVE_MCP_RUN_MLT_CHECK=1 scripts/dev_check.sh` con un proyecto generado)
    y registrar la evidencia en RELEASE_EVIDENCE para mantener el MUST #14 en DONE.
-2. Re-ejecutar el gate de fiabilidad (20 runs + checksum) por-release y registrar
-   en RELEASE_EVIDENCE para hacer reproducible la evidencia de gates #4/#5.
+2. Mantener la re-ejecución por-release del gate de fiabilidad (20 runs +
+   checksum) y del gate MLT real; la re-ejecución del 2026-09-02 ya está
+   registrada en RELEASE_EVIDENCE.
 3. Ampliar la edición de working copy más allá del spike: soportar más
    operaciones directas sobre `.kdenlive` derivados (el spike
    `apply_timeline_to_working_project` ya aplica timeline a una working copy con
