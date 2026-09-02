@@ -1180,3 +1180,63 @@ recipes (base file, steps, expected XML pattern, validation command) are recorde
 in docs/KDENLIVE_PROJECT_FORMAT.md, and data-driven pattern detectors in
 tests/test_kdenlive_project_fixtures.py skip until each file is added.
 ```
+
+## 2026-09-01 Generic MCP Client Decoupling
+
+Scope:
+
+```text
+Decouple client documentation and tests from Codex as the only MCP client
+```
+
+Changes:
+
+```text
+added docs/MCP_CLIENT_SETUP.md with generic STDIO client configuration
+added examples/mcp_client_config.toml (generic example, placeholder paths)
+docs/CODEX_SETUP.md kept as a Codex-specific example that references the generic doc
+production contract MUST renamed to "generic MCP client registration example"
+production readiness matrix row, special-attention item and Top 5 updated to generic
+release checklist MCP Agent Check made client-agnostic
+README references the generic client setup and keeps Codex as one example
+```
+
+Commands:
+
+```bash
+python3 scripts/mcp_stdio_smoke_test.py
+pytest tests/test_mcp_client_config.py
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+python3 scripts/mcp_stdio_smoke_test.py: success true, tool_count 59
+tests/test_mcp_client_config.py: 4 passed
+full suite: 214 passed, 9 skipped
+```
+
+What the STDIO smoke test covers:
+
+```text
+the real Content-Length/STDIO channel, not in-process handle_request calls
+initialize + tools/list against the server as a subprocess
+serverInfo.name, capabilities.tools and the production tool set
+```
+
+What is NOT proven:
+
+```text
+exhaustive compatibility with every MCP client implementation; only the real
+STDIO MCP protocol was exercised
+```
+
+Decision:
+
+```text
+The server is MCP-client-agnostic. Codex remains a documented example, not a
+system requirement. Any MCP client over STDIO can register the server through
+the generic example and docs/MCP_CLIENT_SETUP.md.
+```

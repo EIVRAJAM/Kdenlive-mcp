@@ -1,0 +1,10 @@
+[mcp_servers.kdenlive]
+command = "kdenlive-mcp"
+args = []
+
+[mcp_servers.kdenlive.env]
+KDENLIVE_MCP_ALLOWED_MEDIA_DIRS = "/home/usuario/Videos"
+KDENLIVE_MCP_ALLOWED_PROJECT_DIRS = "/home/usuario/Videos:/data/PROYECTOS/kdenlive-mcp/examples/recon"
+KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS = "/home/usuario/Videos"
+KDENLIVE_MCP_FLATPAK_ID = "org.kde.kdenlive"
+KDENLIVE_MCP_LOG_FILE = "/data/PROYECTOS/kdenlive-mcp/logs/kdenlive-mcp.log"

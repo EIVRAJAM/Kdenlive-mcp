@@ -39,7 +39,7 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
 | Persistent structured logging | DONE | `src/kdenlive_mcp/logging.py` (JSONL, redacción, error_type/message); `tests/test_server_protocol.py` (logging tests) | Log default a `logs/` si no se configura | — |
 | Reproducible dev/release check command | DONE | `scripts/dev_check.sh`, `docs/RELEASE_CHECKLIST.md`; RELEASE_EVIDENCE (comandos exactos) | Checks de fiabilidad/MLT opt-in por env | Documentar la cadena completa de release en un único comando |
 | Schema documentation for persisted JSON files | DONE | `docs/SCHEMAS.md` (rough-cut plan, timeline, manifest) | Política de migración explícita aún SHOULD | Añadir política de migración versionada a SCHEMAS.md |
-| Codex MCP registration example | DONE | `examples/codex_mcp_config.toml`, `docs/CODEX_SETUP.md`, `README.md`; smoke test STDIO real `scripts/mcp_stdio_smoke_test.py` (`initialize` + `tools/list`, 59 tools) | Smoke test cubre el canal STDIO real; falta descubrimiento desde un cliente Codex vivo | Smoke test `tools/list` desde un cliente MCP/Codex real |
+| Generic MCP client registration example | DONE | `examples/mcp_client_config.toml`, `docs/MCP_CLIENT_SETUP.md`, `examples/codex_mcp_config.toml`, `docs/CODEX_SETUP.md`; smoke test STDIO real `scripts/mcp_stdio_smoke_test.py` (`initialize` + `tools/list`, 59 tools) | No probado contra todos los clientes MCP, pero sí contra el protocolo STDIO real | Smoke test `tools/list` desde un cliente MCP externo real |
 | Known limitations documented | DONE | `README.md` ("Limite importante"), `docs/PRODUCTION_CONTRACT.md` (Known Accepted Risks) | Las limitaciones crecen con cada feature | Actualizar README al expandir superficie de edición |
 
 ## Atención especial a pendientes señalados
@@ -62,10 +62,11 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
 - Limpieza/reporting de outputs parciales: **DONE**. `partial_outputs` explícito en
   `_failed_step`; la fiabilidad valida que `partial_outputs == artifacts` en éxito.
 - Documentación de schemas: **DONE** (`docs/SCHEMAS.md`).
-- Registro Codex MCP: **DONE** (`examples/codex_mcp_config.toml`,
-  `docs/CODEX_SETUP.md`) y smoke test real del canal STDIO
-  (`scripts/mcp_stdio_smoke_test.py`, `initialize` + `tools/list`, 59 tools).
-  Falta solo descubrimiento desde un cliente Codex vivo.
+- Registro MCP genérico: **DONE** (`examples/mcp_client_config.toml`,
+  `docs/MCP_CLIENT_SETUP.md`, `docs/CODEX_SETUP.md` como ejemplo específico) y
+  smoke test real del canal STDIO (`scripts/mcp_stdio_smoke_test.py`,
+  `initialize` + `tools/list`, 59 tools). Falta probar desde un cliente MCP
+  externo real.
 - Pruebas con fixtures reales múltiples: **PARTIAL** (SHOULD). `examples/recon/`
   tiene 4 proyectos manuales validados (well-formed, vertical HD 30, medios
   presentes) y 1 carpeta de sesión real. Los detectores de patrones
@@ -92,8 +93,8 @@ están en DONE. El único PARTIAL restante (validación real de carga MLT/Kdenli
 quedó cubierto el 2026-09-01 con una validación real, no mockeada, de un proyecto
 generado por el MCP a través del melt de Flatpak (exit 0, `status: loaded`, sin
 medios faltantes). Los pendientes que siguen abiertos (locks/versioning e2e,
-más fixtures reales, smoke test Codex, evidencia por-release) son SHOULD o
-evidencia de mantenimiento, no bloqueos MUST del target.
+más fixtures reales, cliente MCP externo real, evidencia por-release) son SHOULD
+o evidencia de mantenimiento, no bloqueos MUST del target.
 
 Conteo: DONE 20 · PARTIAL 0 · MISSING 0 · BLOCKED 0.
 
@@ -111,6 +112,6 @@ Conteo: DONE 20 · PARTIAL 0 · MISSING 0 · BLOCKED 0.
 4. Crear los 4 fixtures manuales pendientes en Kdenlive (trim, gap, dissolve,
    efecto) siguiendo las recetas de `docs/KDENLIVE_PROJECT_FORMAT.md`; los
    detectores de test ya están listos y se activan al añadir cada archivo.
-5. Probar el descubrimiento desde un cliente Codex/MCP vivo (ya existe el smoke
+5. Probar el descubrimiento desde un cliente MCP externo real (ya existe el smoke
    test STDIO `scripts/mcp_stdio_smoke_test.py`; queda cerrar el checklist
-   "MCP tool discovery works from Codex" con un cliente real).
+   "MCP tool discovery works" con un cliente real).

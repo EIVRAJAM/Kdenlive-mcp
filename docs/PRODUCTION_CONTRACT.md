@@ -120,7 +120,7 @@ partial-output cleanup or explicit partial-output reporting
 persistent structured logging
 reproducible dev/release check command
 schema documentation for persisted JSON files
-Codex MCP registration example
+generic MCP client registration example
 known limitations documented
 ```
 

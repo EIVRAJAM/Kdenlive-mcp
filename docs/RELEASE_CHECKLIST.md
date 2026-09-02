@@ -138,7 +138,8 @@ diff has no changes
 
 ## 7. MCP Agent Check
 
-Use the configured Codex MCP server and call:
+Use any MCP-capable client over STDIO (Codex is one possible client, not the
+only one) and call:
 
 ```text
 tools/list
@@ -150,7 +151,7 @@ create_vlog_rough_cut_project
 Required result:
 
 ```text
-tools/list includes production tool set
+tools/list includes the production tool set
 health_check success true
 get_environment shows intended allowlists
 workflow returns success true or structured warning for sandbox-only MLT limits
@@ -238,6 +239,6 @@ Any failure in deterministic checks blocks release.
 Manual Kdenlive-open failure blocks release.
 
 Flatpak sandbox failure blocks release only when it happens outside the known
-Codex command sandbox. Inside the Codex sandbox, it must be recorded as
-`FLATPAK_EXECUTION_UNAVAILABLE_IN_SANDBOX` and then rechecked outside the
-sandbox.
+command sandbox (for example the Codex command sandbox). Inside a command
+sandbox, it must be recorded as `FLATPAK_EXECUTION_UNAVAILABLE_IN_SANDBOX` and
+then rechecked outside the sandbox.

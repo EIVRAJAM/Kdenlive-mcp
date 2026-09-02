@@ -1,6 +1,9 @@
 # Codex MCP Setup
 
-This project exposes a local MCP server over STDIO.
+This document is a Codex-specific example. For client-agnostic setup, transport
+details, and security notes for cloud agents, see `docs/MCP_CLIENT_SETUP.md`
+and the generic example `examples/mcp_client_config.toml`. Codex is one possible
+MCP client, not a requirement of the system.
 
 ## Install
 
@@ -40,6 +43,8 @@ A copy is available at:
 ```text
 examples/codex_mcp_config.toml
 ```
+
+The generic client-agnostic example is `examples/mcp_client_config.toml`.
 
 Adjust the allowlists before use. The server should only receive directories
 where the agent is allowed to read media or write generated artifacts.
