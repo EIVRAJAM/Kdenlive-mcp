@@ -67,8 +67,13 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
   (`scripts/mcp_stdio_smoke_test.py`, `initialize` + `tools/list`, 59 tools).
   Falta solo descubrimiento desde un cliente Codex vivo.
 - Pruebas con fixtures reales múltiples: **PARTIAL** (SHOULD). `examples/recon/`
-  tiene 4 proyectos manuales + 1 carpeta de sesión real; falta generar más
-  variantes desde la versión instalada (trims, gaps, transiciones, efectos).
+  tiene 4 proyectos manuales validados (well-formed, vertical HD 30, medios
+  presentes) y 1 carpeta de sesión real. Los detectores de patrones
+  (trim/gap/transition/effect) ya están en `tests/test_kdenlive_project_fixtures.py`
+  con recetas manuales exactas en `docs/KDENLIVE_PROJECT_FORMAT.md`; los fixtures
+  `manual_trimmed_clip`, `manual_gap_timeline`, `manual_transition_dissolve` y
+  `manual_basic_effect` quedan pendientes de creación manual en Kdenlive y sus
+  tests se saltan hasta que existan.
 - Edición directa en sitio de un `.kdenlive` working copy: **SHOULD pendiente**.
   No existe tool MCP que edite un `.kdenlive` en sitio; la edición opera sobre
   `.timeline.json` (apply_timeline_edits) y se exporta vía
@@ -103,8 +108,9 @@ Conteo: DONE 20 · PARTIAL 0 · MISSING 0 · BLOCKED 0.
    pendiente). Hoy la edición pasa por `.timeline.json` +
    `export_timeline_to_kdenlive_template`; el e2e
    `test_working_copy_edit_flow_restore` ya cubre el flujo real con restore.
-4. Generar más fixtures Kdenlive reales desde la versión instalada (trims, gaps,
-   transiciones, efectos, multi-secuencia) para robustecer #5/#6/#14.
+4. Crear los 4 fixtures manuales pendientes en Kdenlive (trim, gap, dissolve,
+   efecto) siguiendo las recetas de `docs/KDENLIVE_PROJECT_FORMAT.md`; los
+   detectores de test ya están listos y se activan al añadir cada archivo.
 5. Probar el descubrimiento desde un cliente Codex/MCP vivo (ya existe el smoke
    test STDIO `scripts/mcp_stdio_smoke_test.py`; queda cerrar el checklist
    "MCP tool discovery works from Codex" con un cliente real).

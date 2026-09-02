@@ -1124,3 +1124,59 @@ test covers up to that real limit and restore/versioning inside the flow. Direct
 in-place .kdenlive editing is recorded as a pending SHOULD in the production
 readiness matrix.
 ```
+
+## 2026-09-01 Kdenlive Fixture Expansion Recon
+
+Fixtures reviewed:
+
+```text
+manual_empty_vertical.kdenlive
+manual_bin_only.kdenlive
+manual_two_clips_timeline.kdenlive
+manual_trim_marker.kdenlive
+```
+
+Findings from real XML:
+
+```text
+default transitions (mix/qtblend) and default filters (volume/panner/audiolevel,
+disable=1) are nested inside track tractors with internal_added=237
+no existing fixture contains a trimmed clip, a real temporal gap, a user
+transition, or a user effect
+```
+
+Fixtures created: none. Manual recipes documented for:
+
+```text
+manual_trimmed_clip.kdenlive
+manual_gap_timeline.kdenlive
+manual_transition_dissolve.kdenlive
+manual_basic_effect.kdenlive
+```
+
+Commands:
+
+```bash
+pytest tests/test_kdenlive_project_fixtures.py
+pytest tests/test_kdenlive_project_adapter.py tests/test_kdenlive_project_fixtures.py
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+tests/test_kdenlive_project_fixtures.py: 8 passed, 8 skipped
+tests/test_kdenlive_project_adapter.py + fixtures: 18 passed, 8 skipped
+full suite: 213 passed, 9 skipped
+```
+
+Technical decision:
+
+```text
+The four additional fixtures require a short manual session in Kdenlive 26.04.3;
+they are not invented programmatically to avoid guessing Kdenlive XML. Exact
+recipes (base file, steps, expected XML pattern, validation command) are recorded
+in docs/KDENLIVE_PROJECT_FORMAT.md, and data-driven pattern detectors in
+tests/test_kdenlive_project_fixtures.py skip until each file is added.
+```

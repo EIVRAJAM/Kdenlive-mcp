@@ -342,6 +342,106 @@ examples/recon/manual_trimmed_clip.kdenlive
 Recommended manual action: trim the first clip so its source in-point is not
 zero and save a separate file.
 
+### Additional Fixture Recipes (Pending Manual Creation)
+
+The fixtures below cannot be produced programmatically without guessing
+Kdenlive XML, so each one requires a short manual session in Kdenlive 26.04.3.
+A data-driven test validates each file as soon as it is added; until then the
+tests skip with an explicit reason.
+
+Base file for all recipes:
+
+```text
+examples/recon/manual_two_clips_timeline.kdenlive
+```
+
+Shared setup: open the base file in Kdenlive, perform the edit, then
+`File > Save As` to the target fixture name.
+
+Recipe 1 - `manual_trimmed_clip.kdenlive`:
+
+```text
+file base:   manual_two_clips_timeline.kdenlive
+manual steps:
+  1. select the first clip in the timeline
+  2. trim its source in-point so it starts later (e.g. 1s, frame 30)
+  3. keep the out-point unchanged or trim it as well
+  4. File > Save As examples/recon/manual_trimmed_clip.kdenlive
+expected XML:
+  at least one playlist entry with in != "00:00:00.000"
+  the corresponding chain/producer source is unchanged
+validation:
+  pytest tests/test_kdenlive_project_fixtures.py -k trimmed_clip_fixture
+```
+
+Recipe 2 - `manual_gap_timeline.kdenlive`:
+
+```text
+file base:   manual_two_clips_timeline.kdenlive
+manual steps:
+  1. select the second clip pair in the timeline
+  2. drag it right so a real blank remains between clip 1 and clip 2
+  3. File > Save As examples/recon/manual_gap_timeline.kdenlive
+expected XML:
+  a playlist containing a <blank length="..."> element with a positive length,
+  or whichever real representation Kdenlive 26.04.3 writes after moving the
+  second clip
+  note: entry in/out attributes are SOURCE ranges, not timeline positions, and
+  must not be assumed to encode where a clip sits on the timeline
+validation:
+  pytest tests/test_kdenlive_project_fixtures.py -k gap_timeline_fixture
+```
+
+Recipe 3 - `manual_transition_dissolve.kdenlive`:
+
+```text
+file base:   manual_two_clips_timeline.kdenlive
+manual steps:
+  1. overlap the two video clips slightly in the timeline
+  2. add a Dissolve transition between them (Kdenlive adds a luma transition)
+  3. File > Save As examples/recon/manual_transition_dissolve.kdenlive
+expected XML:
+  a transition whose mlt_service is luma, or a transition element carrying
+  in/out attributes (clip-level transition)
+validation:
+  pytest tests/test_kdenlive_project_fixtures.py -k transition_fixture
+```
+
+Recipe 4 - `manual_basic_effect.kdenlive`:
+
+```text
+file base:   manual_two_clips_timeline.kdenlive
+manual steps:
+  1. select the first video clip in the timeline
+  2. add a simple effect, e.g. Brightness/Contrast
+  3. File > Save As examples/recon/manual_basic_effect.kdenlive
+expected XML:
+  a filter element whose mlt_service is not one of the disabled defaults
+  (volume / panner / audiolevel)
+validation:
+  pytest tests/test_kdenlive_project_fixtures.py -k effect_fixture
+```
+
+## Default Transitions And Filters (Observed)
+
+All existing reference projects contain exactly the same hidden defaults,
+which must be preserved but not confused with user edits:
+
+```text
+nested in track tractors:
+  transition: mlt_service = mix   (audio), internal_added = 237, always_active = 1
+  transition: mlt_service = qtblend (video), internal_added = 237
+per audio track pair:
+  filter: mlt_service = volume, disable = 1, internal_added = 237
+  filter: mlt_service = panner, disable = 1, internal_added = 237
+  filter: mlt_service = audiolevel, disable = 1, internal_added = 237
+```
+
+These elements are not stored at the MLT root; they are nested inside the
+per-track tractors. The adapter must treat `internal_added=237` filters and the
+mix/qtblend transitions as structural defaults to preserve, and must not
+classify them as user effects or user transitions.
+
 ## Time Representation
 
 The captured `.kdenlive` files use time strings like:
@@ -436,16 +536,19 @@ The domain model must not manipulate XML nodes directly.
 Still not confirmed enough for writing:
 
 ```text
-Trimmed clip source in/out representation
-Timeline blanks/gaps after moving clips
+Trimmed clip source in/out representation (fixture manual_trimmed_clip pending)
+Timeline blanks/gaps after moving clips (fixture manual_gap_timeline pending)
 Track rename, lock, mute, and height metadata
 Explicit folder/bin nesting beyond the default sequence folder
 Proxy attachment fields
 Subtitle track representation
-Effect stack representation
-Fade and dissolve representation
+Effect stack representation (fixture manual_basic_effect pending)
+Fade and dissolve representation (fixture manual_transition_dissolve pending)
 Kdenlive behavior after round-tripping an AI-written project
 ```
+
+The pending trim/gap/transition/effect fixtures have exact manual recipes above;
+the data-driven tests skip until each file is created in Kdenlive.
 
 ## Current Write Boundary
 
