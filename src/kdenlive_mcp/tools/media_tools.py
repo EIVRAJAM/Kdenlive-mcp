@@ -46,6 +46,27 @@ def _parse_number(value: Any) -> float | None:
         return None
 
 
+def _fps_value(stream: dict[str, Any]) -> Any:
+    value = stream.get("avg_frame_rate")
+    if value in (None, "N/A", "", "0/0"):
+        return None
+    return value
+
+
+def _rotation(stream: dict[str, Any]) -> Any:
+    tags = stream.get("tags") or {}
+    rotate = tags.get("rotate")
+    if rotate:
+        return rotate
+    direct = _stream_value(stream, "rotation")
+    if direct is not None:
+        return direct
+    for side_data in stream.get("side_data_list") or []:
+        if isinstance(side_data, dict) and side_data.get("side_data_type") == "Display Matrix":
+            return side_data.get("rotation")
+    return None
+
+
 def _media_summary(path: Path, probe: dict[str, Any]) -> dict[str, Any]:
     streams = probe.get("streams", [])
     video_stream = next((stream for stream in streams if stream.get("codec_type") == "video"), None)
@@ -66,9 +87,9 @@ def _media_summary(path: Path, probe: dict[str, Any]) -> dict[str, Any]:
             "codec": _stream_value(video_stream, "codec_name"),
             "width": _stream_value(video_stream, "width"),
             "height": _stream_value(video_stream, "height"),
-            "fps": _stream_value(video_stream, "avg_frame_rate"),
+            "fps": _fps_value(video_stream),
             "pix_fmt": _stream_value(video_stream, "pix_fmt"),
-            "rotation": video_stream.get("tags", {}).get("rotate") or _stream_value(video_stream, "rotation"),
+            "rotation": _rotation(video_stream),
         },
         "audio": None
         if audio_stream is None

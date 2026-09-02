@@ -1561,3 +1561,57 @@ UNSUPPORTED_SCHEMA_VERSION is now the single structured error for unsupported
 schema versions across rough-cut plans, timeline documents and project
 manifests, closing the documented TODO without changing current formats.
 ```
+
+## 2026-09-01 Media Probe Edge Cases
+
+Scope:
+
+```text
+VFR, rotation and unusual stream layouts in media scan/ffprobe summary
+```
+
+Cases covered (tests/test_media_tools.py, mocked ffprobe payloads):
+
+```text
+VFR or ambiguous fps: avg_frame_rate reported, distinct from r_frame_rate
+avg_frame_rate invalid ("0/0", "N/A", "") -> fps None
+rotation from tags.rotate -> rotation value
+rotation from side_data_list Display Matrix -> rotation value
+audio-only file -> audio summary, video None
+video-only file -> video summary, audio None
+multiple streams -> first video and first audio selected
+missing bitrate -> bitrate None, no exception
+validate_media accepts audio-only and video-only
+get_media_info returns success=true with a stable summary for mocked VFR/rotation
+```
+
+Production change: minimal.
+
+```text
+media_tools.py: fps now treats "0/0" as None (_fps_value); rotation now also
+reads side_data_list Display Matrix (_rotation). Existing response shape is
+preserved (fps stays a string or None, rotation stays a string or None).
+```
+
+Commands:
+
+```bash
+pytest tests/test_media_tools.py
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+tests/test_media_tools.py: 18 passed
+full suite: 264 passed, 9 skipped
+```
+
+Decision:
+
+```text
+VFR and rotation edge cases are now covered with mocked ffprobe payloads, and
+two small gaps (0/0 fps and side_data_list rotation) were fixed without changing
+the response shape.
+```
