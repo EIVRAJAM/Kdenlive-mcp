@@ -5,6 +5,7 @@ from typing import Any
 from kdenlive_mcp.services.timeline_service import (
     add_timeline_clip,
     apply_timeline_edits,
+    apply_timeline_to_working_project,
     create_timeline_from_rough_cut_plan,
     create_timeline_track,
     duplicate_timeline_clip,
@@ -403,5 +404,22 @@ TOOLS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "handler": export_timeline_to_kdenlive_template,
+    },
+    "apply_timeline_to_working_project": {
+        "description": "Apply an MCP timeline to a working copy .kdenlive and write a new derived project (copy-on-write, never in place).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "working_project": {"type": "string"},
+                "timeline_file": {"type": "string"},
+                "output_directory": {"type": ["string", "null"], "default": None},
+                "name": {"type": ["string", "null"], "default": None},
+                "overwrite": {"type": "boolean", "default": False},
+                "check_mlt": {"type": "boolean", "default": False},
+            },
+            "required": ["working_project", "timeline_file"],
+            "additionalProperties": False,
+        },
+        "handler": apply_timeline_to_working_project,
     },
 }

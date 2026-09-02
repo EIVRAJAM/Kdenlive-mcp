@@ -39,7 +39,7 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
 | Persistent structured logging | DONE | `src/kdenlive_mcp/logging.py` (JSONL, redacción, error_type/message); `tests/test_server_protocol.py` (logging tests) | Log default a `logs/` si no se configura | — |
 | Reproducible dev/release check command | DONE | `scripts/dev_check.sh`, `scripts/release_gate.sh` (dev + STDIO smoke + reliability + MLT opcional), `docs/RELEASE_CHECKLIST.md`; RELEASE_EVIDENCE (comandos exactos) | Checks de fiabilidad/MLT opt-in por env y MLT requiere Flatpak | — |
 | Schema documentation for persisted JSON files | DONE | `docs/SCHEMAS.md` (rough-cut plan, timeline, manifest; "Schema Migration Policy"; códigos actuales con `UNSUPPORTED_SCHEMA_VERSION` unificado), `tests/test_schema_docs.py`, `tests/test_rough_cut_tools.py`, `tests/test_timeline_service.py`, `tests/test_manifest_tools.py` | No hay migradores todavía (por diseño, pendiente futuro) | Implementar migradores explícitos cuando exista v2 |
-| Generic MCP client registration example | DONE | `examples/mcp_client_config.toml`, `docs/MCP_CLIENT_SETUP.md`, `examples/codex_mcp_config.toml`, `docs/CODEX_SETUP.md`; smoke test STDIO real `scripts/mcp_stdio_smoke_test.py` (`initialize` + `tools/list`, 59 tools) | No probado contra todos los clientes MCP, pero sí contra el protocolo STDIO real | Smoke test `tools/list` desde un cliente MCP externo real |
+| Generic MCP client registration example | DONE | `examples/mcp_client_config.toml`, `docs/MCP_CLIENT_SETUP.md`, `examples/codex_mcp_config.toml`, `docs/CODEX_SETUP.md`; smoke test STDIO real `scripts/mcp_stdio_smoke_test.py` (`initialize` + `tools/list`, 60 tools) | No probado contra todos los clientes MCP, pero sí contra el protocolo STDIO real | Smoke test `tools/list` desde un cliente MCP externo real |
 | Known limitations documented | DONE | `README.md` ("Limite importante"), `docs/PRODUCTION_CONTRACT.md` (Known Accepted Risks) | Las limitaciones crecen con cada feature | Actualizar README al expandir superficie de edición |
 
 ## Atención especial a pendientes señalados
@@ -65,7 +65,7 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
 - Registro MCP genérico: **DONE** (`examples/mcp_client_config.toml`,
   `docs/MCP_CLIENT_SETUP.md`, `docs/CODEX_SETUP.md` como ejemplo específico) y
   smoke test real del canal STDIO (`scripts/mcp_stdio_smoke_test.py`,
-  `initialize` + `tools/list`, 59 tools). Falta probar desde un cliente MCP
+  `initialize` + `tools/list`, 60 tools). Falta probar desde un cliente MCP
   externo real.
 - Pruebas con fixtures reales múltiples: **PARTIAL** (SHOULD). `examples/recon/`
   tiene 4 proyectos manuales validados (well-formed, vertical HD 30, medios
@@ -75,12 +75,12 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
   `manual_trimmed_clip`, `manual_gap_timeline`, `manual_transition_dissolve` y
   `manual_basic_effect` quedan pendientes de creación manual en Kdenlive y sus
   tests se saltan hasta que existan.
-- Edición directa en sitio de un `.kdenlive` working copy: **SHOULD pendiente**.
-  No existe tool MCP que edite un `.kdenlive` en sitio; la edición opera sobre
-  `.timeline.json` (apply_timeline_edits) y se exporta vía
-  `export_timeline_to_kdenlive_template` usando la working copy como template.
-  El e2e `test_working_copy_edit_flow_restore` cubre el límite real existente;
-  hay un test skipped con la razón explícita.
+- Edición directa de una working copy `.kdenlive` (spike): **DONE**.
+  `apply_timeline_to_working_project` aplica un timeline MCP a una working copy
+  (`prepare_working_project`) y escribe un proyecto derivado nuevo
+  (`<working_stem>_edited.kdenlive`), copy-on-write, con validación e inspección.
+  La edición *in-place* del archivo working copy sigue sin implementarse (por
+  diseño); e2e en `test_apply_timeline_to_working_project`.
 
 ## Production Gate Verdict
 
@@ -105,10 +105,10 @@ Conteo: DONE 20 · PARTIAL 0 · MISSING 0 · BLOCKED 0.
    y registrar la evidencia en RELEASE_EVIDENCE para mantener el MUST #14 en DONE.
 2. Re-ejecutar el gate de fiabilidad (20 runs + checksum) por-release y registrar
    en RELEASE_EVIDENCE para hacer reproducible la evidencia de gates #4/#5.
-3. Implementar edición directa en sitio de una working copy `.kdenlive` (SHOULD
-   pendiente). Hoy la edición pasa por `.timeline.json` +
-   `export_timeline_to_kdenlive_template`; el e2e
-   `test_working_copy_edit_flow_restore` ya cubre el flujo real con restore.
+3. Ampliar la edición de working copy más allá del spike: soportar más
+   operaciones directas sobre `.kdenlive` derivados (el spike
+   `apply_timeline_to_working_project` ya aplica timeline a una working copy con
+   copy-on-write; la edición in-place sigue sin implementarse por diseño).
 4. Crear los 4 fixtures manuales pendientes en Kdenlive (trim, gap, dissolve,
    efecto) siguiendo las recetas de `docs/KDENLIVE_PROJECT_FORMAT.md`; los
    detectores de test ya están listos y se activan al añadir cada archivo.

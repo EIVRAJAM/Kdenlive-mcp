@@ -67,6 +67,25 @@ edit_timeline_and_export_project(dry_run=False)
 validate_project
 ```
 
+For applying an MCP timeline to a working copy (copy-on-write spike):
+
+```text
+prepare_working_project
+  -> working copy <project>_ai_001.kdenlive (locked)
+apply_timeline_to_working_project(
+  working_project=<project>_ai_001.kdenlive,
+  timeline_file=<edited>.timeline.json,
+  output_directory=...,
+)
+  -> writes <project>_ai_001_edited.kdenlive (new derived file)
+  -> never modifies the working copy in place
+validate_project(<project>_ai_001_edited.kdenlive)
+```
+
+The edited copy is a distinct version; the original fixture, the working copy,
+and any backups remain untouched. `list_project_versions` and
+`restore_project_version` work on the same base stem.
+
 To inspect available undo targets:
 
 ```text

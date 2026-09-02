@@ -1252,6 +1252,50 @@ The tool validates the output with `KdenliveProjectAdapter.inspect()` and
 returns a summary with bin media count, sequence count, active sequence, and
 timeline clip count.
 
+### apply_timeline_to_working_project
+
+Input:
+
+```json
+{
+  "working_project": "/home/abrahamc/Videos/vlog/vlog_ai_001.kdenlive",
+  "timeline_file": "/home/abrahamc/Videos/vlog/vlog_edited.timeline.json",
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "name": null,
+  "overwrite": false,
+  "check_mlt": false
+}
+```
+
+Applies an MCP timeline to a working copy `.kdenlive` produced by
+`prepare_working_project` and writes a new derived project
+(`<working_stem>_edited.kdenlive`). This is copy-on-write: the working copy is
+never modified in place.
+
+Internally it reuses `export_timeline_to_kdenlive_template` with the working
+copy as template, after validating that the working copy parses as a Kdenlive
+project. When `check_mlt=true`, the output is additionally validated with a
+Flatpak melt load through `validate_project` (reported under `mlt_load`).
+
+Response includes:
+
+```text
+working_project     input working copy
+output_project      new derived .kdenlive path
+inspection_summary  bin/sequence/clip/marker/guide counts of the output
+warnings            list (empty when none)
+format              kdenlive_template_draft
+kdenlive_project    true
+```
+
+Current constraints:
+
+```text
+input working copy must be an existing, parseable .kdenlive project
+input timeline must be a persisted MCP timeline (schema_version 1)
+output is a new derived file; in-place editing of the working copy is not done
+```
+
 ## Workflow Tools
 
 ### create_vlog_rough_cut_project

@@ -254,10 +254,136 @@ def test_working_copy_edit_flow_restore(monkeypatch, tmp_path: Path) -> None:
     assert _sha256(SOURCE_PROJECT) == original_hash
 
 
+def test_apply_timeline_to_working_project(monkeypatch, tmp_path: Path) -> None:
+    _allow(monkeypatch, tmp_path)
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_MEDIA_DIRS", str(RECON_DIR))
+    project = str(SOURCE_PROJECT)
+    original_hash = _sha256(SOURCE_PROJECT)
+
+    prepared = _assert_ok(
+        _call(
+            "prepare_working_project",
+            {
+                "project": project,
+                "output_directory": str(tmp_path),
+                "lock_directory": str(tmp_path / "locks"),
+                "owner": "agent",
+            },
+        ),
+        "prepare_working_project",
+    )
+    working_copy = Path(prepared["working_project"])
+    working_copy_hash = _sha256(working_copy)
+
+    plan = _assert_ok(
+        _call(
+            "create_rough_cut_plan_file",
+            {
+                "folder": str(RECON_DIR),
+                "output_directory": str(tmp_path),
+                "name": "wc_flow",
+                "target_duration": 4,
+                "recursive": False,
+                "max_files": 1,
+                "remove_silence": False,
+            },
+        ),
+        "create_rough_cut_plan_file",
+    )
+    timeline = _assert_ok(
+        _call("create_timeline_from_rough_cut_plan", {"plan_file": plan["plan_file"]}),
+        "create_timeline_from_rough_cut_plan",
+    )
+    saved = _assert_ok(
+        _call(
+            "save_timeline",
+            {"timeline": timeline["timeline"], "output_directory": str(tmp_path), "name": "wc_timeline"},
+        ),
+        "save_timeline",
+    )
+
+    result = _assert_ok(
+        _call(
+            "apply_timeline_to_working_project",
+            {
+                "working_project": str(working_copy),
+                "timeline_file": saved["timeline_file"],
+                "output_directory": str(tmp_path),
+            },
+        ),
+        "apply_timeline_to_working_project",
+    )
+
+    assert result["output_project"].endswith(".kdenlive")
+    output = Path(result["output_project"])
+    assert output.exists()
+    assert output != working_copy
+    assert output.name.startswith(working_copy.stem)
+    ET.parse(output)
+
+    inspected = _call("inspect_project", {"project": str(output)})
+    assert inspected["success"] is True
+    data = inspected["data"]
+    active_sequence = next(sequence for sequence in data["sequences"] if sequence["id"] == data["active_sequence_id"])
+    assert len(active_sequence["timeline_clips"]) > 0
+
+    assert _sha256(SOURCE_PROJECT) == original_hash
+    assert _sha256(working_copy) == working_copy_hash
+
+
+def test_apply_timeline_to_working_project_rejects_outside_allowlist(monkeypatch, tmp_path: Path) -> None:
+    _allow(monkeypatch, tmp_path)
+    outside = tmp_path.parent / "outside.kdenlive"
+
+    result = _call(
+        "apply_timeline_to_working_project",
+        {"working_project": str(outside), "timeline_file": "x"},
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "PERMISSION_DENIED"
+    assert result["operation"] == "apply_timeline_to_working_project"
+
+
+def test_apply_timeline_to_working_project_rejects_unsupported_timeline_schema(
+    monkeypatch, tmp_path: Path
+) -> None:
+    _allow(monkeypatch, tmp_path)
+    project = str(SOURCE_PROJECT)
+    prepared = _assert_ok(
+        _call(
+            "prepare_working_project",
+            {
+                "project": project,
+                "output_directory": str(tmp_path),
+                "lock_directory": str(tmp_path / "locks"),
+                "owner": "agent",
+            },
+        ),
+        "prepare_working_project",
+    )
+    working_copy = prepared["working_project"]
+    bad_timeline = tmp_path / "future.timeline.json"
+    bad_timeline.write_text(json.dumps({"kind": "kdenlive_mcp_timeline", "schema_version": 2}), encoding="utf-8")
+
+    result = _call(
+        "apply_timeline_to_working_project",
+        {
+            "working_project": working_copy,
+            "timeline_file": str(bad_timeline),
+            "output_directory": str(tmp_path),
+        },
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "UNSUPPORTED_SCHEMA_VERSION"
+    assert result["operation"] == "apply_timeline_to_working_project"
+
+
 @pytest.mark.skip(
-    reason="No MCP tool edits a .kdenlive working copy in place. Editing operates on "
-    "MCP-owned .timeline.json documents exported through export_timeline_to_kdenlive_template. "
-    "Direct in-place .kdenlive editing is a pending SHOULD."
+    reason="No MCP tool edits a .kdenlive working copy IN PLACE. apply_timeline_to_working_project "
+    "applies a timeline to a working copy and writes a new derived project (copy-on-write). "
+    "True in-place editing of the working copy file itself remains a pending SHOULD."
 )
 def test_direct_kdenlive_working_copy_edit_is_pending() -> None:
     """Gap: direct in-place editing of a .kdenlive working copy is not implemented."""

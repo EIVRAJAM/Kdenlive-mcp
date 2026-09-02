@@ -1615,3 +1615,68 @@ VFR and rotation edge cases are now covered with mocked ffprobe payloads, and
 two small gaps (0/0 fps and side_data_list rotation) were fixed without changing
 the response shape.
 ```
+
+## 2026-09-01 Working Copy Edit Spike
+
+Scope:
+
+```text
+First minimal spike for direct editing of a .kdenlive working copy
+```
+
+Technical decision:
+
+```text
+A thin workflow wrapper was implemented: apply_timeline_to_working_project.
+It adds a clear semantic contract ("apply this timeline to this working copy"),
+copy-on-write derived naming (<working_stem>_edited.kdenlive), a pre-check that
+the working copy parses, and optional MLT validation, while reusing
+export_timeline_to_kdenlive_template internally (no duplicated XML logic).
+True in-place editing of the working copy file is intentionally not done.
+```
+
+Contract:
+
+```text
+input  working_project .kdenlive (from prepare_working_project)
+input  timeline_file .timeline.json (schema_version 1)
+output new derived .kdenlive, never the working copy itself
+validates the working copy parses before use
+returns working_project, output_project, inspection_summary, warnings, operation
+check_mlt=true adds an optional Flatpak melt load result
+```
+
+Tests:
+
+```text
+test_apply_timeline_to_working_project (e2e via MCP):
+  working copy created, timeline built, derived .kdenlive written, XML parses,
+  inspect_project reports timeline clips, original fixture and working copy
+  checksums unchanged
+test_apply_timeline_to_working_project_rejects_outside_allowlist: PERMISSION_DENIED
+test_apply_timeline_to_working_project_rejects_unsupported_timeline_schema:
+  UNSUPPORTED_SCHEMA_VERSION
+```
+
+Commands:
+
+```bash
+pytest tests/test_project_mcp_workflow.py tests/test_timeline_service.py tests/test_tool_response_contract.py
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+targeted tests: 72 passed, 1 skipped
+full suite: 267 passed, 9 skipped
+tool count: 60 (new tool registered)
+```
+
+Decision:
+
+```text
+The working-copy editing spike is delivered as a copy-on-write MCP tool. In-place
+editing of the working copy file remains a documented future step.
+```

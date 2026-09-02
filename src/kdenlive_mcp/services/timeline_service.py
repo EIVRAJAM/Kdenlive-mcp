@@ -1918,3 +1918,58 @@ def export_timeline_to_kdenlive_template(
         },
         "validation": validation,
     }
+
+
+def apply_timeline_to_working_project(
+    working_project: str,
+    timeline_file: str,
+    output_directory: str | None = None,
+    name: str | None = None,
+    overwrite: bool = False,
+    check_mlt: bool = False,
+) -> dict[str, Any]:
+    try:
+        working_path = ensure_project_path(working_project)
+    except SecurityError as exc:
+        return _security_error(exc)
+    if not working_path.exists():
+        return _error("PROJECT_NOT_FOUND", f"Working project does not exist: {working_path}")
+
+    try:
+        KdenliveProjectAdapter().inspect(working_path)
+    except KdenliveProjectError as exc:
+        return _error(exc.code, exc.message)
+
+    try:
+        output_dir = ensure_project_path(output_directory or str(working_path.parent))
+    except SecurityError as exc:
+        return _security_error(exc)
+
+    derived_name = name or f"{working_path.stem}_edited"
+    exported = export_timeline_to_kdenlive_template(
+        timeline_file=timeline_file,
+        template_project=str(working_path),
+        output_directory=str(output_dir),
+        name=derived_name,
+        overwrite=overwrite,
+        check_media_exists=True,
+    )
+    if not exported.get("success"):
+        return exported
+
+    result: dict[str, Any] = {
+        "success": True,
+        "operation": "apply_timeline_to_working_project",
+        "working_project": str(working_path),
+        "output_project": exported["project"],
+        "inspection_summary": exported.get("inspection_summary", {}),
+        "warnings": exported.get("warnings", []),
+        "format": exported.get("format"),
+        "kdenlive_project": exported.get("kdenlive_project"),
+    }
+    if check_mlt:
+        from kdenlive_mcp.tools.project_tools import validate_project
+
+        mlt = validate_project(exported["project"], check_mlt=True)
+        result["mlt_load"] = mlt.get("checks", {}).get("mlt_load", {})
+    return result
