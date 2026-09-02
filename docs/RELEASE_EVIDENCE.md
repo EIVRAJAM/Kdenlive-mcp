@@ -1281,3 +1281,53 @@ Decision:
 Residual Codex-specific production language is removed. Codex remains documented
 only as one possible client example; the production target is MCP-client-agnostic.
 ```
+
+## 2026-09-01 Single Release Gate Command
+
+Command created:
+
+```text
+scripts/release_gate.sh
+```
+
+Gates covered, in order:
+
+```text
+1. dev_check      scripts/dev_check.sh (compileall + pytest)
+2. stdio_smoke    KDENLIVE_MCP_RUN_STDIO_SMOKE=1 scripts/dev_check.sh
+3. reliability    KDENLIVE_MCP_RUN_RELIABILITY=1 scripts/dev_check.sh
+4. mlt_load       KDENLIVE_MCP_RUN_MLT_CHECK=1 (only when KDENLIVE_MCP_MLT_PROJECT is set)
+```
+
+Commands executed:
+
+```bash
+bash scripts/release_gate.sh
+KDENLIVE_MCP_MLT_PROJECT=/data/PROYECTOS/kdenlive-mcp/examples/recon/mlt_gate_20260901.kdenlive bash scripts/release_gate.sh
+```
+
+Results:
+
+```text
+bash scripts/release_gate.sh: exit 0
+  dev_check: OK, stdio_smoke: OK, reliability: OK, mlt_load: SKIPPED
+KDENLIVE_MCP_MLT_PROJECT=... bash scripts/release_gate.sh: exit 0
+  dev_check: OK, stdio_smoke: OK, reliability: OK, mlt_load: OK
+full suite: 223 passed, 9 skipped
+```
+
+What remains manual:
+
+```text
+Manual Kdenlive open verification stays a separate step (release checklist section 5).
+When KDENLIVE_MCP_MLT_PROJECT is unset, the real Flatpak melt load is skipped and
+reported explicitly by the gate.
+```
+
+Decision:
+
+```text
+A single reproducible release gate now runs the deterministic, STDIO, and
+reliability gates, plus the optional real MLT load gate, in one command with a
+clear summary, failing on any mandatory gate failure.
+```

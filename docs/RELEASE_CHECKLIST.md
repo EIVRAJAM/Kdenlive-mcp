@@ -25,7 +25,21 @@ no untracked generated artifacts
 
 ## 2. Deterministic Local Checks
 
-Run:
+Recommended single release gate command (runs dev checks, STDIO smoke,
+fixture reliability, and optional real MLT load when `KDENLIVE_MCP_MLT_PROJECT`
+is set):
+
+```bash
+bash scripts/release_gate.sh
+```
+
+To include the real Flatpak melt load gate in the same run:
+
+```bash
+KDENLIVE_MCP_MLT_PROJECT=/path/to/generated.kdenlive bash scripts/release_gate.sh
+```
+
+Run the individual default checks:
 
 ```bash
 scripts/dev_check.sh
@@ -38,7 +52,8 @@ compileall passes
 pytest passes
 ```
 
-Record the exact pytest count.
+Record the exact pytest count. Manual Kdenlive-open verification remains a
+separate step (section 5).
 
 ## 3. Fixture Workflow Check
 
