@@ -81,6 +81,15 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
   (`<working_stem>_edited.kdenlive`), copy-on-write, con validación e inspección.
   La edición *in-place* del archivo working copy sigue sin implementarse (por
   diseño); e2e en `test_apply_timeline_to_working_project`.
+- Round-trip real de un proyecto generado por el MCP: **bug encontrado, corregido y
+  verificado manualmente**. El primer round-trip reveló que el writer creaba chains de
+  timeline con `control_uuid` propios (Kdenlive reparaba con el aviso "referencia
+  incorrecta en el panel Medios"). Se corrigió el writer para compartir el `control_uuid`
+  del bin por media, usar un chain de timeline compartido por audio/video y añadir
+  `kdenlive:audio_index=1` (patrón confirmado por el oracle
+  `roundtrip_ai_resaved_by_kdenlive.kdenlive`). El usuario reabrió el archivo regenerado
+  en Kdenlive 26.04.3 y el aviso ya no apareció. Riesgos residuales: Kdenlive puede
+  cambiar el formato; repetir la verificación manual por release cuando el writer cambie.
 
 ## Production Gate Verdict
 

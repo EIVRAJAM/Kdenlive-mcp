@@ -3,6 +3,8 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
+from kdenlive_mcp.adapters.kdenlive_xml import KdenliveProjectAdapter
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RECON_DIR = REPO_ROOT / "examples" / "recon"
@@ -24,6 +26,131 @@ ADDITIONAL_REFERENCE_PROJECTS = [
     "manual_transition_dissolve.kdenlive",
     "manual_basic_effect.kdenlive",
 ]
+
+ROUNDTRIP_GENERATED = "roundtrip_ai_generated.kdenlive"
+ROUNDTRIP_RESAVED = "roundtrip_ai_resaved_by_kdenlive.kdenlive"
+
+_ROUNDTRIP_SKIP_REASON = (
+    f"{ROUNDTRIP_RESAVED} requires opening {ROUNDTRIP_GENERATED} in Kdenlive and "
+    "saving it under that name; instructions in docs/KDENLIVE_PROJECT_FORMAT.md"
+)
+
+
+def _bin_chain_ids(root: ET.Element) -> set[str]:
+    main_bin = root.find("playlist[@id='main_bin']")
+    if main_bin is None:
+        return set()
+    return {
+        entry.attrib["producer"]
+        for entry in main_bin.findall("entry")
+        if entry.attrib.get("producer", "").startswith("chain")
+    }
+
+
+def _chain_props(root: ET.Element) -> dict[str, dict[str, str]]:
+    return {chain.attrib["id"]: _props(chain) for chain in root.findall("chain") if "id" in chain.attrib}
+
+
+def _timeline_entry_chains(root: ET.Element, bin_ids: set[str]) -> list[tuple[str, str, str]]:
+    chains = _chain_props(root)
+    entries: list[tuple[str, str, str]] = []
+    for playlist in root.findall("playlist"):
+        if playlist.get("id") == "main_bin":
+            continue
+        for entry in playlist.findall("entry"):
+            producer = entry.attrib.get("producer")
+            if producer and producer in chains and producer not in bin_ids:
+                props = chains[producer]
+                entries.append((producer, props.get("kdenlive:id", ""), props.get("kdenlive:control_uuid", "")))
+    return entries
+
+
+def test_generated_project_timeline_chains_share_bin_control_uuid() -> None:
+    root = _parse(ROUNDTRIP_GENERATED)
+    bin_ids = _bin_chain_ids(root)
+    chains = _chain_props(root)
+    bin_media_uuids = {
+        chains[chain_id].get("kdenlive:id"): chains[chain_id].get("kdenlive:control_uuid")
+        for chain_id in bin_ids
+    }
+
+    for producer, media_id, control_uuid in _timeline_entry_chains(root, bin_ids):
+        assert control_uuid == bin_media_uuids.get(media_id), (
+            f"timeline chain {producer} control_uuid {control_uuid} does not match "
+            f"bin chain for media {media_id} ({bin_media_uuids.get(media_id)})"
+        )
+
+
+def test_generated_project_timeline_entries_have_audio_index() -> None:
+    root = _parse(ROUNDTRIP_GENERATED)
+
+    for playlist in root.findall("playlist"):
+        if playlist.get("id") == "main_bin":
+            continue
+        for entry in playlist.findall("entry"):
+            assert _props(entry).get("kdenlive:audio_index") == "1"
+
+
+def test_generated_project_uses_one_shared_timeline_chain_per_media() -> None:
+    root = _parse(ROUNDTRIP_GENERATED)
+    bin_ids = _bin_chain_ids(root)
+    timeline_producers = {producer for producer, _, _ in _timeline_entry_chains(root, bin_ids)}
+    chains = _chain_props(root)
+    media_ids = {chains[producer].get("kdenlive:id") for producer in timeline_producers}
+
+    for media_id in media_ids:
+        matching = [producer for producer in timeline_producers if chains[producer].get("kdenlive:id") == media_id]
+        assert len(matching) == 1, f"media {media_id} has {len(matching)} timeline chains: {matching}"
+
+
+@pytest.mark.skipif(not (RECON_DIR / ROUNDTRIP_RESAVED).exists(), reason=_ROUNDTRIP_SKIP_REASON)
+def test_resaved_project_timeline_chains_share_bin_control_uuid() -> None:
+    root = _parse(ROUNDTRIP_RESAVED)
+    bin_ids = _bin_chain_ids(root)
+    chains = _chain_props(root)
+    bin_media_uuids = {
+        chains[chain_id].get("kdenlive:id"): chains[chain_id].get("kdenlive:control_uuid")
+        for chain_id in bin_ids
+    }
+
+    for producer, media_id, control_uuid in _timeline_entry_chains(root, bin_ids):
+        assert control_uuid == bin_media_uuids.get(media_id), (
+            f"resaved timeline chain {producer} control_uuid {control_uuid} does not match "
+            f"bin chain for media {media_id} ({bin_media_uuids.get(media_id)})"
+        )
+
+
+@pytest.mark.skipif(not (RECON_DIR / ROUNDTRIP_RESAVED).exists(), reason=_ROUNDTRIP_SKIP_REASON)
+def test_roundtrip_resaved_project_is_well_formed_with_media_and_profile() -> None:
+    root = _parse(ROUNDTRIP_RESAVED)
+
+    assert root.tag == "mlt"
+    assert root.attrib["producer"] == "main_bin"
+    profile = root.find("profile")
+    assert profile is not None
+    assert profile.attrib["width"] == "1080"
+    assert profile.attrib["height"] == "1920"
+    assert profile.attrib["frame_rate_num"] == "30"
+    assert profile.attrib["frame_rate_den"] == "1"
+    assert profile.attrib["display_aspect_num"] == "9"
+    assert profile.attrib["display_aspect_den"] == "16"
+
+    for chain in root.findall("chain"):
+        resource = _props(chain).get("resource")
+        if resource and resource != "black":
+            assert (RECON_DIR / resource).exists()
+
+
+@pytest.mark.skipif(not (RECON_DIR / ROUNDTRIP_RESAVED).exists(), reason=_ROUNDTRIP_SKIP_REASON)
+def test_roundtrip_resaved_project_inspects_cleanly() -> None:
+    inspection = KdenliveProjectAdapter().inspect(RECON_DIR / ROUNDTRIP_RESAVED)
+    active_sequence = next(
+        sequence for sequence in inspection["sequences"] if sequence["id"] == inspection["active_sequence_id"]
+    )
+
+    assert inspection["document"]["profile"] == "vertical_hd_30"
+    assert inspection["validation"]["missing_media_count"] == 0
+    assert len(active_sequence["timeline_clips"]) > 0
 
 DEFAULT_TRANSITION_SERVICES = {"mix", "qtblend"}
 DEFAULT_FILTER_SERVICES = {"volume", "panner", "audiolevel"}

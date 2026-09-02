@@ -1916,3 +1916,150 @@ mandatory gates pass, the real MLT load runs (not skipped), and the remaining
 SDK-client smoke is blocked only by the absent local mcp SDK. This represents a
 release-state run, not just a collection of loose tests.
 ```
+
+## 2026-09-02 Kdenlive Round-Trip Preparation
+
+Scope:
+
+```text
+Prepare and validate an MCP-generated project for a real Kdenlive round-trip
+```
+
+Generated project (via existing workflow):
+
+```text
+examples/recon/roundtrip_ai_generated.kdenlive
+```
+
+Commands:
+
+```bash
+# generation
+create_vlog_rough_cut_project(folder=examples/recon, template=manual_empty_vertical.kdenlive,
+  name=roundtrip_ai_generated, target_duration=4, max_files=2)
+
+# validation before round-trip
+xmllint --noout examples/recon/roundtrip_ai_generated.kdenlive
+validate_project(check_mlt=True)
+pytest tests/test_kdenlive_project_adapter.py tests/test_kdenlive_project_fixtures.py
+```
+
+Results:
+
+```text
+xmllint: OK
+validate_project: valid=true, MLT load status loaded (Flatpak melt exit 0)
+summary: profile vertical_hd_30, media_count 2, sequence_count 1, missing_media_count 0
+timeline clips: 4, guides: 2, markers: 2
+pytest adapter + fixtures: 27 passed
+full suite: 283 passed, 3 skipped (the 2 round-trip tests skip until the resaved file exists)
+```
+
+Pending manual step (user):
+
+```text
+flatpak run org.kde.kdenlive examples/recon/roundtrip_ai_generated.kdenlive
+File > Save As examples/recon/roundtrip_ai_resaved_by_kdenlive.kdenlive
+```
+
+Decision:
+
+```text
+The MCP-generated project is prepared and fully validated. The round-trip risk
+is reduced to a documented manual step: once Kdenlive re-saves the project, the
+reproducible tests (test_roundtrip_resaved_project_*) validate that it still
+parses, keeps the vertical HD 30 profile, resolves its media, and retains
+timeline clips. Byte-identical XML is not expected.
+```
+
+## 2026-09-02 Kdenlive Round-Trip Found And Fixed Writer Bug
+
+Scope:
+
+```text
+First real Kdenlive round-trip exposed a writer bug that triggered the
+"referencia incorrecta en el panel Medios" repair warning
+```
+
+Observation:
+
+```text
+The user opened roundtrip_ai_generated.kdenlive in Kdenlive 26.04.3, saw the
+timeline-reference repair warning, and re-saved it as
+roundtrip_ai_resaved_by_kdenlive.kdenlive (used as the oracle, not as success
+proof).
+```
+
+Root cause:
+
+```text
+the writer created a separate timeline chain per audio/video clip, each with a
+fresh kdenlive:control_uuid, so Kdenlive could not match them to Project Bin
+media and repaired the project
+```
+
+Confirmed correct pattern (from the oracle):
+
+```text
+one shared timeline chain per media (audio + video playlists reference the same
+producer)
+timeline chain reuses the bin chain kdenlive:control_uuid for the same media
+timeline chains set test_audio=1 and test_image=1
+timeline entries carry kdenlive:audio_index=1
+```
+
+Fix (src/kdenlive_mcp/adapters/kdenlive_xml.py):
+
+```text
+bin and timeline chains of the same media now share one control_uuid
+one shared timeline chain per media (set_audio + set_image), not one per clip
+timeline entries add kdenlive:audio_index=1
+```
+
+Static tests that failed with the old XML and pass after the fix:
+
+```text
+test_generated_project_timeline_chains_share_bin_control_uuid
+test_generated_project_timeline_entries_have_audio_index
+test_generated_project_uses_one_shared_timeline_chain_per_media
+test_resaved_project_timeline_chains_share_bin_control_uuid (oracle confirms the invariant)
+```
+
+Commands:
+
+```bash
+xmllint --noout examples/recon/roundtrip_ai_generated.kdenlive examples/recon/roundtrip_ai_resaved_by_kdenlive.kdenlive
+pytest tests/test_kdenlive_project_fixtures.py
+pytest tests/test_kdenlive_project_adapter.py tests/test_kdenlive_project_fixtures.py
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+xmllint: OK (both files)
+tests/test_kdenlive_project_fixtures.py: 26 passed
+tests/test_kdenlive_project_adapter.py + fixtures: 36 passed
+full suite: 289 passed, 1 skipped
+validate_project(check_mlt=True) on regenerated project: valid, MLT loaded, missing media 0
+```
+
+Status:
+
+```text
+Manual confirmation (passed): the user reopened the regenerated
+roundtrip_ai_generated.kdenlive in Kdenlive 26.04.3 and the "referencia
+incorrecta en el panel Medios" dialog no longer appeared. The round-trip writer
+bug is corrected and manually confirmed.
+```
+
+Decision:
+
+```text
+The writer bug that triggered Kdenlive's timeline-reference repair is fixed and
+manually verified. roundtrip_ai_resaved_by_kdenlive.kdenlive remains the oracle
+of the original bug, not proof of the corrected state. The round-trip risk is
+closed for this Kdenlive version; it should be re-verified by release when the
+writer changes.
+```

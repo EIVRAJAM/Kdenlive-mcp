@@ -120,6 +120,7 @@ def _chain_element(
     *,
     set_audio: bool,
     set_image: bool,
+    control_uuid: str | None = None,
 ) -> ET.Element:
     out = seconds_to_kdenlive_out_timecode(media_duration, fps_num, fps_den)
     length = max(1, int(round(media_duration * fps_num / fps_den)))
@@ -137,7 +138,7 @@ def _chain_element(
         ("astream", "0"),
         ("kdenlive:folderid", "-1"),
         ("kdenlive:id", media_id),
-        ("kdenlive:control_uuid", "{" + str(uuid.uuid4()) + "}"),
+        ("kdenlive:control_uuid", control_uuid or "{" + str(uuid.uuid4()) + "}"),
         ("mute_on_pause", "0"),
         ("kdenlive:clip_type", "0"),
         ("set.test_audio", "1" if set_audio else "0"),
@@ -562,7 +563,10 @@ class KdenliveProjectAdapter:
         timeline_chain_ids: dict[str, str] = {}
         media_id_map = {media_id: str(index) for index, media_id in enumerate(sorted(media_paths), start=4)}
 
-        def add_chain(media_id: str, *, set_audio: bool, set_image: bool) -> str:
+        def new_uuid() -> str:
+            return "{" + str(uuid.uuid4()) + "}"
+
+        def add_chain(media_id: str, *, set_audio: bool, set_image: bool, control_uuid: str) -> str:
             nonlocal chain_counter, chain_insert_index
             chain_id = f"chain{chain_counter}"
             chain_counter += 1
@@ -576,21 +580,20 @@ class KdenliveProjectAdapter:
                 fps_den=fps_den,
                 set_audio=set_audio,
                 set_image=set_image,
+                control_uuid=control_uuid,
             )
             root.insert(chain_insert_index, chain)
             chain_insert_index += 1
             return chain_id
 
         for media_id in sorted(media_paths):
-            bin_chain_ids[media_id] = add_chain(media_id, set_audio=False, set_image=True)
-        for clip in timeline.clips:
-            track = next((item for item in timeline.tracks if item.id == clip.track_id), None)
-            if track is None:
-                continue
-            if track.type == "audio":
-                timeline_chain_ids[clip.id] = add_chain(clip.media_id, set_audio=True, set_image=False)
-            elif track.type == "video":
-                timeline_chain_ids[clip.id] = add_chain(clip.media_id, set_audio=False, set_image=True)
+            control_uuid = new_uuid()
+            bin_chain_ids[media_id] = add_chain(
+                media_id, set_audio=False, set_image=True, control_uuid=control_uuid
+            )
+            timeline_chain_ids[media_id] = add_chain(
+                media_id, set_audio=True, set_image=True, control_uuid=control_uuid
+            )
 
         def append_playlist_entry(playlist: ET.Element, clip: TimelineClip) -> None:
             entry = ET.SubElement(
@@ -599,10 +602,11 @@ class KdenliveProjectAdapter:
                 {
                     "in": seconds_to_kdenlive_in_timecode(clip.source_in, fps_num, fps_den),
                     "out": seconds_to_kdenlive_out_timecode(clip.source_out, fps_num, fps_den),
-                    "producer": timeline_chain_ids[clip.id],
+                    "producer": timeline_chain_ids[clip.media_id],
                 },
             )
             _set_property(entry, "kdenlive:id", media_id_map[clip.media_id])
+            _set_property(entry, "kdenlive:audio_index", "1")
 
         def append_track_clips(playlist: ET.Element, track_id: str) -> None:
             cursor = 0.0

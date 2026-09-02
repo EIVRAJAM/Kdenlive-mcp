@@ -528,8 +528,97 @@ Proxy attachment fields
 Subtitle track representation
 Effect STACK composition across multiple effects on one clip
 Multiple user transitions on the same clip
-Kdenlive behavior after round-tripping an AI-written project
+Round-trip behavior for complex AI-written projects with effect stacks, multiple
+transitions, proxies, subtitles, or advanced metadata
 ```
+
+## Kdenlive Round-Trip Of An AI-Generated Project
+
+The MCP generates `examples/recon/roundtrip_ai_generated.kdenlive` from the
+existing workflow (template `manual_empty_vertical.kdenlive`, media
+`sample1.mp4` + `sample_vertical.mp4`).
+
+Generated baseline (verified 2026-09-02):
+
+```text
+profile: vertical_hd_30
+bin media: sample1.mp4, sample_vertical.mp4
+timeline clips: 4 (sample1, sample_vertical, sample1, sample_vertical)
+guides: 2, markers: 2
+missing media: 0
+MLT load: valid true (Flatpak melt exit 0)
+```
+
+Manual round-trip steps (user action):
+
+```bash
+flatpak run org.kde.kdenlive \
+  examples/recon/roundtrip_ai_generated.kdenlive
+```
+
+Then in Kdenlive: `File > Save As` to:
+
+```text
+examples/recon/roundtrip_ai_resaved_by_kdenlive.kdenlive
+```
+
+Validation once the resaved file exists (tests skip until then):
+
+```bash
+xmllint --noout examples/recon/roundtrip_ai_resaved_by_kdenlive.kdenlive
+pytest tests/test_kdenlive_project_fixtures.py -k roundtrip
+```
+
+Expectations, not byte-identical XML:
+
+```text
+profile stays vertical_hd_30
+same bin media still resolve (no missing media)
+timeline clips still present
+guides/markers may be preserved or reordered by Kdenlive
+Kdenlive may reorder or enrich metadata
+```
+
+### Observed Bug And Fix (2026-09-02)
+
+The first generated file triggered Kdenlive's warning:
+
+```text
+"clip de la línea de tiempo ... contenía una referencia incorrecta en el panel
+Medios y fue recuperado"
+```
+
+Root cause: the writer created a separate timeline chain per audio/video clip and
+assigned each a fresh `kdenlive:control_uuid`. Kdenlive could not match those
+timeline chains to the Project Bin media, so it repaired the project.
+
+Kdenlive's repair (oracle `roundtrip_ai_resaved_by_kdenlive.kdenlive`) revealed
+the correct pattern:
+
+```text
+one timeline chain per media, shared by audio and video playlists
+the timeline chain reuses the Project Bin chain's kdenlive:control_uuid for the
+same media
+timeline chains set test_audio=1 and test_image=1
+every timeline entry carries kdenlive:audio_index=1
+```
+
+The writer was fixed accordingly:
+
+```text
+bin chain and timeline chain for the same media share one control_uuid
+one shared timeline chain per media (set_audio + set_image), not one per clip
+timeline entries add kdenlive:audio_index=1
+```
+
+The regenerated `roundtrip_ai_generated.kdenlive` now matches this pattern and
+still validates (MLT load loaded, missing media 0). `roundtrip_ai_resaved_by_
+kdenlive.kdenlive` is kept as the oracle of the original bug, not as proof of the
+corrected state.
+
+Manual verification (passed): the user reopened the regenerated
+`roundtrip_ai_generated.kdenlive` in Kdenlive 26.04.3 and the "referencia
+incorrecta en el panel Medios" dialog no longer appeared.
 
 ## Current Write Boundary
 
