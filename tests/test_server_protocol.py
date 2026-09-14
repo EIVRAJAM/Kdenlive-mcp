@@ -115,6 +115,48 @@ def test_read_and_write_mcp_message() -> None:
     assert b'\r\n\r\n{"jsonrpc":"2.0","id":1,"result":{}}' in output.getvalue()
 
 
+def test_read_message_supports_jsonl_framing() -> None:
+    payload = {"jsonrpc": "2.0", "id": 1, "method": "ping", "params": {}}
+    stream = io.BytesIO(b'{"jsonrpc":"2.0","id":1,"method":"ping","params":{}}\n')
+
+    assert read_message(stream) == payload
+
+
+def test_write_message_supports_jsonl_framing() -> None:
+    output = io.BytesIO()
+    write_message(output, {"jsonrpc": "2.0", "id": 1, "result": {}}, framing="jsonl")
+
+    assert output.getvalue() == b'{"jsonrpc":"2.0","id":1,"result":{}}\n'
+
+
+def _framed_with_headers(payload: dict[str, object], headers: list[str]) -> bytes:
+    body = json.dumps(payload).encode("utf-8")
+    header_block = "".join(f"{header}\r\n" for header in headers).encode("ascii")
+    return header_block + b"\r\n" + body
+
+
+def test_read_message_accepts_content_type_before_content_length() -> None:
+    payload = {"jsonrpc": "2.0", "id": 1, "method": "ping", "params": {}}
+    body = json.dumps(payload).encode("utf-8")
+    framed = _framed_with_headers(
+        payload,
+        ["Content-Type: application/vscode-jsonrpc; charset=utf-8", f"Content-Length: {len(body)}"],
+    )
+
+    assert read_message(io.BytesIO(framed)) == payload
+
+
+def test_read_message_accepts_content_length_before_content_type() -> None:
+    payload = {"jsonrpc": "2.0", "id": 1, "method": "ping", "params": {}}
+    body = json.dumps(payload).encode("utf-8")
+    framed = _framed_with_headers(
+        payload,
+        [f"Content-Length: {len(body)}", "Content-Type: application/vscode-jsonrpc; charset=utf-8"],
+    )
+
+    assert read_message(io.BytesIO(framed)) == payload
+
+
 def test_initialize_response() -> None:
     response = handle_request({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
 

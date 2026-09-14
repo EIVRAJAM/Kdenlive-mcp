@@ -2264,3 +2264,61 @@ render_preview is validated against a real, useful preview render (duration
 is confirmed, and the melt termination quirk is handled with the timeout
 wrapper. render_final and complex presets remain out of scope.
 ```
+
+## 2026-09-02 Real MCP SDK Client Gate Closed
+
+Scope:
+
+```text
+Validate discovery with the official Python MCP SDK, not only the raw STDIO channel
+```
+
+Environment:
+
+```text
+created an isolated .venv with uv (python3-venv/ensurepip was unavailable) and
+installed the official mcp SDK plus pydantic there
+```
+
+Findings:
+
+```text
+the mcp SDK writes and expects JSONL framing (one JSON message per line), while
+the server only supported Content-Length framing; initialize hung
+```
+
+Fix (src/kdenlive_mcp/server.py):
+
+```text
+the STDIO reader now detects both framings and the writer echoes the framing used
+by the client (JSONL or Content-Length); serve() tracks the framing per message
+```
+
+Commands:
+
+```bash
+.venv/bin/python scripts/mcp_client_sdk_smoke_test.py
+python3 scripts/mcp_stdio_smoke_test.py
+pytest tests/test_server_protocol.py tests/test_mcp_stdio_smoke.py tests/test_mcp_client_config.py -q
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+SDK smoke (.venv, mcp 1.9.0): exit 0, success=true, server kdenlive-mcp,
+tool_count 61, required_tools_present true
+STDIO smoke: success true, tool_count 61
+framing unit tests: 53 passed (protocol + smoke + config)
+full suite: 310 passed, 1 skipped
+```
+
+Decision:
+
+```text
+The real MCP SDK client gate is closed: an official mcp client discovers the
+server over STDIO. The JSONL framing support is a minimal, backward-compatible
+protocol fix. Other clients remain to be sampled, but the SDK that Codex-class
+agents use is verified.
+```

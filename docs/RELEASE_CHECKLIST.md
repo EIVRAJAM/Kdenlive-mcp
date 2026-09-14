@@ -196,11 +196,11 @@ export_timeline_to_kdenlive_template are present
 script exits 0
 ```
 
-Recommended real-client SDK gate (when the official Python MCP SDK is
-installed; reports a structured blocker otherwise):
+Recommended real-client SDK gate (uses the official Python MCP SDK in an
+isolated venv; run with `.venv/bin/python`):
 
 ```bash
-python3 scripts/mcp_client_sdk_smoke_test.py
+.venv/bin/python scripts/mcp_client_sdk_smoke_test.py
 ```
 
 Required result:

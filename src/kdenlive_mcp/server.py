@@ -48,48 +48,74 @@ class McpError(Exception):
         self.data = data
 
 
-def _read_headers(stream: BinaryIO) -> dict[str, str] | None:
-    headers: dict[str, str] = {}
-    while True:
-        line = stream.readline()
-        if line == b"":
-            return None
-        if line in (b"\r\n", b"\n"):
-            return headers
-        decoded = line.decode("ascii").strip()
-        if ":" not in decoded:
-            raise McpError(-32700, f"Invalid MCP header: {decoded}")
-        key, value = decoded.split(":", 1)
-        headers[key.lower()] = value.strip()
+CONTENT_LENGTH_FRAMING = "content-length"
+JSONL_FRAMING = "jsonl"
 
 
-def read_message(stream: BinaryIO) -> dict[str, Any] | None:
-    headers = _read_headers(stream)
-    if headers is None:
-        return None
-    length_value = headers.get("content-length")
-    if length_value is None:
-        raise McpError(-32700, "Missing Content-Length header")
+def read_message_with_framing(stream: BinaryIO) -> tuple[dict[str, Any] | None, str]:
+    first = stream.readline()
+    if first == b"":
+        return None, CONTENT_LENGTH_FRAMING
+    stripped = first.decode("utf-8", errors="replace").strip()
+
+    is_header_line = ":" in stripped and not stripped.startswith("{")
+    if is_header_line:
+        headers: dict[str, str] = {}
+        line = first
+        while True:
+            text = line.decode("ascii", errors="replace").strip()
+            if text == "":
+                break
+            if ":" not in text:
+                raise McpError(-32700, f"Invalid MCP header: {text}")
+            key, value = text.split(":", 1)
+            headers[key.lower()] = value.strip()
+            line = stream.readline()
+            if line == b"":
+                raise McpError(-32700, "Unexpected end of stream")
+        length_value = headers.get("content-length")
+        if length_value is None:
+            raise McpError(-32700, "Missing Content-Length header")
+        try:
+            length = int(length_value)
+        except ValueError as exc:
+            raise McpError(-32700, "Invalid Content-Length header") from exc
+        body = stream.read(length)
+        if len(body) != length:
+            raise McpError(-32700, "Unexpected end of stream")
+        try:
+            message = json.loads(body.decode("utf-8"))
+        except json.JSONDecodeError as exc:
+            raise McpError(-32700, "Invalid JSON payload") from exc
+        if not isinstance(message, dict):
+            raise McpError(-32600, "JSON-RPC message must be an object")
+        return message, CONTENT_LENGTH_FRAMING
+
+    # JSONL framing (used by modern MCP SDK clients): one JSON message per line.
+    if stripped == "":
+        return None, JSONL_FRAMING
     try:
-        length = int(length_value)
-    except ValueError as exc:
-        raise McpError(-32700, "Invalid Content-Length header") from exc
-    body = stream.read(length)
-    if len(body) != length:
-        raise McpError(-32700, "Unexpected end of stream")
-    try:
-        message = json.loads(body.decode("utf-8"))
+        message = json.loads(stripped)
     except json.JSONDecodeError as exc:
         raise McpError(-32700, "Invalid JSON payload") from exc
     if not isinstance(message, dict):
         raise McpError(-32600, "JSON-RPC message must be an object")
+    return message, JSONL_FRAMING
+
+
+def read_message(stream: BinaryIO) -> dict[str, Any] | None:
+    message, _framing = read_message_with_framing(stream)
     return message
 
 
-def write_message(stream: BinaryIO, message: dict[str, Any]) -> None:
+def write_message(stream: BinaryIO, message: dict[str, Any], framing: str = CONTENT_LENGTH_FRAMING) -> None:
     body = json.dumps(message, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-    stream.write(f"Content-Length: {len(body)}\r\n\r\n".encode("ascii"))
-    stream.write(body)
+    if framing == JSONL_FRAMING:
+        stream.write(body)
+        stream.write(b"\n")
+    else:
+        stream.write(f"Content-Length: {len(body)}\r\n\r\n".encode("ascii"))
+        stream.write(body)
     stream.flush()
 
 
@@ -334,7 +360,7 @@ def serve(input_stream: BinaryIO | None = None, output_stream: BinaryIO | None =
 
     while True:
         try:
-            message = read_message(input_stream)
+            message, framing = read_message_with_framing(input_stream)
             if message is None:
                 return
             try:
@@ -342,7 +368,7 @@ def serve(input_stream: BinaryIO | None = None, output_stream: BinaryIO | None =
             except McpError as exc:
                 response = _error_response(message.get("id"), exc)
             if response is not None:
-                write_message(output_stream, response)
+                write_message(output_stream, response, framing=framing)
         except McpError as exc:
             write_message(output_stream, _error_response(None, exc))
 
