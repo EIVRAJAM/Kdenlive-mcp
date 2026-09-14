@@ -1758,6 +1758,69 @@ The output directory must be allowed both as an output directory and as a
 project directory, because the resulting working copy becomes the next project
 to inspect or edit.
 
+### render_preview
+
+Input:
+
+```json
+{
+  "project": "/home/abrahamc/Videos/vlog/vlog.kdenlive",
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "name": "preview",
+  "width": 720,
+  "height": 1280,
+  "overwrite": false
+}
+```
+
+Renders a fast preview MP4 from a validated `.kdenlive` project using Flatpak
+melt:
+
+```bash
+timeout 120 flatpak run --command=melt org.kde.kdenlive <project> \
+  -consumer avformat:<output.mp4> \
+  real_time=-RT width=<width> height=<height> vcodec=libx264 an=0
+```
+
+The `timeout` wrapper sends SIGTERM so melt finalizes the MP4 (moov atom) even
+though melt does not exit cleanly on its own in some Flatpak environments.
+
+The original `.kdenlive` is never modified. Output is written only to an
+allowed output directory; existing outputs are refused unless `overwrite=true`.
+
+Response includes:
+
+```text
+success           boolean
+operation         render_preview
+project           input project path
+output            preview mp4 path
+command_summary   exact shell=False command
+duration_ms        render duration
+warnings          list
+render            returncode and size_bytes on success
+```
+
+Failure semantics:
+
+```text
+existing output without overwrite   -> OUTPUT_EXISTS
+path outside allowlists              -> PERMISSION_DENIED
+real melt failure                    -> success=false, error=MLT_ERROR
+known sandbox (Unable to allocate)   -> success=false,
+                                        error=FLATPAK_EXECUTION_UNAVAILABLE_IN_SANDBOX,
+                                        plus a structured warning with the same code
+```
+
+A preview render reports `success=true` only when an output MP4 file is
+produced. The real render smoke (`scripts/render_preview_smoke.py`) is the gate
+that confirms the MP4 has a useful duration and the requested dimensions;
+run it with:
+
+```bash
+KDENLIVE_MCP_RUN_RENDER_SMOKE=1 scripts/dev_check.sh
+```
+
 ## Verification Commands
 
 ```bash

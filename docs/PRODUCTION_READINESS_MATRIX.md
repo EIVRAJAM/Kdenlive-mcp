@@ -39,7 +39,7 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
 | Persistent structured logging | DONE | `src/kdenlive_mcp/logging.py` (JSONL, redacción, error_type/message); `tests/test_server_protocol.py` (logging tests) | Log default a `logs/` si no se configura | — |
 | Reproducible dev/release check command | DONE | `scripts/dev_check.sh`, `scripts/release_gate.sh` (dev + STDIO smoke + reliability + MLT opcional), `docs/RELEASE_CHECKLIST.md`; RELEASE_EVIDENCE (comandos exactos) | Checks de fiabilidad/MLT opt-in por env y MLT requiere Flatpak | — |
 | Schema documentation for persisted JSON files | DONE | `docs/SCHEMAS.md` (rough-cut plan, timeline, manifest; "Schema Migration Policy"; códigos actuales con `UNSUPPORTED_SCHEMA_VERSION` unificado), `tests/test_schema_docs.py`, `tests/test_rough_cut_tools.py`, `tests/test_timeline_service.py`, `tests/test_manifest_tools.py` | No hay migradores todavía (por diseño, pendiente futuro) | Implementar migradores explícitos cuando exista v2 |
-| Generic MCP client registration example | DONE | `examples/mcp_client_config.toml`, `docs/MCP_CLIENT_SETUP.md`, `examples/codex_mcp_config.toml`, `docs/CODEX_SETUP.md`; smoke test STDIO real `scripts/mcp_stdio_smoke_test.py` (`initialize` + `tools/list`, 60 tools); smoke SDK reproducible `scripts/mcp_client_sdk_smoke_test.py` (bloqueado localmente por SDK ausente) | No probado contra todos los clientes MCP; el smoke de SDK real queda bloqueado hasta instalar `mcp>=1.0` localmente | Ejecutar `scripts/mcp_client_sdk_smoke_test.py` con el SDK `mcp` instalado |
+| Generic MCP client registration example | DONE | `examples/mcp_client_config.toml`, `docs/MCP_CLIENT_SETUP.md`, `examples/codex_mcp_config.toml`, `docs/CODEX_SETUP.md`; smoke test STDIO real `scripts/mcp_stdio_smoke_test.py` (`initialize` + `tools/list`, 61 tools); smoke SDK reproducible `scripts/mcp_client_sdk_smoke_test.py` (bloqueado localmente por SDK ausente) | No probado contra todos los clientes MCP; el smoke de SDK real queda bloqueado hasta instalar `mcp>=1.0` localmente | Ejecutar `scripts/mcp_client_sdk_smoke_test.py` con el SDK `mcp` instalado |
 | Known limitations documented | DONE | `README.md` ("Limite importante"), `docs/PRODUCTION_CONTRACT.md` (Known Accepted Risks) | Las limitaciones crecen con cada feature | Actualizar README al expandir superficie de edición |
 
 ## Atención especial a pendientes señalados
@@ -65,7 +65,7 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
 - Registro MCP genérico: **DONE** (`examples/mcp_client_config.toml`,
   `docs/MCP_CLIENT_SETUP.md`, `docs/CODEX_SETUP.md` como ejemplo específico) y
   smoke test real del canal STDIO (`scripts/mcp_stdio_smoke_test.py`,
-  `initialize` + `tools/list`, 60 tools). El smoke de cliente SDK real está
+  `initialize` + `tools/list`, 61 tools). El smoke de cliente SDK real está
   documentado y es reproducible (`scripts/mcp_client_sdk_smoke_test.py`), pero
   queda **bloqueado localmente** hasta instalar el SDK `mcp`.
 - Pruebas con fixtures reales múltiples: **DONE** (SHOULD). `examples/recon/`
@@ -92,6 +92,14 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
   (trim+gap+split exportado) mantiene el mismo patrón y pasa MLT real. Riesgos
   residuales: Kdenlive puede cambiar el formato; repetir la verificación manual por
   release cuando el writer cambie.
+- Render preview: **disponible con gate real** (COULD parcial). `render_preview` produce un
+  MP4 de revisión rápida desde un `.kdenlive` validado con Flatpak melt (shell=False,
+  copy-safe, `OUTPUT_EXISTS`/`MLT_ERROR`/sandbox estructurado). El writer se corrigió para
+  fijar el `in/out` del `<track>` de `tractor5` y la entry de `main_bin` de `tractor4` a la
+  duración del proyecto (antes renderizaba 1 frame); el comando usa un wrapper `timeout`
+  para que melt finalice el moov. El gate real es el smoke opt-in
+  (`KDENLIVE_MCP_RUN_RENDER_SMOKE=1`), que valida duración > 1s y dimensiones.
+  `render_final` y presets complejos quedan fuera del alcance.
 
 ## Production Gate Verdict
 

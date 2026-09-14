@@ -82,3 +82,7 @@ fi
 if [[ "${KDENLIVE_MCP_RUN_STDIO_SMOKE:-0}" == "1" ]]; then
   python3 scripts/mcp_stdio_smoke_test.py
 fi
+
+if [[ "${KDENLIVE_MCP_RUN_RENDER_SMOKE:-0}" == "1" ]]; then
+  python3 scripts/render_preview_smoke.py
+fi

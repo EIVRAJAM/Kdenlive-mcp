@@ -2124,3 +2124,143 @@ The corrected writer produces valid composite edits (trim + gap + split) with
 coherent bin/timeline references and passes real MLT load, without re-introducing
 the timeline-reference pattern Kdenlive repairs.
 ```
+
+## 2026-09-02 render_preview Tool
+
+Scope:
+
+```text
+First safe preview render: render_preview for already-validated .kdenlive projects
+```
+
+Tool contract:
+
+```text
+render_preview(project, output_directory, name=None, width=720, height=1280,
+overwrite=False)
+
+command (shell=False via run_command):
+  flatpak run --command=melt org.kde.kdenlive <project> \
+    -consumer avformat:<output.mp4> width=<w> height=<h> \
+    vcodec=libx264 an=0 real_time=-RT
+```
+
+Behavior:
+
+```text
+ensure_project_path + ensure_output_path
+existing output refused unless overwrite=True (OUTPUT_EXISTS)
+original .kdenlive never modified
+real melt failure -> success=false, error=MLT_ERROR
+known sandbox (Unable to allocate instance id) -> success=false,
+error=FLATPAK_EXECUTION_UNAVAILABLE_IN_SANDBOX, plus a structured warning with
+the same code; success=true is never reported without a generated MP4
+response: success, operation, project, output, command_summary, duration_ms, warnings
+```
+
+Tests (`tests/test_render_tools.py`):
+
+```text
+builds correct Flatpak melt command (shell=False)
+rejects existing output without overwrite
+respects overwrite=True
+rejects paths outside allowlists
+reports MLT_ERROR on real failure
+reports sandbox unavailable as a structured warning
+```
+
+Commands:
+
+```bash
+pytest tests/test_render_tools.py
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+tests/test_render_tools.py: 6 passed
+full suite: 302 passed, 1 skipped
+tool count: 61 (render_preview registered)
+```
+
+Decision:
+
+```text
+The MCP can now produce a quick review render from a validated project without
+modifying it. render_final and complex presets remain out of scope.
+```
+
+## 2026-09-02 render_preview Real Render Investigation
+
+Scope:
+
+```text
+Why melt rendered only one frame from MCP-generated projects, and how to make a
+real preview render reliable
+```
+
+Root cause (one-frame render):
+
+```text
+the writer left the project tractor <track producer="tractor4"> in/out and the
+main_bin entry for tractor4 at 00:00:00.000, so melt rendered a single frame
+```
+
+Fix (src/kdenlive_mcp/adapters/kdenlive_xml.py):
+
+```text
+the writer now sets the tractor5 track in/out and the main_bin tractor4 entry
+out to the project duration
+```
+
+Melt termination (Flatpak):
+
+```text
+melt renders all frames but does not exit cleanly and can be killed before the
+moov atom is written (48-byte file). Wrapping the command in the coreutils
+timeout (SIGTERM) lets melt finalize the MP4. run_command's subprocess.run
+timeout would SIGKILL and leave a truncated file.
+```
+
+Final render command:
+
+```text
+timeout 120 flatpak run --command=melt org.kde.kdenlive <project> \
+  -consumer avformat:<output.mp4> real_time=-RT \
+  width=720 height=1280 vcodec=libx264 an=0
+```
+
+Real smoke (`scripts/render_preview_smoke.py`, opt-in via
+`KDENLIVE_MCP_RUN_RENDER_SMOKE=1`):
+
+```text
+renders composite_edit_ai_generated.kdenlive and validates the MP4 with ffprobe
+```
+
+Commands:
+
+```bash
+KDENLIVE_MCP_RUN_RENDER_SMOKE=1 python3 scripts/render_preview_smoke.py
+pytest tests/test_render_tools.py
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+render smoke: success true, duration 4.56s, width 720, height 1280, exit 0
+tests/test_render_tools.py: 7 passed (incl. "returncode 0 but no output -> failure")
+full suite: 303 passed, 1 skipped
+```
+
+Decision:
+
+```text
+render_preview is validated against a real, useful preview render (duration
+>1s, requested dimensions) through the opt-in smoke. The writer structural fix
+is confirmed, and the melt termination quirk is handled with the timeout
+wrapper. render_final and complex presets remain out of scope.
+```

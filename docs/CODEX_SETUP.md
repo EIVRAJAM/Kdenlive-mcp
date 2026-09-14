@@ -99,7 +99,7 @@ Expected output:
 {
   "success": true,
   "server": "kdenlive-mcp",
-  "tool_count": 60,
+  "tool_count": 61,
   "required_tools_present": true,
   "error": null
 }

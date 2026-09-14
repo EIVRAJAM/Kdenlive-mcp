@@ -650,6 +650,17 @@ class KdenliveProjectAdapter:
                 _set_property(tractor, "kdenlive:duration", project_out)
                 _set_property(tractor, "kdenlive:maxduration", max(1, int(round(timeline.duration * fps_num / fps_den))))
 
+        project_tractor = tractors.get("tractor5")
+        if project_tractor is not None:
+            for track in project_tractor.findall("track"):
+                if track.attrib.get("producer") == "tractor4":
+                    track.set("in", "00:00:00.000")
+                    track.set("out", project_out)
+        for entry in main_bin.findall("entry"):
+            if entry.attrib.get("producer") == "tractor4":
+                entry.set("in", "00:00:00.000")
+                entry.set("out", project_out)
+
         if sequence_tractor is not None:
             markers_json = _timeline_markers_json(timeline, fps_num, fps_den)
             _set_property(sequence_tractor, "kdenlive:sequenceproperties.guides", markers_json)

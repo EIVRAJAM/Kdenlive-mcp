@@ -14,7 +14,7 @@
   <property name="astream">0</property>
   <property name="kdenlive:folderid">-1</property>
   <property name="kdenlive:id">4</property>
-  <property name="kdenlive:control_uuid">{5d6eb57b-81b3-40ca-b04d-b25ae231c108}</property>
+  <property name="kdenlive:control_uuid">{9195fe28-d1c1-4423-89d3-7dfd5258fc0a}</property>
   <property name="mute_on_pause">0</property>
   <property name="kdenlive:clip_type">0</property>
   <property name="set.test_audio">0</property>
@@ -33,7 +33,7 @@
   <property name="astream">0</property>
   <property name="kdenlive:folderid">-1</property>
   <property name="kdenlive:id">4</property>
-  <property name="kdenlive:control_uuid">{5d6eb57b-81b3-40ca-b04d-b25ae231c108}</property>
+  <property name="kdenlive:control_uuid">{9195fe28-d1c1-4423-89d3-7dfd5258fc0a}</property>
   <property name="mute_on_pause">0</property>
   <property name="kdenlive:clip_type">0</property>
   <property name="set.test_audio">1</property>
@@ -52,7 +52,7 @@
   <property name="astream">0</property>
   <property name="kdenlive:folderid">-1</property>
   <property name="kdenlive:id">5</property>
-  <property name="kdenlive:control_uuid">{b50212d1-bb22-41ac-b6ec-ee149f9e26b6}</property>
+  <property name="kdenlive:control_uuid">{77f63db8-09c6-4a74-ab96-ca1252f972e0}</property>
   <property name="mute_on_pause">0</property>
   <property name="kdenlive:clip_type">0</property>
   <property name="set.test_audio">0</property>
@@ -71,7 +71,7 @@
   <property name="astream">0</property>
   <property name="kdenlive:folderid">-1</property>
   <property name="kdenlive:id">5</property>
-  <property name="kdenlive:control_uuid">{b50212d1-bb22-41ac-b6ec-ee149f9e26b6}</property>
+  <property name="kdenlive:control_uuid">{77f63db8-09c6-4a74-ab96-ca1252f972e0}</property>
   <property name="mute_on_pause">0</property>
   <property name="kdenlive:clip_type">0</property>
   <property name="set.test_audio">1</property>
@@ -1324,7 +1324,7 @@
     "serializationVersion": 3
 }</property>
   <property name="xml_retain">1</property>
-  <entry in="00:00:00.000" out="00:00:00.000" producer="tractor4" />
+  <entry in="00:00:00.000" out="00:00:04.467" producer="tractor4" />
   <entry in="00:00:00.000" out="00:00:01.967" producer="chain0">
    <property name="kdenlive:id">4</property>
   </entry>
@@ -1334,7 +1334,7 @@
  </playlist>
  <tractor id="tractor5" in="00:00:00.000" out="00:00:04.467">
   <property name="kdenlive:projectTractor">1</property>
-  <track in="00:00:00.000" out="00:00:00.000" producer="tractor4" />
+  <track in="00:00:00.000" out="00:00:04.467" producer="tractor4" />
   <property name="kdenlive:duration">00:00:04.467</property>
   <property name="kdenlive:maxduration">135</property>
  </tractor>

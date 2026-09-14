@@ -206,7 +206,7 @@ python3 scripts/mcp_client_sdk_smoke_test.py
 Required result:
 
 ```text
-exit 0 with success=true, server kdenlive-mcp, tool_count 60
+exit 0 with success=true, server kdenlive-mcp, tool_count 61
 OR exit 2 with blocked=mcp-sdk-unavailable when the SDK is not installed
 ```
 

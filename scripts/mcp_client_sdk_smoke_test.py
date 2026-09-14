@@ -10,7 +10,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SERVER_SCRIPT = REPO_ROOT / "src" / "kdenlive_mcp" / "server.py"
 
-EXPECTED_TOOL_COUNT = 60
+EXPECTED_TOOL_COUNT = 61
 REQUIRED_TOOLS = [
     "health_check",
     "get_environment",
