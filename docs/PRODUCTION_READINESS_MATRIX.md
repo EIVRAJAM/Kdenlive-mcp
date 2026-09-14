@@ -34,7 +34,7 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
 | Automated end-to-end workflow test | DONE | `tests/test_vlog_workflow_service.py`; `scripts/dev_check.sh` (`KDENLIVE_MCP_RUN_FIXTURE_WORKFLOW`); RELEASE_EVIDENCE (20 runs) | Gate opt-in por env, no CI permanente | Documentar ejecución en CI/release reproducible |
 | Original media checksum test | DONE | `scripts/fixture_reliability_check.py` (sha256); RELEASE_EVIDENCE `media_checksums_unchanged: true` (2026-08-25 y re-ejecutado por-release 2026-09-02) | Depende de ejecución del gate por-release | Re-ejecutar el gate en cada release y registrar |
 | Generated .kdenlive inspect validation | DONE | RELEASE_EVIDENCE (export validation, clip/marker/guide counts); `tests/test_timeline_service.py` | — | — |
-| Optional workflow-level MLT load validation | DONE | `tools/project_tools.py` `check_mlt`; `scripts/dev_check.sh` `KDENLIVE_MCP_RUN_MLT_CHECK`; tests con `melt` mockeado; evidencia real 2026-08-25 (`MLT load check: valid true`), 2026-09-01 (proyecto generado por MCP, melt Flatpak exit 0, `status: loaded`) y re-ejecutado por-release 2026-09-02 (release_gate, `mlt_load: OK`) | La carga real requiere Flatpak y acceso al filesystem en cada máquina | Re-ejecutar `KDENLIVE_MCP_RUN_MLT_CHECK=1 scripts/dev_check.sh` (o el release gate) en cada release |
+| Optional workflow-level MLT load validation | DONE | `tools/project_tools.py` `check_mlt`; `scripts/dev_check.sh` `KDENLIVE_MCP_RUN_MLT_CHECK`; tests con `melt` mockeado; evidencia real 2026-08-25 (`MLT load check: valid true`), 2026-09-01 (proyecto generado por MCP, melt Flatpak exit 0, `status: loaded`) y re-ejecutado por-release 2026-09-02 y 2026-09-14 (release_gate, `mlt_load: OK`) | La carga real requiere Flatpak y acceso al filesystem en cada máquina | Re-ejecutar `KDENLIVE_MCP_RUN_MLT_CHECK=1 scripts/dev_check.sh` (o el release gate) en cada release |
 | Partial-output cleanup or explicit partial-output reporting | DONE | `services/vlog_workflow_service.py` `_failed_step`/`partial_outputs`; `scripts/fixture_reliability_check.py` (assert partial_outputs) | Sólo reporting, sin cleanup (permitido por el contrato "or") | — |
 | Persistent structured logging | DONE | `src/kdenlive_mcp/logging.py` (JSONL, redacción, error_type/message); `tests/test_server_protocol.py` (logging tests) | Log default a `logs/` si no se configura | — |
 | Reproducible dev/release check command | DONE | `scripts/dev_check.sh`, `scripts/release_gate.sh` (dev + STDIO smoke + reliability + MLT opcional), `docs/RELEASE_CHECKLIST.md`; RELEASE_EVIDENCE (comandos exactos) | Checks de fiabilidad/MLT opt-in por env y MLT requiere Flatpak | — |
@@ -98,7 +98,8 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
   fijar el `in/out` del `<track>` de `tractor5` y la entry de `main_bin` de `tractor4` a la
   duración del proyecto (antes renderizaba 1 frame); el comando usa un wrapper `timeout`
   para que melt finalice el moov. El gate real es el smoke opt-in
-  (`KDENLIVE_MCP_RUN_RENDER_SMOKE=1`), que valida duración > 1s y dimensiones.
+  (`KDENLIVE_MCP_RUN_RENDER_SMOKE=1`), que valida duración > 1s y dimensiones; fue
+  re-ejecutado el 2026-09-14 fuera del sandbox con Flatpak/melt real.
   `render_final` y presets complejos quedan fuera del alcance.
 
 ## Production Gate Verdict

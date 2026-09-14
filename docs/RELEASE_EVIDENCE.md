@@ -2322,3 +2322,48 @@ server over STDIO. The JSONL framing support is a minimal, backward-compatible
 protocol fix. Other clients remain to be sampled, but the SDK that Codex-class
 agents use is verified.
 ```
+
+## 2026-09-14 Post-Commit Release Gate Re-Run
+
+Scope:
+
+```text
+Re-run the release gates after committing render_preview and MCP SDK JSONL framing
+```
+
+Commands:
+
+```bash
+python3 scripts/mcp_stdio_smoke_test.py
+.venv/bin/python scripts/mcp_client_sdk_smoke_test.py
+KDENLIVE_MCP_RUN_RENDER_SMOKE=1 scripts/dev_check.sh
+KDENLIVE_MCP_MLT_PROJECT=/data/PROYECTOS/kdenlive-mcp/examples/recon/mlt_gate_20260901.kdenlive bash scripts/release_gate.sh
+pytest -q
+git diff --check
+```
+
+Results:
+
+```text
+STDIO smoke: success true, tool_count 61
+SDK smoke (.venv, official mcp SDK): success true, tool_count 61, missing_tools []
+render smoke: blocked inside sandbox, passed outside sandbox with Flatpak/melt,
+duration 4.56s, width 720, height 1280
+release_gate outside sandbox: dev_check OK, stdio_smoke OK, reliability OK,
+mlt_load OK
+reliability: 20 runs, media_checksums_unchanged true, overwrite_refusal_checked true
+full suite: 312 passed, 1 skipped
+dev_check: 312 passed, 1 skipped
+git diff --check: clean
+temporary preview MP4 cleanup: no residual preview/audit/debug MP4 files in examples/recon
+```
+
+Decision:
+
+```text
+The post-commit release gate remains green. The render preview gate requires
+running outside the command sandbox because Flatpak reports
+FLATPAK_EXECUTION_UNAVAILABLE_IN_SANDBOX there, but the real Flatpak/melt render
+passes on the target machine. The official SDK client gate and the legacy
+Content-Length STDIO smoke both pass with 61 registered tools.
+```
