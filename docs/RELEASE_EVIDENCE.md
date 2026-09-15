@@ -2991,3 +2991,55 @@ The round-trip output is not only statically valid: it also loads in a real MLT
 runtime when the environment permits. Sandbox/filesystem limitations are
 reported structurally (unavailable/failed) instead of as a false success.
 ```
+
+## 2026-09-15 Round-trip MLT smoke as opt-in release gate
+
+Scope:
+
+```text
+wire scripts/roundtrip_mlt_smoke_test.py into scripts/release_gate.sh as an
+opt-in gate controlled by an env var
+```
+
+Behavior:
+
+```text
+KDENLIVE_MCP_RUN_ROUNDTRIP_MLT_SMOKE=1 -> run gate; fails release only if the
+  smoke script exits != 0
+verdict mlt_loaded or mlt_unavailable -> pass (both structured and honest)
+verdict mlt_failed -> exit != 0, blocks the release
+env var unset -> explicit "roundtrip_mlt_smoke: SKIPPED" in the gate summary
+```
+
+Tests (tests/test_release_gate_script.py):
+
+```text
+test_release_gate_contains_expected_gates now also asserts
+KDENLIVE_MCP_RUN_ROUNDTRIP_MLT_SMOKE and scripts/roundtrip_mlt_smoke_test.py
+```
+
+Commands:
+
+```bash
+python3 scripts/roundtrip_mlt_smoke_test.py
+bash scripts/release_gate.sh
+KDENLIVE_MCP_RUN_ROUNDTRIP_MLT_SMOKE=1 bash scripts/release_gate.sh
+pytest tests/test_release_gate_script.py -q
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+roundtrip_mlt_smoke_test.py: verdict mlt_loaded (exit 0)
+release_gate.sh (unset): roundtrip_mlt_smoke SKIPPED
+release_gate.sh (env=1): roundtrip_mlt_smoke OK
+```
+
+Decision:
+
+```text
+The real round-trip MLT load is now part of the operational release process as
+an opt-in gate, without breaking environments where Flatpak/MLT cannot run.
+```

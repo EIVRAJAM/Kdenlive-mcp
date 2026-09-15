@@ -39,6 +39,19 @@ To include the real Flatpak melt load gate in the same run:
 KDENLIVE_MCP_MLT_PROJECT=/path/to/generated.kdenlive bash scripts/release_gate.sh
 ```
 
+To include the opt-in round-trip MLT smoke gate in the same run (builds the
+export-edit-export round-trip output and loads it with real melt):
+
+```bash
+KDENLIVE_MCP_RUN_ROUNDTRIP_MLT_SMOKE=1 bash scripts/release_gate.sh
+```
+
+The round-trip gate is opt-in so environments without Flatpak/MLT stay green: it
+runs only when `KDENLIVE_MCP_RUN_ROUNDTRIP_MLT_SMOKE=1`. When unset, the release
+gate reports `roundtrip_mlt_smoke: SKIPPED`. When set, the gate fails only if the
+smoke script exits non-zero; both `mlt_loaded` and `mlt_unavailable` verdicts pass
+(structured and honest), while `mlt_failed` blocks the release.
+
 Run the individual default checks:
 
 ```bash

@@ -37,6 +37,15 @@ else
   SUMMARY+=("mlt_load: SKIPPED (KDENLIVE_MCP_MLT_PROJECT unset)")
 fi
 
+# 5. Optional round-trip MLT smoke (opt-in via env var)
+if [[ "${KDENLIVE_MCP_RUN_ROUNDTRIP_MLT_SMOKE:-}" == "1" ]]; then
+  run_gate "roundtrip_mlt_smoke" python3 scripts/roundtrip_mlt_smoke_test.py
+else
+  echo "==> [roundtrip_mlt_smoke] SKIPPED: KDENLIVE_MCP_RUN_ROUNDTRIP_MLT_SMOKE not set to 1."
+  echo "    Set it to run the real Flatpak melt round-trip smoke."
+  SUMMARY+=("roundtrip_mlt_smoke: SKIPPED (KDENLIVE_MCP_RUN_ROUNDTRIP_MLT_SMOKE unset)")
+fi
+
 echo ""
 echo "=== Release gate summary ==="
 printf '%s\n' "${SUMMARY[@]}"

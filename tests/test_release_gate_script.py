@@ -27,6 +27,8 @@ def test_release_gate_contains_expected_gates() -> None:
     assert "KDENLIVE_MCP_RUN_RELIABILITY" in text
     assert "KDENLIVE_MCP_RUN_MLT_CHECK" in text
     assert "KDENLIVE_MCP_MLT_PROJECT" in text
+    assert "KDENLIVE_MCP_RUN_ROUNDTRIP_MLT_SMOKE" in text
+    assert "scripts/roundtrip_mlt_smoke_test.py" in text
 
 
 def test_release_gate_uses_safe_shell_defaults() -> None:
