@@ -586,6 +586,48 @@ Compatibility validation through xmllint and Flatpak melt
 
 The domain model must not manipulate XML nodes directly.
 
+## Read-Only Timeline Summary (Reverse-Adapter Phase 1)
+
+`KdenliveProjectAdapter.extract_timeline_summary(project)` returns a read-only
+view of a real `.kdenlive` without writing anything:
+
+```text
+active_sequence_id
+fps / profile (width, height, frame_rate_num/den)
+tracks (id, track_kind, clip_count, gap_count)
+timeline_clips (producer, playlist_id, track_kind, media/resource, media_id,
+                source_in/out, source_in/out_frames, duration_frames/seconds,
+                position_frames/seconds, effect_count)
+gaps (playlist_id, track_kind, start_frames/seconds, duration_frames/seconds)
+user_transitions (id, mlt_service, kdenlive_id, in, out, internal_added, is_user)
+clip_effects (entry_producer, filter_id, mlt_service, kdenlive_id)
+```
+
+Confirmed fields:
+
+```text
+active_sequence_id, fps/profile
+source_in/out (entry attributes)
+media/resource (chain)
+duration_frames = out - in + 1
+user transitions: in/out present and no internal_added=237
+clip effects: filter inside a playlist entry with mlt_service and no
+  internal_added=237
+track_kind: from the branch hide attribute and kdenlive:audio_track property
+```
+
+Inferred fields (not stored by Kdenlive):
+
+```text
+position_frames/seconds: accumulated from entries AND blanks in playlist order;
+entry in/out are source ranges and are never used as timeline positions
+track_kind when neither hide nor audio_track is decisive
+```
+
+This is the first step toward a reverse adapter that loads the exact timeline of
+a working copy; it deliberately does not convert to `TimelineDocument` while any
+field remains inferred.
+
 ## Remaining Unknowns
 
 Confirmed by the new fixtures (see sections above): trim entry in/out, playlist

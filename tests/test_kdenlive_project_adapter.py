@@ -153,3 +153,67 @@ def test_validate_project_reports_flatpak_sandbox_without_marking_invalid(monkey
     assert result["valid"] is True
     assert result["checks"]["mlt_load"]["status"] == "unavailable"
     assert result["checks"]["mlt_load"]["error"] == "FLATPAK_EXECUTION_UNAVAILABLE_IN_SANDBOX"
+
+
+def _timeline_summary(name: str) -> dict[str, object]:
+    return KdenliveProjectAdapter().extract_timeline_summary(RECON_DIR / name)
+
+
+def test_extract_timeline_summary_detects_trim() -> None:
+    summary = _timeline_summary("manual_trimmed_clip.kdenlive")
+
+    assert summary["active_sequence_id"] == "tractor4"
+    assert summary["fps"] == 30.0
+    video_clips = [clip for clip in summary["timeline_clips"] if clip["track_kind"] == "video"]
+    assert any(clip["source_in_frames"] != 0 for clip in video_clips)
+
+
+def test_extract_timeline_summary_detects_gaps() -> None:
+    summary = _timeline_summary("manual_gap_timeline.kdenlive")
+
+    assert len(summary["gaps"]) >= 2
+    video_gaps = [gap for gap in summary["gaps"] if gap["track_kind"] == "video"]
+    assert video_gaps and video_gaps[0]["duration_frames"] > 0
+
+
+def test_extract_timeline_summary_detects_user_transition() -> None:
+    summary = _timeline_summary("manual_transition_dissolve.kdenlive")
+
+    user = [transition for transition in summary["user_transitions"] if transition["is_user"]]
+    assert len(user) >= 1
+    assert user[0]["mlt_service"] == "composite"
+    assert user[0]["in"] is not None and user[0]["out"] is not None
+
+
+def test_extract_timeline_summary_detects_clip_effect() -> None:
+    summary = _timeline_summary("manual_basic_effect.kdenlive")
+
+    assert any(effect["mlt_service"] == "qtblend" for effect in summary["clip_effects"])
+
+
+def test_extract_timeline_summary_positions_accumulate_entries_and_blanks() -> None:
+    gap_summary = _timeline_summary("manual_gap_timeline.kdenlive")
+    base_summary = _timeline_summary("manual_two_clips_timeline.kdenlive")
+
+    gap_video = [clip for clip in gap_summary["timeline_clips"] if clip["track_kind"] == "video"]
+    base_video = [clip for clip in base_summary["timeline_clips"] if clip["track_kind"] == "video"]
+    # The blank shifts the later clip forward; positions are accumulated from
+    # entries and blanks, not taken from entry in/out (which are source ranges).
+    gap_second_media = sorted([c for c in gap_video if c["producer"] == "chain3"], key=lambda c: c["position_frames"])[0]
+    base_second_media = sorted([c for c in base_video if c["producer"] == "chain3"], key=lambda c: c["position_frames"])[0]
+    assert gap_second_media["position_frames"] > base_second_media["position_frames"]
+    assert gap_second_media["source_in"] == base_second_media["source_in"]
+
+
+def test_extract_timeline_summary_does_not_classify_internal_added_as_user() -> None:
+    for name in ("manual_two_clips_timeline", "manual_trimmed_clip", "manual_gap_timeline"):
+        summary = _timeline_summary(f"{name}.kdenlive")
+
+        for transition in summary["user_transitions"]:
+            assert transition["is_user"] is False
+        assert summary["clip_effects"] == []
+
+    effect_summary = _timeline_summary("manual_basic_effect.kdenlive")
+    assert effect_summary["clip_effects"]
+    for effect in effect_summary["clip_effects"]:
+        assert effect["mlt_service"] == "qtblend"  # only the user effect is present

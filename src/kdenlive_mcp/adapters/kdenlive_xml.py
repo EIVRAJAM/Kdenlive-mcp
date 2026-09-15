@@ -219,6 +219,193 @@ class KdenliveProjectAdapter:
             },
         }
 
+    def extract_timeline_summary(self, project_path: str | Path) -> dict[str, Any]:
+        path = Path(project_path)
+        if not path.exists():
+            raise KdenliveProjectError("PROJECT_NOT_FOUND", f"Project does not exist: {path}")
+        if path.suffix != ".kdenlive":
+            raise KdenliveProjectError("INVALID_PROJECT", f"Expected a .kdenlive file: {path}")
+        try:
+            root = ET.parse(path).getroot()
+        except ET.ParseError as exc:
+            raise KdenliveProjectError("INVALID_PROJECT", f"Project XML is invalid: {exc}") from exc
+        if root.tag != "mlt":
+            raise KdenliveProjectError("INVALID_PROJECT", f"Unexpected root element: {root.tag}")
+
+        profile = self._profile(root)
+        fps_num = profile["frame_rate_num"]
+        fps_den = profile["frame_rate_den"]
+        fps = fps_num / fps_den if fps_den else None
+        chains = {element.attrib["id"]: element for element in root.findall("chain") if "id" in element.attrib}
+        playlists = {element.attrib["id"]: element for element in root.findall("playlist") if "id" in element.attrib}
+        tractors = {element.attrib["id"]: element for element in root.findall("tractor") if "id" in element.attrib}
+        main_bin = playlists.get("main_bin")
+        sequence_tractor = self._active_sequence_tractor(main_bin, list(tractors.values()))
+        sequence_id = sequence_tractor.attrib.get("id") if sequence_tractor is not None else None
+
+        tracks: list[dict[str, Any]] = []
+        clips: list[dict[str, Any]] = []
+        gaps: list[dict[str, Any]] = []
+        clip_effects: list[dict[str, Any]] = []
+
+        if sequence_tractor is not None:
+            for track in sequence_tractor.findall("track"):
+                nested = tractors.get(track.attrib.get("producer") or "")
+                if nested is None:
+                    continue
+                for branch in nested.findall("track"):
+                    playlist = playlists.get(branch.attrib.get("producer") or "")
+                    if playlist is None:
+                        continue
+                    track_kind = self._branch_kind(branch.attrib.get("hide"))
+                    playlist_props = element_properties(playlist)
+                    if playlist_props.get("kdenlive:audio_track") == "1":
+                        track_kind = "audio"
+                    track_summary, track_clips, track_gaps, track_effects = self._walk_playlist_summary(
+                        playlist, branch.attrib.get("producer") or "", track_kind, chains, fps_num, fps_den
+                    )
+                    tracks.append(track_summary)
+                    clips.extend(track_clips)
+                    gaps.extend(track_gaps)
+                    clip_effects.extend(track_effects)
+
+        return {
+            "project": str(path),
+            "active_sequence_id": sequence_id,
+            "fps": fps,
+            "profile": {
+                "width": profile.get("width"),
+                "height": profile.get("height"),
+                "frame_rate_num": fps_num,
+                "frame_rate_den": fps_den,
+            },
+            "tracks": tracks,
+            "timeline_clips": clips,
+            "gaps": gaps,
+            "user_transitions": self._collect_user_transitions(root),
+            "clip_effects": clip_effects,
+            "confirmed_fields": [
+                "active_sequence_id",
+                "fps/profile",
+                "source_in/source_out (entry attributes)",
+                "media/resource (chain)",
+                "duration_frames (out - in + 1)",
+                "user transitions (in/out, no internal_added=237)",
+                "clip effects (filter inside an entry, no internal_added=237)",
+                "track_kind (hide / kdenlive:audio_track)",
+            ],
+            "inferred_fields": [
+                "position_frames/seconds (accumulated entries + blanks, not stored by Kdenlive)",
+                "track_kind when neither hide nor audio_track is decisive",
+            ],
+        }
+
+    def _walk_playlist_summary(
+        self,
+        playlist: ET.Element,
+        playlist_id: str,
+        track_kind: str,
+        chains: dict[str, ET.Element],
+        fps_num: int,
+        fps_den: int,
+    ) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+        position_frames = 0
+        clips: list[dict[str, Any]] = []
+        gaps: list[dict[str, Any]] = []
+        effects: list[dict[str, Any]] = []
+        for child in playlist:
+            if child.tag == "blank":
+                length = self._blank_length_frames(child, fps_num, fps_den)
+                if length > 0:
+                    gaps.append(
+                        {
+                            "playlist_id": playlist_id,
+                            "track_kind": track_kind,
+                            "start_frames": position_frames,
+                            "start_seconds": round(position_frames / fps_num * fps_den, 6),
+                            "duration_frames": length,
+                            "duration_seconds": round(length / fps_num * fps_den, 6),
+                        }
+                    )
+                    position_frames += length
+                continue
+            if child.tag != "entry":
+                continue
+            producer = child.attrib.get("producer")
+            chain = chains.get(producer or "")
+            chain_props = element_properties(chain) if chain is not None else {}
+            in_frames = parse_timecode_to_frames(child.attrib.get("in"), fps_num, fps_den)
+            out_frames = parse_timecode_to_frames(child.attrib.get("out"), fps_num, fps_den)
+            duration_frames = None
+            if in_frames is not None and out_frames is not None:
+                duration_frames = out_frames - in_frames + 1
+            entry_effects: list[dict[str, Any]] = []
+            for filter_ in child.findall("filter"):
+                filter_props = element_properties(filter_)
+                if filter_props.get("mlt_service") and filter_props.get("internal_added") != "237":
+                    entry_effects.append(
+                        {
+                            "entry_producer": producer,
+                            "filter_id": filter_.attrib.get("id"),
+                            "mlt_service": filter_props.get("mlt_service"),
+                            "kdenlive_id": filter_props.get("kdenlive_id"),
+                        }
+                    )
+            effects.extend(entry_effects)
+            clips.append(
+                {
+                    "producer": producer,
+                    "playlist_id": playlist_id,
+                    "track_kind": track_kind,
+                    "media": chain_props.get("resource"),
+                    "media_id": chain_props.get("kdenlive:id"),
+                    "source_in": child.attrib.get("in"),
+                    "source_out": child.attrib.get("out"),
+                    "source_in_frames": in_frames,
+                    "source_out_frames": out_frames,
+                    "duration_frames": duration_frames,
+                    "duration_seconds": round(duration_frames / fps_num * fps_den, 6) if duration_frames is not None else None,
+                    "position_frames": position_frames,
+                    "position_seconds": round(position_frames / fps_num * fps_den, 6),
+                    "effect_count": len(entry_effects),
+                }
+            )
+            if duration_frames is not None:
+                position_frames += duration_frames
+        return (
+            {"id": playlist_id, "track_kind": track_kind, "clip_count": len(clips), "gap_count": len(gaps)},
+            clips,
+            gaps,
+            effects,
+        )
+
+    def _collect_user_transitions(self, root: ET.Element) -> list[dict[str, Any]]:
+        transitions: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for transition in root.iter("transition"):
+            transition_id = transition.attrib.get("id")
+            if transition_id and transition_id in seen:
+                continue
+            if transition_id:
+                seen.add(transition_id)
+            props = element_properties(transition)
+            internal = props.get("internal_added")
+            service = props.get("mlt_service")
+            has_in_out = transition.attrib.get("in") is not None and transition.attrib.get("out") is not None
+            is_user = internal != "237" and (has_in_out or service not in {"mix", "qtblend"})
+            transitions.append(
+                {
+                    "id": transition_id,
+                    "mlt_service": service,
+                    "kdenlive_id": props.get("kdenlive_id"),
+                    "in": transition.attrib.get("in"),
+                    "out": transition.attrib.get("out"),
+                    "internal_added": internal,
+                    "is_user": is_user,
+                }
+            )
+        return transitions
+
     def _profile(self, root: ET.Element) -> dict[str, Any]:
         profile = root.find("profile")
         if profile is None:

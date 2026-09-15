@@ -129,11 +129,12 @@ Conteo: DONE 20 · PARTIAL 0 · MISSING 0 · BLOCKED 0.
 2. Mantener la re-ejecución por-release del gate de fiabilidad (20 runs +
    checksum) y del gate MLT real; la re-ejecución del 2026-09-02 ya está
    registrada en RELEASE_EVIDENCE.
-3. Implementar un adaptador inverso que cargue el timeline exacto de una working
-   copy `.kdenlive` a TimelineDocument (hoy `apply_edits_to_working_project`
-   reconstruye el timeline desde el Project Bin con warning
-   `TIMELINE_RECONSTRUCTED_FROM_BIN`; la carga exacta permitiría edición sobre el
-   contenido real).
+3. Completar el adaptador inverso que carga el timeline exacto de una working
+   copy `.kdenlive` a TimelineDocument (fase read-only lista:
+   `KdenliveProjectAdapter.extract_timeline_summary` devuelve
+   active_sequence/fps/tracks/clips/gaps/transiciones/efectos con posiciones
+   acumuladas de entries+blanks; falta la conversión a TimelineDocument cuando
+   los campos inferidos estén confirmados).
 4. Crear manualmente los fixtures complejos pendientes en Kdenlive (stack de
    efectos múltiples, transiciones múltiples, fade de audio, proxy) siguiendo las
    recetas de `docs/KDENLIVE_PROJECT_FORMAT.md`; los detectores y tests skipif ya

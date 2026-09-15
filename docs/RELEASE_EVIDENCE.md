@@ -2500,3 +2500,73 @@ Detectors and manual recipes for complex fixtures are ready and skip until the
 user creates each fixture in Kdenlive. The exact XML for audio fade and proxy
 attachment remains unknown until then.
 ```
+
+## 2026-09-14 Read-Only Timeline Summary (Reverse-Adapter Phase 1)
+
+Scope:
+
+```text
+Read-only extraction of a real .kdenlive timeline before implementing the reverse adapter
+```
+
+Method:
+
+```text
+KdenliveProjectAdapter.extract_timeline_summary(project)
+```
+
+Output structure:
+
+```text
+active_sequence_id, fps, profile (width/height/frame_rate)
+tracks, timeline_clips (producer, track_kind, media, source in/out,
+  duration frames/seconds, position frames/seconds, effect_count)
+gaps (playlist_id, track_kind, start, duration)
+user_transitions (id, mlt_service, kdenlive_id, in/out, is_user)
+clip_effects (entry_producer, filter_id, mlt_service, kdenlive_id)
+```
+
+Confirmed vs inferred:
+
+```text
+confirmed: active_sequence_id, fps/profile, source in/out, media/resource,
+duration_frames, user transitions (no internal_added=237), clip effects (no
+internal_added=237), track_kind from hide/audio_track
+inferred: position frames/seconds accumulated from entries AND blanks; entry
+in/out are source ranges and never used as timeline positions
+```
+
+Tests (tests/test_kdenlive_project_adapter.py):
+
+```text
+detects trim in manual_trimmed_clip
+detects blanks/gaps in manual_gap_timeline
+detects user transition in manual_transition_dissolve
+detects clip effect in manual_basic_effect
+positions accumulate entries+blanks (gap shifts the later clip; source ranges unchanged)
+internal_added=237 is never classified as user effect/transition
+```
+
+Commands:
+
+```bash
+pytest tests/test_kdenlive_project_adapter.py tests/test_kdenlive_project_fixtures.py -q
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+tests/test_kdenlive_project_adapter.py + fixtures: 51 passed, 8 skipped
+full suite: 328 passed, 9 skipped
+```
+
+Decision:
+
+```text
+The bridge before editing the real timeline is in place: a read-only summary
+exposes confirmed and inferred timeline fields, positioning from entries plus
+blanks, and user-only transitions/effects. Conversion to TimelineDocument is
+deferred until inferred fields are confirmed.
+```
