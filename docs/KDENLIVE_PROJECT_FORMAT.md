@@ -674,7 +674,8 @@ first; on success it edits over the real current timeline
 the `TIMELINE_RECONSTRUCTED_FROM_BIN` warning. Clip media in the converted
 document is resolved to absolute paths via the project's bin
 (`resolved_media`), so working copies that live in another directory still
-reference the real media files.
+reference the real media files. The `export_kdenlive_timeline` tool exposes the
+same conversion read-only and persists the result as a `.timeline.json`.
 
 Audio/video linking:
 

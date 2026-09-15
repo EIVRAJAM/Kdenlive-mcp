@@ -5,7 +5,7 @@ from typing import Any
 from kdenlive_mcp.adapters.commands import run_command
 from kdenlive_mcp.adapters.kdenlive_xml import KdenliveProjectAdapter, KdenliveProjectError
 from kdenlive_mcp.config import get_settings
-from kdenlive_mcp.security import SecurityError, ensure_project_path
+from kdenlive_mcp.security import SecurityError, ensure_output_path, ensure_project_path
 from kdenlive_mcp.services.backup_service import (
     backup_project,
     clone_project,
@@ -14,6 +14,7 @@ from kdenlive_mcp.services.backup_service import (
 )
 from kdenlive_mcp.services.lock_service import get_project_lock, lock_project, unlock_project
 from kdenlive_mcp.services.project_workflow_service import prepare_working_project
+from kdenlive_mcp.services.timeline_service import save_timeline
 
 
 def _error(code: str, message: str, **extra: Any) -> dict[str, Any]:
@@ -66,6 +67,52 @@ def inspect_kdenlive_timeline(project: str) -> dict[str, Any]:
         "project": str(path),
         "summary": summary,
         "warnings": warnings,
+    }
+
+
+def export_kdenlive_timeline(
+    project: str,
+    output_directory: str,
+    name: str | None = None,
+    overwrite: bool = False,
+) -> dict[str, Any]:
+    try:
+        path = ensure_project_path(project)
+    except SecurityError as exc:
+        return _error(exc.code, exc.message)
+    if not path.exists():
+        return _error("PROJECT_NOT_FOUND", f"Project does not exist: {path}")
+    try:
+        output_dir = ensure_output_path(output_directory)
+    except SecurityError as exc:
+        return _error(exc.code, exc.message)
+    try:
+        document = KdenliveProjectAdapter().extract_timeline_document(path)
+    except KdenliveProjectError as exc:
+        return _error(exc.code, exc.message)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    timeline_dict = document.model_dump(mode="json", exclude_none=True)
+    saved = save_timeline(
+        timeline=timeline_dict,
+        output_directory=str(output_dir),
+        name=name or path.stem,
+        overwrite=overwrite,
+    )
+    if not saved.get("success"):
+        return {**saved, "operation": "export_kdenlive_timeline"}
+    return {
+        "success": True,
+        "operation": "export_kdenlive_timeline",
+        "project": str(path),
+        "timeline_file": saved["timeline_file"],
+        "timeline": timeline_dict,
+        "warnings": [
+            {
+                "code": "TIMELINE_EXPORTED_FROM_KDENLIVE",
+                "message": "TimelineDocument was exported from the project's current Kdenlive timeline using the supported reverse-adapter subset.",
+            }
+        ],
     }
 
 
@@ -179,6 +226,21 @@ TOOLS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "handler": inspect_kdenlive_timeline,
+    },
+    "export_kdenlive_timeline": {
+        "description": "Convert a simple .kdenlive project to a TimelineDocument (reverse adapter subset) and save it as .timeline.json.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project": {"type": "string"},
+                "output_directory": {"type": "string"},
+                "name": {"type": ["string", "null"], "default": None},
+                "overwrite": {"type": "boolean", "default": False},
+            },
+            "required": ["project", "output_directory"],
+            "additionalProperties": False,
+        },
+        "handler": export_kdenlive_timeline,
     },
     "validate_project": {
         "description": "Validate a .kdenlive project without modifying it.",

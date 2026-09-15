@@ -2817,3 +2817,68 @@ The reverse adapter no longer desynchronizes audio/video: equivalent pairs are
 linked conservatively and ambiguous cases are refused, so include_linked edits
 behave correctly on simple real projects.
 ```
+
+## 2026-09-14 export_kdenlive_timeline tool
+
+Scope:
+
+```text
+read-only/persistent MCP tool that converts a simple .kdenlive to
+TimelineDocument and saves it as .timeline.json
+```
+
+Behavior:
+
+```text
+validate project (ensure_project_path) and output_directory (ensure_output_path)
+KdenliveProjectAdapter.extract_timeline_document(project)
+unsupported transition/effect -> UNSUPPORTED_TIMELINE_FEATURE, no output written
+existing output + overwrite=false -> OUTPUT_EXISTS; overwrite=true replaces
+save TimelineDocument as JSON schema_version 1 (save_timeline/load_timeline_document)
+no modification of the .kdenlive or its media
+response: success, operation, project, timeline_file, timeline, warnings
+  [TIMELINE_EXPORTED_FROM_KDENLIVE]
+```
+
+Tool count updated 63 -> 64 (scripts/mcp_client_sdk_smoke_test.py,
+tests/test_mcp_client_config.py, tests/test_server_protocol.py).
+
+Tests (tests/test_kdenlive_project_adapter.py, tests/test_server_protocol.py):
+
+```text
+manual_two_clips_timeline -> valid .timeline.json (fps 30, 4 clips)
+manual_trimmed_clip -> preserves source_in/source_out
+manual_gap_timeline -> preserves positions with gap (second media shifted)
+manual_transition_dissolve -> UNSUPPORTED_TIMELINE_FEATURE, no output
+manual_basic_effect -> UNSUPPORTED_TIMELINE_FEATURE, no output
+output exists + overwrite=false -> OUTPUT_EXISTS
+overwrite=true replaces
+project/output outside allowlist -> PERMISSION_DENIED
+MCP response shape: success/operation/project/timeline_file/timeline/warnings,
+  schema_version 1
+tools/list includes export_kdenlive_timeline; tool_count == 64
+```
+
+Commands:
+
+```bash
+python3 scripts/mcp_stdio_smoke_test.py
+.venv/bin/python scripts/mcp_client_sdk_smoke_test.py
+pytest tests/test_project_mcp_workflow.py tests/test_kdenlive_project_adapter.py tests/test_timeline_service.py tests/test_server_protocol.py -q
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+server protocol + adapter: full suite 356 passed, 9 skipped
+```
+
+Decision:
+
+```text
+Any agent can now materialize the working copy's real timeline into the internal
+TimelineDocument format before editing, as a reusable piece, without touching
+the .kdenlive or its media.
+```

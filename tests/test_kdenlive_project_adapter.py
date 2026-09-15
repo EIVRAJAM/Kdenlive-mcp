@@ -13,6 +13,7 @@ from kdenlive_mcp.adapters.kdenlive_xml import (
 )
 from kdenlive_mcp.domain.timeline import TimelineDocument
 from kdenlive_mcp.server import handle_request
+from kdenlive_mcp.services.timeline_service import load_timeline_document
 from kdenlive_mcp.tools import project_tools
 
 
@@ -297,6 +298,141 @@ def test_inspect_kdenlive_timeline_does_not_write_files(monkeypatch, tmp_path) -
 
 def _extract_document(name: str) -> TimelineDocument:
     return KdenliveProjectAdapter().extract_timeline_document(RECON_DIR / name)
+
+
+def _export_timeline(project_name: str, output_directory, **kwargs):
+    return _mcp_call(
+        "export_kdenlive_timeline",
+        {
+            "project": str(RECON_DIR / f"{project_name}.kdenlive"),
+            "output_directory": str(output_directory),
+            **kwargs,
+        },
+    )
+
+
+def _allow_export(monkeypatch, tmp_path, project_dirs=None, output_dirs=None) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", project_dirs or str(RECON_DIR))
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS", output_dirs or str(tmp_path))
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", "off")
+
+
+def test_export_kdenlive_timeline_creates_valid_file(monkeypatch, tmp_path) -> None:
+    _allow_export(monkeypatch, tmp_path)
+
+    result = _export_timeline("manual_two_clips_timeline", tmp_path)
+
+    assert result["success"] is True
+    assert result["operation"] == "export_kdenlive_timeline"
+    assert any(warning.get("code") == "TIMELINE_EXPORTED_FROM_KDENLIVE" for warning in result["warnings"])
+    timeline_file = Path(result["timeline_file"])
+    assert timeline_file.exists()
+    loaded = load_timeline_document(timeline_file)
+    assert loaded.fps == 30.0
+    assert len(loaded.clips) == 4
+
+
+def test_export_kdenlive_timeline_preserves_trim(monkeypatch, tmp_path) -> None:
+    _allow_export(monkeypatch, tmp_path)
+
+    result = _export_timeline("manual_trimmed_clip", tmp_path)
+
+    loaded = load_timeline_document(Path(result["timeline_file"]))
+    assert any(clip.source_in != 0 for clip in loaded.clips)
+
+
+def test_export_kdenlive_timeline_preserves_gap_positions(monkeypatch, tmp_path) -> None:
+    _allow_export(monkeypatch, tmp_path)
+
+    gap_result = _export_timeline("manual_gap_timeline", tmp_path, name="gap")
+    base_result = _export_timeline("manual_two_clips_timeline", tmp_path, name="base")
+
+    gap_doc = load_timeline_document(Path(gap_result["timeline_file"]))
+    base_doc = load_timeline_document(Path(base_result["timeline_file"]))
+    gap_second = sorted([c for c in gap_doc.clips if c.media.endswith("sample1.mp4")], key=lambda c: c.timeline_in)[0]
+    base_second = sorted([c for c in base_doc.clips if c.media.endswith("sample1.mp4")], key=lambda c: c.timeline_in)[0]
+    assert gap_second.timeline_in > base_second.timeline_in
+
+
+def test_export_kdenlive_timeline_rejects_transition_without_output(monkeypatch, tmp_path) -> None:
+    _allow_export(monkeypatch, tmp_path)
+
+    result = _export_timeline("manual_transition_dissolve", tmp_path)
+
+    assert result["success"] is False
+    assert result["error"] == "UNSUPPORTED_TIMELINE_FEATURE"
+    assert not list(tmp_path.glob("*.timeline.json"))
+
+
+def test_export_kdenlive_timeline_rejects_effect_without_output(monkeypatch, tmp_path) -> None:
+    _allow_export(monkeypatch, tmp_path)
+
+    result = _export_timeline("manual_basic_effect", tmp_path)
+
+    assert result["success"] is False
+    assert result["error"] == "UNSUPPORTED_TIMELINE_FEATURE"
+    assert not list(tmp_path.glob("*.timeline.json"))
+
+
+def test_export_kdenlive_timeline_output_exists(monkeypatch, tmp_path) -> None:
+    _allow_export(monkeypatch, tmp_path)
+    assert _export_timeline("manual_two_clips_timeline", tmp_path)["success"] is True
+
+    result = _export_timeline("manual_two_clips_timeline", tmp_path)
+
+    assert result["success"] is False
+    assert result["error"] == "OUTPUT_EXISTS"
+
+
+def test_export_kdenlive_timeline_overwrite_replaces(monkeypatch, tmp_path) -> None:
+    _allow_export(monkeypatch, tmp_path)
+    first = _export_timeline("manual_two_clips_timeline", tmp_path)
+    first_path = Path(first["timeline_file"])
+    assert first_path.exists()
+
+    result = _export_timeline("manual_two_clips_timeline", tmp_path, overwrite=True)
+
+    assert result["success"] is True
+    assert Path(result["timeline_file"]).exists()
+
+
+def test_export_kdenlive_timeline_rejects_outside_allowlist(monkeypatch, tmp_path) -> None:
+    _allow_export(monkeypatch, tmp_path, project_dirs=str(tmp_path))
+    result = _export_timeline("manual_two_clips_timeline", tmp_path)
+    assert result["success"] is False
+    assert result["error"] == "PERMISSION_DENIED"
+
+    _allow_export(monkeypatch, tmp_path, output_dirs=str(tmp_path / "nowhere"))
+    result = _export_timeline("manual_two_clips_timeline", tmp_path / "other")
+    assert result["success"] is False
+    assert result["error"] == "PERMISSION_DENIED"
+
+
+def test_export_kdenlive_timeline_via_mcp_response_shape(monkeypatch, tmp_path) -> None:
+    _allow_export(monkeypatch, tmp_path)
+
+    result = _export_timeline("manual_two_clips_timeline", tmp_path)
+
+    assert set(result) >= {"success", "operation", "project", "timeline_file", "timeline", "warnings"}
+    assert result["timeline"]["schema_version"] == 1
+
+
+def test_export_kdenlive_timeline_accepts_null_name(monkeypatch, tmp_path) -> None:
+    _allow_export(monkeypatch, tmp_path)
+
+    result = _mcp_call(
+        "export_kdenlive_timeline",
+        {
+            "project": str(RECON_DIR / "manual_two_clips_timeline.kdenlive"),
+            "output_directory": str(tmp_path),
+            "name": None,
+        },
+    )
+
+    assert result["success"] is True
+    expected = tmp_path / "manual_two_clips_timeline.timeline.json"
+    assert result["timeline_file"] == str(expected)
+    assert expected.exists()
 
 
 def test_extract_timeline_document_two_clips_validates() -> None:

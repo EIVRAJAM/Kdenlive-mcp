@@ -208,6 +208,7 @@ def test_tools_list_includes_health_check() -> None:
     assert "create_manifest" in tool_names
     assert "inspect_project" in tool_names
     assert "inspect_kdenlive_timeline" in tool_names
+    assert "export_kdenlive_timeline" in tool_names
     assert "validate_project" in tool_names
     assert "backup_project" in tool_names
     assert "clone_project" in tool_names
@@ -217,6 +218,14 @@ def test_tools_list_includes_health_check() -> None:
     assert "lock_project" in tool_names
     assert "unlock_project" in tool_names
     assert "prepare_working_project" in tool_names
+
+
+def test_tools_list_has_expected_tool_count() -> None:
+    response = handle_request({"jsonrpc": "2.0", "id": 63, "method": "tools/list", "params": {}})
+
+    assert response is not None
+    tools = response["result"]["tools"]
+    assert len(tools) == 64
 
 
 def test_tools_call_health_check() -> None:

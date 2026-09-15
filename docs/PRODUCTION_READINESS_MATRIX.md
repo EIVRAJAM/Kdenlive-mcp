@@ -136,7 +136,9 @@ Conteo: DONE 20 · PARTIAL 0 · MISSING 0 · BLOCKED 0.
     devuelve un `TimelineDocument` schema_version 1 válido para proyectos simples
     y `apply_edits_to_working_project` ya edita sobre la timeline real cuando el
     proyecto está en el subset (`timeline_source="kdenlive_reverse_adapter"`),
-    cayendo al fallback desde Project Bin con warning para proyectos complejos).
+    cayendo al fallback desde Project Bin con warning para proyectos complejos;
+    la tool `export_kdenlive_timeline` expone la conversión read-only y la
+    persiste como `.timeline.json`).
 4. Crear manualmente los fixtures complejos pendientes en Kdenlive (stack de
    efectos múltiples, transiciones múltiples, fade de audio, proxy) siguiendo las
    recetas de `docs/KDENLIVE_PROJECT_FORMAT.md`; los detectores y tests skipif ya

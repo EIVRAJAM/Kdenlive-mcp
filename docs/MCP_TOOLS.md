@@ -1579,6 +1579,56 @@ blanks, not stored by Kdenlive), the response carries a structured warning:
 
 Errors: `PROJECT_NOT_FOUND`, `INVALID_PROJECT`, `PERMISSION_DENIED`.
 
+### export_kdenlive_timeline
+
+Input:
+
+```json
+{
+  "project": "/home/abrahamc/Videos/vlog/vlog_ai_001.kdenlive",
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "name": "vlog_ai_001_timeline",
+  "overwrite": false
+}
+```
+
+Converts a simple `.kdenlive` project to a `TimelineDocument` using the
+reverse-adapter subset (`extract_timeline_document`) and persists it as
+`<name>.timeline.json` (schema_version 1) via the standard
+`save_timeline`/`load_timeline_document` format:
+
+```text
+validate project (ensure_project_path) -> output_directory (ensure_output_path)
+convert with extract_timeline_document (no writes to the .kdenlive or media)
+unsupported transition/effect -> UNSUPPORTED_TIMELINE_FEATURE, no output
+existing output + overwrite=false -> OUTPUT_EXISTS
+save the TimelineDocument JSON
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "operation": "export_kdenlive_timeline",
+  "project": "/home/abrahamc/Videos/vlog/vlog_ai_001.kdenlive",
+  "timeline_file": "/home/abrahamc/Videos/vlog/vlog_ai_001_timeline.timeline.json",
+  "timeline": { "schema_version": 1, "fps": 30.0, "...": "..." },
+  "warnings": [
+    {
+      "code": "TIMELINE_EXPORTED_FROM_KDENLIVE",
+      "message": "TimelineDocument was exported from the project's current Kdenlive timeline using the supported reverse-adapter subset."
+    }
+  ]
+}
+```
+
+The `.kdenlive` source and its media are never modified. The exported
+`TimelineDocument` includes audio/video `linked_clip_id` pairs, absolute media
+paths, and only the supported subset (user transitions and clip effects are
+refused). Errors: `PROJECT_NOT_FOUND`, `INVALID_PROJECT`,
+`UNSUPPORTED_TIMELINE_FEATURE`, `OUTPUT_EXISTS`, `PERMISSION_DENIED`.
+
 ### inspect_project
 
 Input:
