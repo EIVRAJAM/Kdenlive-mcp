@@ -2882,3 +2882,62 @@ Any agent can now materialize the working copy's real timeline into the internal
 TimelineDocument format before editing, as a reusable piece, without touching
 the .kdenlive or its media.
 ```
+
+## 2026-09-15 Round-trip: read -> edit -> export (e2e via MCP)
+
+Scope:
+
+```text
+validate the full inverse cycle using only existing tools, through
+handle_request("tools/call")
+```
+
+Flow:
+
+```text
+export_kdenlive_timeline(manual_two_clips_timeline.kdenlive)
+  -> roundtrip_base.timeline.json
+apply_timeline_edits(trim chain2_v -> 2.0, insert_gap at 2.0, split chain3_v
+  at 4.0)
+  -> roundtrip_edited.timeline.json
+prepare_working_project -> working copy
+apply_timeline_to_working_project(working copy + edited timeline)
+  -> roundtrip_output.kdenlive
+validate_project(output) -> valid, missing_media_count == 0
+inspect_project(output) -> all bin media resource_exists
+sha256 of sample1.mp4 and sample_vertical.mp4 unchanged
+original fixture and working copy hashes unchanged
+```
+
+No new features were needed: the exported timeline already carries absolute
+media paths and linked audio/video clips, so the existing edit/export tools
+closed the loop without changes. No fixtures or XML were modified.
+
+Tests (tests/test_project_mcp_workflow.py):
+
+```text
+test_export_edit_export_roundtrip_via_mcp
+```
+
+Commands:
+
+```bash
+python3 scripts/mcp_stdio_smoke_test.py
+.venv/bin/python scripts/mcp_client_sdk_smoke_test.py
+pytest tests/test_project_mcp_workflow.py tests/test_kdenlive_project_adapter.py tests/test_timeline_service.py tests/test_server_protocol.py -q
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+full suite: 358 passed, 9 skipped
+```
+
+Decision:
+
+```text
+An agent can read a real Kdenlive timeline, edit it safely, and return an
+editable .kdenlive project — the round-trip is closed with existing tools.
+```

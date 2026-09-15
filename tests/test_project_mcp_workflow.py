@@ -650,6 +650,89 @@ def test_apply_edits_to_working_project_reverse_adapter_trims_linked_audio(monke
     assert clips["chain0_a"]["source_out"] == 2.0
 
 
+def test_export_edit_export_roundtrip_via_mcp(monkeypatch, tmp_path: Path) -> None:
+    _allow(monkeypatch, tmp_path)
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_MEDIA_DIRS", str(RECON_DIR))
+    source_hash = _sha256(SOURCE_PROJECT)
+    media_hashes = {path.name: _sha256(path) for path in (RECON_DIR / "sample1.mp4", RECON_DIR / "sample_vertical.mp4")}
+
+    exported = _assert_ok(
+        _call(
+            "export_kdenlive_timeline",
+            {
+                "project": str(SOURCE_PROJECT),
+                "output_directory": str(tmp_path),
+                "name": "roundtrip_base",
+            },
+        ),
+        "export_kdenlive_timeline",
+    )
+    timeline_file = exported["timeline_file"]
+
+    edited = _assert_ok(
+        _call(
+            "apply_timeline_edits",
+            {
+                "timeline_file": timeline_file,
+                "edits": [
+                    {"operation": "trim", "clip_id": "chain2_v", "source_out": 2.0},
+                    {"operation": "insert_gap", "position": 2.0, "duration": 0.5},
+                    {"operation": "split", "clip_id": "chain3_v", "split_at": 4.0},
+                ],
+                "output_directory": str(tmp_path),
+                "name": "roundtrip_edited",
+                "dry_run": False,
+            },
+        ),
+        "apply_timeline_edits",
+    )
+    edited_timeline_file = edited["timeline_file"]
+
+    prepared = _assert_ok(
+        _call(
+            "prepare_working_project",
+            {
+                "project": str(SOURCE_PROJECT),
+                "output_directory": str(tmp_path),
+                "lock_directory": str(tmp_path / "locks"),
+                "owner": "agent",
+            },
+        ),
+        "prepare_working_project",
+    )
+    working_project = prepared["working_project"]
+    working_copy_hash = _sha256(Path(working_project))
+
+    applied = _assert_ok(
+        _call(
+            "apply_timeline_to_working_project",
+            {
+                "working_project": working_project,
+                "timeline_file": edited_timeline_file,
+                "output_directory": str(tmp_path),
+                "name": "roundtrip_output",
+            },
+        ),
+        "apply_timeline_to_working_project",
+    )
+    output_project = Path(applied["output_project"])
+
+    assert output_project.exists()
+    ET.parse(output_project)
+
+    validation = _assert_ok(_call("validate_project", {"project": str(output_project)}), "validate_project")
+    assert validation["valid"] is True
+    assert validation["checks"]["media_references"]["missing_media_count"] == 0
+
+    inspection = _call("inspect_project", {"project": str(output_project)})
+    assert inspection["success"] is True
+    assert all(item["resource_exists"] for item in inspection["data"]["bin"]["media"])
+
+    assert {path.name: _sha256(path) for path in (RECON_DIR / "sample1.mp4", RECON_DIR / "sample_vertical.mp4")} == media_hashes
+    assert _sha256(SOURCE_PROJECT) == source_hash
+    assert _sha256(Path(working_project)) == working_copy_hash
+
+
 def test_apply_edits_to_working_project_falls_back_for_transition_project(monkeypatch, tmp_path: Path) -> None:
     _allow(monkeypatch, tmp_path)
     monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_MEDIA_DIRS", str(RECON_DIR))

@@ -1470,6 +1470,23 @@ Failures include `failed_step`, `step_result`, and `partial_outputs`. A failure
 during edit planning writes nothing. A later export or MLT validation failure
 reports any timeline/project artifacts already produced.
 
+### Round-trip: read -> edit -> export
+
+The full inverse cycle is exercised end-to-end with existing tools only:
+
+```text
+.kdenlive existente
+  -> export_kdenlive_timeline   (convierte la timeline real a .timeline.json)
+  -> apply_timeline_edits        (trim / insert_gap / split / move, ...)
+  -> apply_timeline_to_working_project (exporta desde una working copy)
+  -> .kdenlive nuevo
+```
+
+The final project is validated with `validate_project` (well-formed XML + media
+references), and neither the original project nor the media are modified. This
+closes the loop so an agent can read a real Kdenlive timeline, edit it safely,
+and produce an editable project, not only create timelines from scratch.
+
 ## Manifest Tools
 
 The manifest layer is an intermediate MCP-owned JSON format. It is not a
