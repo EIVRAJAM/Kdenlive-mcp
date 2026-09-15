@@ -2631,3 +2631,66 @@ An agent can now ask "what is actually in the timeline" through the MCP boundary
 and reason over confirmed/inferred fields before any edit, without modifying
 anything.
 ```
+
+## 2026-09-14 Reverse Adapter Phase 2 (TimelineDocument Conversion)
+
+Scope:
+
+```text
+Safe read-only conversion of a simple .kdenlive to TimelineDocument
+```
+
+Method:
+
+```text
+KdenliveProjectAdapter.extract_timeline_document(project)
+```
+
+Behavior:
+
+```text
+uses extract_timeline_summary as the base
+rejects user transitions or clip effects with UNSUPPORTED_TIMELINE_FEATURE
+converts simple video/audio tracks and clips with resolvable media
+source_in/source_out from entry attributes; timeline_in from accumulated
+position; gaps/blanks implicit (absence of clips)
+stable clip ids derived from producer + track kind
+returns a TimelineDocument (schema_version 1) that validates
+no writes
+```
+
+Tests (tests/test_kdenlive_project_adapter.py):
+
+```text
+manual_two_clips_timeline -> valid TimelineDocument (4 clips, 2 tracks)
+manual_trimmed_clip -> preserves source_in/source_out
+manual_gap_timeline -> preserves accumulated positions (second media shifted)
+manual_transition_dissolve -> UNSUPPORTED_TIMELINE_FEATURE
+manual_basic_effect -> UNSUPPORTED_TIMELINE_FEATURE
+model_validate passes for converted documents
+no files written
+```
+
+Commands:
+
+```bash
+pytest tests/test_kdenlive_project_adapter.py tests/test_kdenlive_project_fixtures.py -q
+pytest tests/test_timeline_service.py -q
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+tests/test_kdenlive_project_adapter.py + fixtures: 57 passed, 8 skipped
+full suite: 338 passed, 9 skipped
+```
+
+Decision:
+
+```text
+The reverse adapter now produces a valid TimelineDocument for simple projects
+and refuses complex ones explicitly. It is not yet wired into
+apply_edits_to_working_project; that connection is the next step.
+```

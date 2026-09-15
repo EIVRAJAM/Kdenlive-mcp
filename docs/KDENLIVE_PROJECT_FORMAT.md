@@ -628,6 +628,45 @@ This is the first step toward a reverse adapter that loads the exact timeline of
 a working copy; it deliberately does not convert to `TimelineDocument` while any
 field remains inferred.
 
+## Reverse Adapter Phase 2 (Safe Read-Only Conversion)
+
+`KdenliveProjectAdapter.extract_timeline_document(project)` converts a simple
+`.kdenlive` into a valid `TimelineDocument` (schema_version 1) without writing
+anything.
+
+Supported subset (Phase 2):
+
+```text
+one TimelineTrack per real playlist (clip_count>0 or gap_count>0), never a
+single track collapsed by kind
+simple video/audio tracks
+clips with a resolvable media/resource
+source_in/source_out from entry attributes
+timeline_in from accumulated position (entries + blanks)
+gaps/blanks are implicit (absence of clips), never converted into clips
+tracks/playlists with unsupported kinds and clips without a convertible track are
+rejected, never silently dropped
+```
+
+Explicitly rejected (UNSUPPORTED_TIMELINE_FEATURE):
+
+```text
+user transitions (is_user=true)
+clip effects (any clip-level filter without internal_added=237)
+```
+
+Confirmed vs inferred in the conversion:
+
+```text
+confirmed: fps/profile, source in/out, media, duration, position (accumulated)
+inferred: nothing new here; the same inferred position note from the read-only
+summary applies
+```
+
+This is deliberately conservative: complex projects with transitions or effects
+are refused instead of producing a TimelineDocument that would lose that
+information.
+
 ## Remaining Unknowns
 
 Confirmed by the new fixtures (see sections above): trim entry in/out, playlist

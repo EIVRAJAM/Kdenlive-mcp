@@ -1,13 +1,17 @@
 from pathlib import Path
 
+import pytest
+
 from kdenlive_mcp.adapters.commands import CommandResult
 from kdenlive_mcp.adapters.kdenlive_xml import (
     KdenliveProjectAdapter,
+    KdenliveProjectError,
     frame_to_kdenlive_timecode,
     parse_timecode_to_frames,
     seconds_to_kdenlive_in_timecode,
     seconds_to_kdenlive_out_timecode,
 )
+from kdenlive_mcp.domain.timeline import TimelineDocument
 from kdenlive_mcp.server import handle_request
 from kdenlive_mcp.tools import project_tools
 
@@ -289,3 +293,119 @@ def test_inspect_kdenlive_timeline_does_not_write_files(monkeypatch, tmp_path) -
 
     assert result["success"] is True
     assert set(tmp_path.iterdir()) == before
+
+
+def _extract_document(name: str) -> TimelineDocument:
+    return KdenliveProjectAdapter().extract_timeline_document(RECON_DIR / name)
+
+
+def test_extract_timeline_document_two_clips_validates() -> None:
+    document = _extract_document("manual_two_clips_timeline.kdenlive")
+    validated = TimelineDocument.model_validate(document.model_dump(mode="json", exclude_none=True))
+
+    assert validated.fps == 30.0
+    assert len(validated.tracks) == 2
+    assert len(validated.clips) == 4
+
+
+def test_extract_timeline_document_preserves_trim() -> None:
+    document = _extract_document("manual_trimmed_clip.kdenlive")
+
+    assert any(clip.source_in != 0 for clip in document.clips)
+    TimelineDocument.model_validate(document.model_dump(mode="json", exclude_none=True))
+
+
+def test_extract_timeline_document_preserves_gap_positions() -> None:
+    gap_document = _extract_document("manual_gap_timeline.kdenlive")
+    base_document = _extract_document("manual_two_clips_timeline.kdenlive")
+
+    gap_second = sorted([c for c in gap_document.clips if c.media.endswith("sample1.mp4")], key=lambda c: c.timeline_in)[0]
+    base_second = sorted([c for c in base_document.clips if c.media.endswith("sample1.mp4")], key=lambda c: c.timeline_in)[0]
+    assert gap_second.timeline_in > base_second.timeline_in
+    TimelineDocument.model_validate(gap_document.model_dump(mode="json", exclude_none=True))
+
+
+def test_extract_timeline_document_rejects_user_transitions() -> None:
+    with pytest.raises(KdenliveProjectError) as excinfo:
+        _extract_document("manual_transition_dissolve.kdenlive")
+    assert excinfo.value.code == "UNSUPPORTED_TIMELINE_FEATURE"
+
+
+def test_extract_timeline_document_rejects_clip_effects() -> None:
+    with pytest.raises(KdenliveProjectError) as excinfo:
+        _extract_document("manual_basic_effect.kdenlive")
+    assert excinfo.value.code == "UNSUPPORTED_TIMELINE_FEATURE"
+
+
+def test_extract_timeline_document_does_not_write_files(tmp_path) -> None:
+    before = set(tmp_path.iterdir())
+    _extract_document("manual_two_clips_timeline.kdenlive")
+    assert set(tmp_path.iterdir()) == before
+
+
+def test_extract_timeline_document_creates_track_per_playlist(monkeypatch) -> None:
+    adapter = KdenliveProjectAdapter()
+    synthetic = {
+        "fps": 30.0,
+        "profile": {"width": 1080, "height": 1920, "frame_rate_num": 30, "frame_rate_den": 1},
+        "user_transitions": [],
+        "clip_effects": [],
+        "tracks": [
+            {"id": "playlist6", "track_kind": "video", "clip_count": 1, "gap_count": 0},
+            {"id": "playlist8", "track_kind": "video", "clip_count": 1, "gap_count": 0},
+        ],
+        "timeline_clips": [
+            {
+                "producer": "chain2",
+                "playlist_id": "playlist6",
+                "track_kind": "video",
+                "media": "/media/a.mp4",
+                "media_id": "4",
+                "source_in_frames": 0,
+                "source_out_frames": 89,
+                "duration_frames": 90,
+                "position_frames": 0,
+            },
+            {
+                "producer": "chain9",
+                "playlist_id": "playlist8",
+                "track_kind": "video",
+                "media": "/media/b.mp4",
+                "media_id": "5",
+                "source_in_frames": 0,
+                "source_out_frames": 59,
+                "duration_frames": 60,
+                "position_frames": 0,
+            },
+        ],
+        "confirmed_fields": [],
+        "inferred_fields": [],
+    }
+    monkeypatch.setattr(adapter, "extract_timeline_summary", lambda project: synthetic)
+
+    document = adapter.extract_timeline_document("dummy.kdenlive")
+
+    video_tracks = [track for track in document.tracks if track.type == "video"]
+    assert len(video_tracks) == 2
+    clips_by_id = {clip.id: clip for clip in document.clips}
+    assert clips_by_id["chain2_v"].track_id == video_tracks[0].id
+    assert clips_by_id["chain9_v"].track_id == video_tracks[1].id
+    assert clips_by_id["chain2_v"].track_id != clips_by_id["chain9_v"].track_id
+    assert video_tracks[0].id.endswith("playlist6")
+    assert video_tracks[1].id.endswith("playlist8")
+
+
+def test_extract_timeline_document_track_names_are_simple() -> None:
+    document = _extract_document("manual_two_clips_timeline.kdenlive")
+
+    names = {track.name for track in document.tracks}
+    assert names == {"Video 1", "Audio 1"}
+
+
+def test_extract_timeline_document_loses_no_convertible_clip() -> None:
+    adapter = KdenliveProjectAdapter()
+    summary = adapter.extract_timeline_summary(RECON_DIR / "manual_two_clips_timeline.kdenlive")
+    document = adapter.extract_timeline_document(RECON_DIR / "manual_two_clips_timeline.kdenlive")
+
+    convertible = [clip for clip in summary["timeline_clips"] if clip.get("media") and int(clip.get("duration_frames") or 0) > 0]
+    assert len(document.clips) == len(convertible)

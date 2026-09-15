@@ -129,12 +129,11 @@ Conteo: DONE 20 · PARTIAL 0 · MISSING 0 · BLOCKED 0.
 2. Mantener la re-ejecución por-release del gate de fiabilidad (20 runs +
    checksum) y del gate MLT real; la re-ejecución del 2026-09-02 ya está
    registrada en RELEASE_EVIDENCE.
-3. Completar el adaptador inverso que carga el timeline exacto de una working
-   copy `.kdenlive` a TimelineDocument (fase read-only lista y expuesta como tool
-   `inspect_kdenlive_timeline`: devuelve active_sequence/fps/tracks/clips/gaps/
-   transiciones/efectos con posiciones acumuladas de entries+blanks y warning
-   `TIMELINE_SUMMARY_HAS_INFERRED_FIELDS`; falta la conversión a
-   TimelineDocument cuando los campos inferidos estén confirmados).
+3. Ampliar la conversión inversa `extract_timeline_document` más allá del subset
+   simple (hoy convierte tracks/clips/gaps simples y rechaza transiciones/efectos
+   con `UNSUPPORTED_TIMELINE_FEATURE`; la fase 2 ya devuelve un `TimelineDocument`
+   schema_version 1 válido para proyectos simples). Conectar la conversión a
+   `apply_edits_to_working_project` para editar sobre la timeline real.
 4. Crear manualmente los fixtures complejos pendientes en Kdenlive (stack de
    efectos múltiples, transiciones múltiples, fade de audio, proxy) siguiendo las
    recetas de `docs/KDENLIVE_PROJECT_FORMAT.md`; los detectores y tests skipif ya

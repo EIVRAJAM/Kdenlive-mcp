@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
-from kdenlive_mcp.domain.timeline import TimelineClip, TimelineDocument
+from kdenlive_mcp.domain.timeline import TimelineClip, TimelineDocument, TimelineTrack
 
 
 TIMECODE_RE = re.compile(
@@ -299,6 +300,105 @@ class KdenliveProjectAdapter:
                 "track_kind when neither hide nor audio_track is decisive",
             ],
         }
+
+    def extract_timeline_document(self, project_path: str | Path) -> TimelineDocument:
+        summary = self.extract_timeline_summary(project_path)
+
+        if any(transition.get("is_user") for transition in summary["user_transitions"]):
+            raise KdenliveProjectError(
+                "UNSUPPORTED_TIMELINE_FEATURE",
+                "User transitions are not supported by reverse timeline conversion yet.",
+            )
+        if summary["clip_effects"]:
+            raise KdenliveProjectError(
+                "UNSUPPORTED_TIMELINE_FEATURE",
+                "Clip effects are not supported by reverse timeline conversion yet.",
+            )
+
+        fps = summary["fps"] or 30.0
+        profile = summary["profile"]
+        width = int(profile.get("width") or 1080)
+        height = int(profile.get("height") or 1920)
+
+        kind_counters: dict[str, int] = {"video": 0, "audio": 0}
+        tracks: list[TimelineTrack] = []
+        track_by_playlist: dict[str, TimelineTrack] = {}
+        for track in summary["tracks"]:
+            playlist_id = track.get("id") or ""
+            if (track.get("clip_count") or 0) == 0 and (track.get("gap_count") or 0) == 0:
+                continue
+            kind = track.get("track_kind")
+            if kind not in ("video", "audio"):
+                raise KdenliveProjectError(
+                    "UNSUPPORTED_TIMELINE_FEATURE",
+                    f"Track {playlist_id} has an unsupported track kind: {kind}",
+                )
+            kind_counters[kind] += 1
+            number = kind_counters[kind]
+            char = "v" if kind == "video" else "a"
+            track_id = f"track_{char}{number}_{playlist_id}"
+            name = f"{'Video' if kind == 'video' else 'Audio'} {number}"
+            timeline_track = TimelineTrack(id=track_id, type=kind, name=name)
+            tracks.append(timeline_track)
+            track_by_playlist[playlist_id] = timeline_track
+
+        clips: list[TimelineClip] = []
+        used_ids: set[str] = set()
+        for clip in summary["timeline_clips"]:
+            media = clip.get("media")
+            duration_frames = int(clip.get("duration_frames") or 0)
+            if not media:
+                continue
+            if duration_frames <= 0:
+                continue
+            playlist_id = clip.get("playlist_id") or ""
+            timeline_track = track_by_playlist.get(playlist_id)
+            if timeline_track is None:
+                raise KdenliveProjectError(
+                    "UNSUPPORTED_TIMELINE_FEATURE",
+                    f"Clip {clip.get('producer')} in playlist {playlist_id} has no convertible track.",
+                )
+
+            source_in_frames = int(clip.get("source_in_frames") or 0)
+            source_out_frames = int(clip.get("source_out_frames") or 0)
+            position_frames = int(clip.get("position_frames") or 0)
+
+            source_in = source_in_frames / fps
+            source_out = (source_out_frames + 1) / fps
+            timeline_in = position_frames / fps
+            timeline_out = timeline_in + (source_out - source_in)
+
+            kind = timeline_track.type
+            base_id = f"{clip.get('producer') or 'clip'}_{'v' if kind == 'video' else 'a'}"
+            clip_id = base_id
+            suffix = 1
+            while clip_id in used_ids:
+                clip_id = f"{base_id}_{suffix}"
+                suffix += 1
+            used_ids.add(clip_id)
+
+            media_id = clip.get("media_id") or f"media_{hashlib.sha1(str(media).encode('utf-8')).hexdigest()[:12]}"
+            clips.append(
+                TimelineClip(
+                    id=clip_id,
+                    track_id=timeline_track.id,
+                    media_id=media_id,
+                    media=str(media),
+                    source_in=round(source_in, 6),
+                    source_out=round(source_out, 6),
+                    timeline_in=round(timeline_in, 6),
+                    timeline_out=round(timeline_out, 6),
+                    reason="reverse_converted",
+                )
+            )
+
+        return TimelineDocument(
+            fps=float(fps),
+            width=width,
+            height=height,
+            tracks=tracks,
+            clips=clips,
+        )
 
     def _walk_playlist_summary(
         self,
