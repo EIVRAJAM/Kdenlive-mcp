@@ -404,78 +404,74 @@ Validation:
 pytest tests/test_kdenlive_project_fixtures.py -k "trimmed_clip_fixture or gap_timeline_fixture or transition_fixture or effect_fixture"
 ```
 
-## Complex Fixture Recipes (Pending Manual Creation)
+## Complex Fixture Recipes (Confirmed)
 
-These fixtures cover scenarios that are not yet confirmed. They require a short
-manual session in Kdenlive 26.04.3. The data-driven tests
-(`test_complex_fixture_*`) skip until each file exists.
+These fixtures cover scenarios that were previously unconfirmed. They were
+created manually in Kdenlive 26.04.3 and the data-driven tests
+(`test_complex_fixture_*`) now pass. The XML patterns below are confirmed from
+the real files in `examples/recon/`.
 
-Base file for all recipes: `examples/recon/manual_two_clips_timeline.kdenlive`
-(or `manual_transition_dissolve.kdenlive` when more clips are needed).
+Base file for the recipes: `examples/recon/manual_two_clips_timeline.kdenlive`.
 
-Recipe - `multiple_effect_stack_on_clip.kdenlive`:
-
-```text
-manual steps:
-  1. open manual_two_clips_timeline.kdenlive
-  2. select the first video clip and add two user effects, e.g. Transform then
-     Opacity (or Transform + Blur)
-  3. File > Save As examples/recon/multiple_effect_stack_on_clip.kdenlive
-expected XML (pattern):
-  at least one playlist entry containing 2 or more <filter> children with
-  mlt_service and without internal_added=237 (clip-level user effects); default
-  per-track filters never appear inside entries and any internal_added=237
-  filters are excluded
-detector:
-  _has_multiple_effects_on_clip
-```
-
-Recipe - `multiple_transitions_timeline.kdenlive`:
+Confirmed - `multiple_effect_stack_on_clip.kdenlive`:
 
 ```text
-manual steps:
-  1. open manual_two_clips_timeline.kdenlive and add a third clip
-  2. overlap clip1/clip2 and clip2/clip3 and add a Dissolve/Wipe between each pair
-  3. File > Save As examples/recon/multiple_transitions_timeline.kdenlive
-expected XML (pattern):
-  at least 2 user transitions (in/out attributes and no internal_added=237, or a
-  non-default service without internal_added=237)
+created with: select the first video clip, add Transform then Contrast
+confirmed XML (pattern):
+  playlist6 entry (producer=chain2) has 2 <filter> children, no
+  internal_added=237:
+    filter: mlt_service = qtblend    (Transform effect)
+    filter: mlt_service = frei0r.contrast0r  (Contrast effect)
 detector:
-  _has_multiple_user_transitions
+  _has_multiple_effects_on_clip (counts >= 2 user clip filters)
 ```
 
-Recipe - `audio_fade_fixture.kdenlive`:
+Confirmed - `multiple_transitions_timeline.kdenlive`:
 
 ```text
-manual steps:
-  1. open manual_two_clips_timeline.kdenlive
-  2. on the first audio clip, add a volume fade in/out or keyframe the volume
-  3. File > Save As examples/recon/audio_fade_fixture.kdenlive
-expected XML: UNCONFIRMED. A clip-level volume/fade filter with a keyframed
-property is expected; the detector looks for such a filter with a "=" keyframe
-value, but the real representation must be confirmed from the fixture.
+created with: add a third clip, overlap clip1/clip2 and clip2/clip3, add a
+Dissolve/Wipe between each pair
+confirmed XML (pattern):
+  2 user transitions with in/out attributes and no internal_added=237:
+    transition: service = luma, in=00:00:01.433 out=00:00:04.400
+    transition: service = frei0r.sleid0r_wipe-down, in=00:00:04.433
+                out=00:00:07.400
+  default track transitions (mix/qtblend with internal_added=237) also present
+  and are ignored by the detector
 detector:
-  _has_audio_fade (best-effort; pattern unknown until fixture exists)
+  _has_multiple_user_transitions (>= 2 user transitions)
 ```
 
-Recipe - `proxy_fixture.kdenlive` (optional):
+Confirmed - `audio_fade_fixture.kdenlive`:
 
 ```text
-manual steps (only if easy and without risk):
-  1. open manual_two_clips_timeline.kdenlive
-  2. enable proxy generation for the bin media and generate/attach a proxy
-  3. File > Save As examples/recon/proxy_fixture.kdenlive
-expected XML: UNCONFIRMED. A chain (bin media) carrying kdenlive proxy
-properties is expected; the detector looks for kdenlive:proxy or
-kdenlive:proxy_metadata on a chain, but the real representation must be
-confirmed from the fixture.
+created with: on the first audio clip, add a Volume fade via keyframed volume
+confirmed XML (pattern):
+  playlist0 entry (producer=chain0) has 3 <filter> volume children, no
+  internal_added=237; the keyframed gain uses a timecode=value list:
+    filter: mlt_service = volume
+    property level = 00:00:00.000=1;00:00:01.233=50;00:00:01.833=50;
+                      00:00:02.667=50
 detector:
-  _has_proxy_attachment (best-effort; pattern unknown until fixture exists)
+  _has_audio_fade (clip-level volume/fade filter with a "=" keyframe value)
 ```
 
-Remaining unknowns for these scenarios: multiple effects per clip ordering,
-audio fade/keyframe XML shape, and proxy attachment XML shape are all unconfirmed
-until the corresponding fixtures are created manually.
+Confirmed - `proxy_fixture.kdenlive`:
+
+```text
+created with: enable proxy clips in Project Settings > Media replacement, then
+right-click the bin clip > generate replacement media; the proxy .mov is stored
+under <project_dir>/proxy/
+confirmed XML (pattern):
+  chain (bin media) resource points to the proxy file and carries
+  kdenlive:proxy:
+    chain: resource = proxy/c50c6384b5a3e673979aec545d5007c6.mov
+    property kdenlive:proxy = proxy/c50c6384b5a3e673979aec545d5007c6.mov
+  the referenced proxy file must be committed alongside the fixture or the
+  well-formed-with-media test fails on other machines
+detector:
+  _has_proxy_attachment (chain with kdenlive:proxy or kdenlive:proxy_metadata)
+```
 
 ## Default Transitions And Filters (Observed)
 
@@ -698,18 +694,23 @@ unambiguous.
 ## Remaining Unknowns
 
 Confirmed by the new fixtures (see sections above): trim entry in/out, playlist
-`<blank>` gaps, user transitions (composite/wipe with in/out), and clip-level
-effects (filter inside a playlist entry).
+`<blank>` gaps, user transitions (composite/wipe with in/out), clip-level
+effects (filter inside a playlist entry), audio fade filters (clip-level
+`volume` with a `timecode=value` keyframed `level`), proxy attachment fields
+(chain `kdenlive:proxy` property), multiple effects on one clip (two or more
+user filters in the same playlist entry), and multiple user transitions
+(two or more user transitions with in/out attributes).
 
-Still not confirmed enough for writing:
+Still not confirmed enough for writing (observed for read/detection, but MCP
+writing/generation support is not implemented yet):
 
 ```text
 Track rename, lock, mute, and height metadata
 Explicit folder/bin nesting beyond the default sequence folder
-Proxy attachment fields
+Writing proxy attachments from MCP
 Subtitle track representation
-Effect STACK composition across multiple effects on one clip
-Multiple user transitions on the same clip
+Writing complex effect stacks from MCP
+Writing multiple user transitions from MCP
 Round-trip behavior for complex AI-written projects with effect stacks, multiple
 transitions, proxies, subtitles, or advanced metadata
 ```

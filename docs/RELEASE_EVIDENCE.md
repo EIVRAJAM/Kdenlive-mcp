@@ -3043,3 +3043,60 @@ Decision:
 The real round-trip MLT load is now part of the operational release process as
 an opt-in gate, without breaking environments where Flatpak/MLT cannot run.
 ```
+
+## 2026-09-15 Complex Kdenlive fixtures created and patterns confirmed
+
+Scope:
+
+```text
+create the four previously pending complex fixtures manually in Kdenlive 26.04.3
+and confirm the real XML patterns
+```
+
+Fixtures added to `examples/recon/`:
+
+```text
+multiple_effect_stack_on_clip.kdenlive
+multiple_transitions_timeline.kdenlive
+audio_fade_fixture.kdenlive
+proxy_fixture.kdenlive
+proxy/c50c6384b5a3e673979aec545d5007c6.mov   (generated proxy, 1.8 MB)
+```
+
+Confirmed XML patterns (previously UNCONFIRMED):
+
+```text
+multiple effects: playlist6 entry with 2 user filters qtblend (Transform) +
+  frei0r.contrast0r (Contrast), no internal_added=237
+multiple transitions: 2 user transitions with in/out and no internal_added=237
+  (luma; frei0r.sleid0r_wipe-down); default mix/qtblend with 237 are ignored
+audio fade: clip-level volume filters with keyframed level =
+  "00:00:00.000=1;00:00:01.233=50;..." (timecode=value list)
+proxy: chain resource = proxy/<hash>.mov with kdenlive:proxy property
+  kdenlive:proxy = proxy/<hash>.mov
+```
+
+Tests:
+
+```text
+tests/test_kdenlive_project_fixtures.py: 43 passed, 0 skipped (was 33 + 8
+skipped before the fixtures existed)
+full suite: 366 passed, 1 skipped (remaining skip is in-place working copy
+editing, unrelated)
+```
+
+Commands:
+
+```bash
+pytest tests/test_kdenlive_project_fixtures.py -q
+pytest
+```
+
+Decision:
+
+```text
+The four complex scenarios are now covered by real fixtures with confirmed XML
+patterns; the detectors no longer rely on unconfirmed assumptions and the
+corresponding test skips are gone. The proxy fixture must be committed together
+with its generated .mov so the well-formed-with-media check passes elsewhere.
+```
