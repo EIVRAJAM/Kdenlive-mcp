@@ -2439,3 +2439,64 @@ derived from the working copy's media via the existing rough-cut plan path; a
 reverse adapter that loads the working copy's exact timeline remains future
 work, documented in Remaining Unknowns.
 ```
+
+## 2026-09-14 Complex Kdenlive Fixture Preparation
+
+Scope:
+
+```text
+Prepare detectors and docs for complex real Kdenlive fixtures (pending manual creation)
+```
+
+Fixtures targeted:
+
+```text
+multiple_effect_stack_on_clip.kdenlive    >=2 user effects on one clip
+multiple_transitions_timeline.kdenlive    >=2 user transitions between clips
+audio_fade_fixture.kdenlive               audio fade or keyframed volume
+proxy_fixture.kdenlive                    generated/attached proxy
+```
+
+Status:
+
+```text
+none of the four fixtures exist yet; tests test_complex_fixture_* are skipif and
+documented recipes are in docs/KDENLIVE_PROJECT_FORMAT.md
+```
+
+Detectors added (tests/test_kdenlive_project_fixtures.py):
+
+```text
+_has_multiple_effects_on_clip   clip-level filter count >= 2 on one entry
+_has_multiple_user_transitions  user transition count >= 2
+_has_audio_fade                 best-effort: volume/fade clip filter with keyframed "=" value
+_has_proxy_attachment           best-effort: kdenlive:proxy / kdenlive:proxy_metadata on a chain
+```
+
+The audio fade and proxy patterns are UNCONFIRMED until the fixtures exist; the
+detectors are conservative and documented as best-effort.
+
+Commands:
+
+```bash
+pytest tests/test_kdenlive_project_fixtures.py -q
+pytest tests/test_kdenlive_project_adapter.py tests/test_kdenlive_project_fixtures.py -q
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+tests/test_kdenlive_project_fixtures.py: 33 passed, 8 skipped (complex fixtures absent)
+tests/test_kdenlive_project_adapter.py + fixtures: 43 passed, 8 skipped
+full suite: 320 passed, 9 skipped
+```
+
+Decision:
+
+```text
+Detectors and manual recipes for complex fixtures are ready and skip until the
+user creates each fixture in Kdenlive. The exact XML for audio fade and proxy
+attachment remains unknown until then.
+```

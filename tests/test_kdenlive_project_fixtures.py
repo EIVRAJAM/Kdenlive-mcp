@@ -31,6 +31,16 @@ ROUNDTRIP_GENERATED = "roundtrip_ai_generated.kdenlive"
 ROUNDTRIP_RESAVED = "roundtrip_ai_resaved_by_kdenlive.kdenlive"
 COMPOSITE_GENERATED = "composite_edit_ai_generated.kdenlive"
 
+# Complex fixtures require manual creation in Kdenlive; tests skip until each
+# file exists. Manual recipes and expected/unknown patterns are documented in
+# docs/KDENLIVE_PROJECT_FORMAT.md.
+COMPLEX_FIXTURES: dict[str, str] = {
+    "multiple_effect_stack_on_clip.kdenlive": "multiple effects on one clip",
+    "multiple_transitions_timeline.kdenlive": "multiple user transitions between clips",
+    "audio_fade_fixture.kdenlive": "audio fade or keyframed volume",
+    "proxy_fixture.kdenlive": "generated/attached proxy",
+}
+
 _ROUNDTRIP_SKIP_REASON = (
     f"{ROUNDTRIP_RESAVED} requires opening {ROUNDTRIP_GENERATED} in Kdenlive and "
     "saving it under that name; instructions in docs/KDENLIVE_PROJECT_FORMAT.md"
@@ -226,6 +236,77 @@ def _has_basic_effect(root: ET.Element) -> bool:
             if entry.findall("filter"):
                 return True
     return False
+
+
+def _clip_effect_counts(root: ET.Element) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for playlist in root.findall("playlist"):
+        for entry in playlist.findall("entry"):
+            producer = entry.attrib.get("producer") or ""
+            filters = [
+                filter_
+                for filter_ in entry.findall("filter")
+                if _props(filter_).get("mlt_service") and _props(filter_).get("internal_added") != "237"
+            ]
+            if filters:
+                counts[producer] = max(counts.get(producer, 0), len(filters))
+    return counts
+
+
+def _has_multiple_effects_on_clip(root: ET.Element) -> bool:
+    return any(count >= 2 for count in _clip_effect_counts(root).values())
+
+
+def _user_transitions(root: ET.Element) -> list[str]:
+    transitions: list[str] = []
+    for transition in root.iter("transition"):
+        props = _props(transition)
+        has_in_out = transition.get("in") is not None and transition.get("out") is not None
+        is_user = props.get("internal_added") != "237"
+        if has_in_out and is_user:
+            transitions.append(transition.get("id") or "")
+        elif is_user and props.get("mlt_service") not in DEFAULT_TRANSITION_SERVICES:
+            transitions.append(transition.get("id") or "")
+    return transitions
+
+
+def _has_multiple_user_transitions(root: ET.Element) -> bool:
+    return len(_user_transitions(root)) >= 2
+
+
+def _has_audio_fade(root: ET.Element) -> bool:
+    # Best-effort: a clip-level filter whose service is volume/fade-like with a
+    # keyframed property (a property value containing a "=" timecode). Pattern
+    # unconfirmed until the fixture exists.
+    fade_services = {"volume", "fade", "fadein", "fadeout", "fade_tocurrentcolor"}
+    for playlist in root.findall("playlist"):
+        for entry in playlist.findall("entry"):
+            for filter_ in entry.findall("filter"):
+                props = _props(filter_)
+                if props.get("mlt_service") not in fade_services:
+                    continue
+                for name, value in props.items():
+                    if "=" in value:
+                        return True
+    return False
+
+
+def _has_proxy_attachment(root: ET.Element) -> bool:
+    # Best-effort: a chain (bin media) carrying kdenlive proxy properties.
+    # Pattern unconfirmed until the fixture exists.
+    for chain in root.findall("chain"):
+        props = _props(chain)
+        if "kdenlive:proxy" in props or "kdenlive:proxy_metadata" in props:
+            return True
+    return False
+
+
+_COMPLEX_DETECTORS = {
+    "multiple_effect_stack_on_clip.kdenlive": _has_multiple_effects_on_clip,
+    "multiple_transitions_timeline.kdenlive": _has_multiple_user_transitions,
+    "audio_fade_fixture.kdenlive": _has_audio_fade,
+    "proxy_fixture.kdenlive": _has_proxy_attachment,
+}
 
 
 def _skip_when_missing(names: list[str]):
@@ -488,3 +569,71 @@ def test_composite_edit_project_contains_trim_gap_and_split() -> None:
         if entry.attrib.get("producer") in chains and entry.attrib.get("producer") not in bin_ids
     )
     assert timeline_clip_count >= 4  # split produces more entries than the base two-media timeline
+
+
+def _complex_params():
+    return [
+        pytest.param(
+            name,
+            detector,
+            marks=pytest.mark.skipif(
+                not (RECON_DIR / name).exists(),
+                reason=f"{name} requires manual creation in Kdenlive; recipe in docs/KDENLIVE_PROJECT_FORMAT.md",
+            ),
+        )
+        for name, detector in _COMPLEX_DETECTORS.items()
+    ]
+
+
+@pytest.mark.parametrize("name,detector", _complex_params(), ids=list(COMPLEX_FIXTURES.keys()))
+def test_complex_fixture_pattern_detected(name: str, detector) -> None:
+    root = _parse(name)
+
+    assert detector(root)
+
+
+@pytest.mark.parametrize("name,detector", _complex_params(), ids=list(COMPLEX_FIXTURES.keys()))
+def test_complex_fixture_is_well_formed_with_media(name: str, detector) -> None:
+    root = _parse(name)
+
+    assert root.tag == "mlt"
+    assert root.attrib["producer"] == "main_bin"
+    for chain in root.findall("chain"):
+        resource = _props(chain).get("resource")
+        if resource and resource != "black":
+            assert (RECON_DIR / resource).exists()
+
+
+def _entry_with_filters(internal_count: int, user_count: int) -> ET.Element:
+    playlist = ET.Element("playlist")
+    entry = ET.SubElement(playlist, "entry", {"producer": "chainX"})
+    for index in range(internal_count):
+        filter_ = ET.SubElement(entry, "filter", {"id": f"internal{index}"})
+        mlt = ET.SubElement(filter_, "property")
+        mlt.set("name", "mlt_service")
+        mlt.text = "volume"
+        internal = ET.SubElement(filter_, "property")
+        internal.set("name", "internal_added")
+        internal.text = "237"
+    for index in range(user_count):
+        filter_ = ET.SubElement(entry, "filter", {"id": f"user{index}"})
+        mlt = ET.SubElement(filter_, "property")
+        mlt.set("name", "mlt_service")
+        mlt.text = "qtblend"
+    return playlist
+
+
+def test_multiple_effects_detector_ignores_internal_filters() -> None:
+    root = ET.Element("mlt")
+    root.append(_entry_with_filters(internal_count=2, user_count=0))
+
+    assert _clip_effect_counts(root) == {}
+    assert _has_multiple_effects_on_clip(root) is False
+
+
+def test_multiple_effects_detector_counts_user_filters_only() -> None:
+    root = ET.Element("mlt")
+    root.append(_entry_with_filters(internal_count=1, user_count=2))
+
+    assert _clip_effect_counts(root) == {"chainX": 2}
+    assert _has_multiple_effects_on_clip(root) is True

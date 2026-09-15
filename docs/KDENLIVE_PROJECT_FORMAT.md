@@ -404,6 +404,79 @@ Validation:
 pytest tests/test_kdenlive_project_fixtures.py -k "trimmed_clip_fixture or gap_timeline_fixture or transition_fixture or effect_fixture"
 ```
 
+## Complex Fixture Recipes (Pending Manual Creation)
+
+These fixtures cover scenarios that are not yet confirmed. They require a short
+manual session in Kdenlive 26.04.3. The data-driven tests
+(`test_complex_fixture_*`) skip until each file exists.
+
+Base file for all recipes: `examples/recon/manual_two_clips_timeline.kdenlive`
+(or `manual_transition_dissolve.kdenlive` when more clips are needed).
+
+Recipe - `multiple_effect_stack_on_clip.kdenlive`:
+
+```text
+manual steps:
+  1. open manual_two_clips_timeline.kdenlive
+  2. select the first video clip and add two user effects, e.g. Transform then
+     Opacity (or Transform + Blur)
+  3. File > Save As examples/recon/multiple_effect_stack_on_clip.kdenlive
+expected XML (pattern):
+  at least one playlist entry containing 2 or more <filter> children with
+  mlt_service and without internal_added=237 (clip-level user effects); default
+  per-track filters never appear inside entries and any internal_added=237
+  filters are excluded
+detector:
+  _has_multiple_effects_on_clip
+```
+
+Recipe - `multiple_transitions_timeline.kdenlive`:
+
+```text
+manual steps:
+  1. open manual_two_clips_timeline.kdenlive and add a third clip
+  2. overlap clip1/clip2 and clip2/clip3 and add a Dissolve/Wipe between each pair
+  3. File > Save As examples/recon/multiple_transitions_timeline.kdenlive
+expected XML (pattern):
+  at least 2 user transitions (in/out attributes and no internal_added=237, or a
+  non-default service without internal_added=237)
+detector:
+  _has_multiple_user_transitions
+```
+
+Recipe - `audio_fade_fixture.kdenlive`:
+
+```text
+manual steps:
+  1. open manual_two_clips_timeline.kdenlive
+  2. on the first audio clip, add a volume fade in/out or keyframe the volume
+  3. File > Save As examples/recon/audio_fade_fixture.kdenlive
+expected XML: UNCONFIRMED. A clip-level volume/fade filter with a keyframed
+property is expected; the detector looks for such a filter with a "=" keyframe
+value, but the real representation must be confirmed from the fixture.
+detector:
+  _has_audio_fade (best-effort; pattern unknown until fixture exists)
+```
+
+Recipe - `proxy_fixture.kdenlive` (optional):
+
+```text
+manual steps (only if easy and without risk):
+  1. open manual_two_clips_timeline.kdenlive
+  2. enable proxy generation for the bin media and generate/attach a proxy
+  3. File > Save As examples/recon/proxy_fixture.kdenlive
+expected XML: UNCONFIRMED. A chain (bin media) carrying kdenlive proxy
+properties is expected; the detector looks for kdenlive:proxy or
+kdenlive:proxy_metadata on a chain, but the real representation must be
+confirmed from the fixture.
+detector:
+  _has_proxy_attachment (best-effort; pattern unknown until fixture exists)
+```
+
+Remaining unknowns for these scenarios: multiple effects per clip ordering,
+audio fade/keyframe XML shape, and proxy attachment XML shape are all unconfirmed
+until the corresponding fixtures are created manually.
+
 ## Default Transitions And Filters (Observed)
 
 All existing reference projects contain exactly the same hidden defaults,

@@ -73,8 +73,9 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
   Kdenlive 26.04.3 (trim, gap, dissolve, efecto) con detectores que pasan:
   `manual_trimmed_clip`, `manual_gap_timeline`, `manual_transition_dissolve`,
   `manual_basic_effect`. Patrones XML documentados en
-  `docs/KDENLIVE_PROJECT_FORMAT.md`. Riesgo residual: falta el efecto con stack
-  múltiple y transiciones múltiples por clip.
+  `docs/KDENLIVE_PROJECT_FORMAT.md`. Pendiente (SHOULD/COULD): fixtures complejos
+  de stack de efectos múltiples, transiciones múltiples, fade de audio y proxy —
+  tests skipif y detectores listos, recetas manuales documentadas.
 - Edición de una working copy `.kdenlive` (spike de orquestación): **DONE con caveat**.
   `apply_timeline_to_working_project` aplica un timeline MCP a una working copy y escribe
   un proyecto derivado nuevo (copy-on-write). `apply_edits_to_working_project` orquesta el
@@ -128,13 +129,15 @@ Conteo: DONE 20 · PARTIAL 0 · MISSING 0 · BLOCKED 0.
 2. Mantener la re-ejecución por-release del gate de fiabilidad (20 runs +
    checksum) y del gate MLT real; la re-ejecución del 2026-09-02 ya está
    registrada en RELEASE_EVIDENCE.
-3. Ampliar la edición de working copy más allá del spike: soportar más
-   operaciones directas sobre `.kdenlive` derivados (el spike
-   `apply_timeline_to_working_project` ya aplica timeline a una working copy con
-   copy-on-write; la edición in-place sigue sin implementarse por diseño).
-4. Ampliar fixtures reales hacia stacks de efectos múltiples y transiciones
-   múltiples por clip (los fixtures de trim/gap/dissolve/efecto ya existen y los
-   patrones están documentados).
+3. Implementar un adaptador inverso que cargue el timeline exacto de una working
+   copy `.kdenlive` a TimelineDocument (hoy `apply_edits_to_working_project`
+   reconstruye el timeline desde el Project Bin con warning
+   `TIMELINE_RECONSTRUCTED_FROM_BIN`; la carga exacta permitiría edición sobre el
+   contenido real).
+4. Crear manualmente los fixtures complejos pendientes en Kdenlive (stack de
+   efectos múltiples, transiciones múltiples, fade de audio, proxy) siguiendo las
+   recetas de `docs/KDENLIVE_PROJECT_FORMAT.md`; los detectores y tests skipif ya
+   están listos y se activan al añadir cada archivo.
 5. Ampliar la verificación a un segundo cliente MCP distinto del SDK oficial `mcp`
    (el gate de cliente real ya pasa con el SDK oficial en `.venv`; el checklist
    "MCP tool discovery works" queda cerrado para ese cliente).
