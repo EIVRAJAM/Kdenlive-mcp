@@ -4,6 +4,7 @@ from typing import Any
 
 from kdenlive_mcp.services.timeline_service import (
     add_timeline_clip,
+    apply_edits_to_working_project,
     apply_timeline_edits,
     apply_timeline_to_working_project,
     create_timeline_from_rough_cut_plan,
@@ -421,5 +422,56 @@ TOOLS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "handler": apply_timeline_to_working_project,
+    },
+    "apply_edits_to_working_project": {
+        "description": "Orchestrate edits on a working copy: derive a timeline from its media, apply edit operations, and export a new derived project (copy-on-write).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "working_project": {"type": "string"},
+                "edits": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "operation": {
+                                "type": "string",
+                                "enum": [
+                                    "add",
+                                    "duplicate",
+                                    "remove",
+                                    "trim",
+                                    "move",
+                                    "split",
+                                    "insert_gap",
+                                    "remove_gap",
+                                ],
+                            },
+                            "clip_id": {"type": "string"},
+                            "timeline_in": {"type": "number"},
+                            "source_in": {"type": "number"},
+                            "source_out": {"type": "number"},
+                            "position": {"type": "number"},
+                            "duration": {"type": "number"},
+                            "split_at": {"type": "number"},
+                            "track_id": {"type": "string"},
+                            "track_ids": {"type": "array", "items": {"type": "string"}},
+                            "track_type": {"type": "string", "enum": ["video", "audio"]},
+                        },
+                        "required": ["operation"],
+                        "additionalProperties": False,
+                    },
+                    "minItems": 1,
+                },
+                "output_directory": {"type": ["string", "null"], "default": None},
+                "name": {"type": ["string", "null"], "default": None},
+                "overwrite": {"type": "boolean", "default": False},
+                "dry_run": {"type": "boolean", "default": False},
+                "check_mlt": {"type": "boolean", "default": False},
+            },
+            "required": ["working_project", "edits"],
+            "additionalProperties": False,
+        },
+        "handler": apply_edits_to_working_project,
     },
 }

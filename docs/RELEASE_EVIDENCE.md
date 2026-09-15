@@ -2367,3 +2367,75 @@ FLATPAK_EXECUTION_UNAVAILABLE_IN_SANDBOX there, but the real Flatpak/melt render
 passes on the target machine. The official SDK client gate and the legacy
 Content-Length STDIO smoke both pass with 61 registered tools.
 ```
+
+## 2026-09-14 apply_edits_to_working_project Orchestration
+
+Scope:
+
+```text
+Orchestrate edits on a working copy without the client coordinating timeline JSON + export
+```
+
+Tool:
+
+```text
+apply_edits_to_working_project(working_project, edits, output_directory=None,
+name=None, overwrite=False, dry_run=False, check_mlt=False)
+```
+
+Behavior:
+
+```text
+validate the working copy (ensure_project_path + parse)
+derive the media folder from the working copy's Project Bin
+build a rough-cut plan + base MCP timeline from that media
+apply edits via apply_timeline_edits
+dry_run=true  -> edited timeline plan, no .kdenlive written
+dry_run=false -> export via apply_timeline_to_working_project (copy-on-write,
+                 XML/reference validation, optional check_mlt)
+inner errors are re-wrapped with operation=apply_edits_to_working_project
+internal pipeline artifacts use unique per-execution names so a dry_run never
+blocks a later real run over the same output_directory
+every response carries warning TIMELINE_RECONSTRUCTED_FROM_BIN because the base
+timeline is rebuilt from Project Bin media, not the working project's exact
+timeline
+```
+
+Tests (tests/test_project_mcp_workflow.py):
+
+```text
+test_apply_edits_to_working_project_dry_run
+test_apply_edits_to_working_project_dry_run_does_not_block_real_run
+test_apply_edits_to_working_project_real_flow
+test_apply_edits_to_working_project_rejects_existing_output
+test_apply_edits_to_working_project_invalid_edit
+test_apply_edits_to_working_project_check_mlt_loaded
+test_apply_edits_to_working_project_check_mlt_failed
+test_apply_edits_to_working_project_check_mlt_unavailable
+```
+
+Commands:
+
+```bash
+pytest tests/test_project_mcp_workflow.py tests/test_timeline_service.py tests/test_tool_response_contract.py -q
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+orchestrated real flow: output .kdenlive exists and XML parses (6 timeline clips)
+working copy checksum unchanged
+full suite: 320 passed, 1 skipped
+tool count: 62 (apply_edits_to_working_project registered)
+```
+
+Decision:
+
+```text
+A working-copy edit pipeline is now a single MCP tool. The base timeline is
+derived from the working copy's media via the existing rough-cut plan path; a
+reverse adapter that loads the working copy's exact timeline remains future
+work, documented in Remaining Unknowns.
+```

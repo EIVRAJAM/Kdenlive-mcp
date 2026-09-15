@@ -4,6 +4,7 @@ import json
 import hashlib
 import math
 import re
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -1999,4 +2000,135 @@ def apply_timeline_to_working_project(
                     "message": "MLT load validation was requested but could not run in this environment.",
                 }
             ]
+    return result
+
+
+def _working_copy_media_folder(inspection: dict[str, Any]) -> Path | dict[str, Any]:
+    resources = [
+        Path(item["resolved_path"])
+        for item in inspection["bin"]["media"]
+        if item.get("resolved_path") and Path(item["resolved_path"]).is_absolute()
+    ]
+    if not resources:
+        return _error("INVALID_PROJECT", "Working project has no resolvable bin media.")
+    parents = {str(resource.parent) for resource in resources}
+    if len(parents) != 1:
+        return _error("INVALID_PROJECT", "Working project media are not in a single directory.")
+    return Path(parents.pop())
+
+
+def _working_copy_duration(inspection: dict[str, Any], fps: float = 30.0) -> float:
+    active_sequence = next(
+        (sequence for sequence in inspection["sequences"] if sequence["id"] == inspection["active_sequence_id"]),
+        None,
+    )
+    if active_sequence is None:
+        return 1.0
+    clips = active_sequence.get("timeline_clips", [])
+    end_frames = [
+        int(clip.get("start_frame") or 0) + int(clip.get("duration_frames") or 0) for clip in clips
+    ]
+    if not end_frames:
+        return 1.0
+    return max(max(end_frames), 1) / fps
+
+
+def apply_edits_to_working_project(
+    working_project: str,
+    edits: list[dict[str, Any]],
+    output_directory: str | None = None,
+    name: str | None = None,
+    overwrite: bool = False,
+    dry_run: bool = False,
+    check_mlt: bool = False,
+) -> dict[str, Any]:
+    try:
+        working_path = ensure_project_path(working_project)
+    except SecurityError as exc:
+        return _security_error(exc)
+    if not working_path.exists():
+        return _error("PROJECT_NOT_FOUND", f"Working project does not exist: {working_path}")
+    try:
+        inspection = KdenliveProjectAdapter().inspect(working_path)
+    except KdenliveProjectError as exc:
+        return _error(exc.code, exc.message)
+
+    media_folder = _working_copy_media_folder(inspection)
+    if isinstance(media_folder, dict):
+        return media_folder
+
+    try:
+        work_dir = ensure_output_path(output_directory or str(working_path.parent))
+    except SecurityError as exc:
+        return _security_error(exc)
+    work_dir.mkdir(parents=True, exist_ok=True)
+
+    # Unique internal artifact names per execution so a dry-run never blocks a
+    # later real run over the same output_directory.
+    base_name = f"{working_path.stem}_orchestration_{uuid.uuid4().hex[:8]}"
+    from kdenlive_mcp.tools.rough_cut_tools import create_rough_cut_plan_file
+
+    plan = create_rough_cut_plan_file(
+        folder=str(media_folder),
+        output_directory=str(work_dir),
+        name=base_name,
+        target_duration=_working_copy_duration(inspection),
+        recursive=False,
+        max_files=max(1, len(inspection["bin"]["media"])),
+        remove_silence=False,
+    )
+    if not plan.get("success"):
+        return {**plan, "operation": "apply_edits_to_working_project"}
+
+    timeline = create_timeline_from_rough_cut_plan(plan_file=plan["plan_file"])
+    if not timeline.get("success"):
+        return {**timeline, "operation": "apply_edits_to_working_project"}
+    saved = save_timeline(timeline=timeline["timeline"], output_directory=str(work_dir), name=base_name)
+    if not saved.get("success"):
+        return {**saved, "operation": "apply_edits_to_working_project"}
+
+    edited = apply_timeline_edits(
+        timeline_file=saved["timeline_file"],
+        edits=edits,
+        output_directory=str(work_dir),
+        name=f"{base_name}_edited",
+        overwrite=overwrite,
+        dry_run=dry_run,
+    )
+    if not edited.get("success"):
+        return {**edited, "operation": "apply_edits_to_working_project"}
+
+    orchestration_warning = {
+        "code": "TIMELINE_RECONSTRUCTED_FROM_BIN",
+        "message": "The base timeline was rebuilt from Project Bin media; existing timeline edits in the working project are not preserved.",
+    }
+    result: dict[str, Any] = {
+        "success": True,
+        "operation": "apply_edits_to_working_project",
+        "working_project": str(working_path),
+        "media_folder": str(media_folder),
+        "timeline_file": edited["timeline_file"],
+        "dry_run": dry_run,
+        "steps": {"plan": plan["plan_file"], "timeline": saved["timeline_file"], "edits": edited.get("steps", [])},
+        "warnings": [orchestration_warning],
+    }
+    if dry_run:
+        result["plan_timeline"] = edited["timeline"]
+        return result
+
+    exported = apply_timeline_to_working_project(
+        working_project=str(working_path),
+        timeline_file=edited["timeline_file"],
+        output_directory=str(work_dir),
+        name=name,
+        overwrite=overwrite,
+        check_mlt=check_mlt,
+    )
+    if not exported.get("success"):
+        return {**exported, "operation": "apply_edits_to_working_project"}
+    result["output_project"] = exported["output_project"]
+    result["inspection_summary"] = exported.get("inspection_summary", {})
+    if exported.get("mlt_load") is not None:
+        result["mlt_load"] = exported["mlt_load"]
+    result["warnings"] = [orchestration_warning] + (exported.get("warnings") or [])
     return result

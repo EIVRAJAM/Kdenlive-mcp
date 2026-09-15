@@ -39,7 +39,7 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
 | Persistent structured logging | DONE | `src/kdenlive_mcp/logging.py` (JSONL, redacción, error_type/message); `tests/test_server_protocol.py` (logging tests) | Log default a `logs/` si no se configura | — |
 | Reproducible dev/release check command | DONE | `scripts/dev_check.sh`, `scripts/release_gate.sh` (dev + STDIO smoke + reliability + MLT opcional), `docs/RELEASE_CHECKLIST.md`; RELEASE_EVIDENCE (comandos exactos) | Checks de fiabilidad/MLT opt-in por env y MLT requiere Flatpak | — |
 | Schema documentation for persisted JSON files | DONE | `docs/SCHEMAS.md` (rough-cut plan, timeline, manifest; "Schema Migration Policy"; códigos actuales con `UNSUPPORTED_SCHEMA_VERSION` unificado), `tests/test_schema_docs.py`, `tests/test_rough_cut_tools.py`, `tests/test_timeline_service.py`, `tests/test_manifest_tools.py` | No hay migradores todavía (por diseño, pendiente futuro) | Implementar migradores explícitos cuando exista v2 |
-| Generic MCP client registration example | DONE | `examples/mcp_client_config.toml`, `docs/MCP_CLIENT_SETUP.md`, `examples/codex_mcp_config.toml`, `docs/CODEX_SETUP.md`; smoke test STDIO real `scripts/mcp_stdio_smoke_test.py` (`initialize` + `tools/list`, 61 tools); smoke SDK real validado con el SDK oficial `mcp` en venv aislado (`.venv`, JSONL framing, exit 0) | No probado contra todos los clientes MCP, pero el protocolo STDIO y el SDK oficial `mcp` funcionan | — |
+| Generic MCP client registration example | DONE | `examples/mcp_client_config.toml`, `docs/MCP_CLIENT_SETUP.md`, `examples/codex_mcp_config.toml`, `docs/CODEX_SETUP.md`; smoke test STDIO real `scripts/mcp_stdio_smoke_test.py` (`initialize` + `tools/list`, 62 tools); smoke SDK real validado con el SDK oficial `mcp` en venv aislado (`.venv`, JSONL framing, exit 0) | No probado contra todos los clientes MCP, pero el protocolo STDIO y el SDK oficial `mcp` funcionan | — |
 | Known limitations documented | DONE | `README.md` ("Limite importante"), `docs/PRODUCTION_CONTRACT.md` (Known Accepted Risks) | Las limitaciones crecen con cada feature | Actualizar README al expandir superficie de edición |
 
 ## Atención especial a pendientes señalados
@@ -65,7 +65,7 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
 - Registro MCP genérico: **DONE** (`examples/mcp_client_config.toml`,
   `docs/MCP_CLIENT_SETUP.md`, `docs/CODEX_SETUP.md` como ejemplo específico),
   smoke test real del canal STDIO (`scripts/mcp_stdio_smoke_test.py`,
-  `initialize` + `tools/list`, 61 tools) y smoke de cliente SDK real validado con
+  `initialize` + `tools/list`, 62 tools) y smoke de cliente SDK real validado con
   el SDK oficial `mcp` (`.venv` aislado). El servidor ahora soporta el framing
   JSONL del SDK (además de Content-Length).
 - Pruebas con fixtures reales múltiples: **DONE** (SHOULD). `examples/recon/`
@@ -75,12 +75,14 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
   `manual_basic_effect`. Patrones XML documentados en
   `docs/KDENLIVE_PROJECT_FORMAT.md`. Riesgo residual: falta el efecto con stack
   múltiple y transiciones múltiples por clip.
-- Edición directa de una working copy `.kdenlive` (spike): **DONE**.
-  `apply_timeline_to_working_project` aplica un timeline MCP a una working copy
-  (`prepare_working_project`) y escribe un proyecto derivado nuevo
-  (`<working_stem>_edited.kdenlive`), copy-on-write, con validación e inspección.
-  La edición *in-place* del archivo working copy sigue sin implementarse (por
-  diseño); e2e en `test_apply_timeline_to_working_project`.
+- Edición de una working copy `.kdenlive` (spike de orquestación): **DONE con caveat**.
+  `apply_timeline_to_working_project` aplica un timeline MCP a una working copy y escribe
+  un proyecto derivado nuevo (copy-on-write). `apply_edits_to_working_project` orquesta el
+  pipeline (deriva timeline de los medios del bin, aplica ediciones, exporta) en una sola
+  tool, con warning `TIMELINE_RECONSTRUCTED_FROM_BIN` porque el timeline base se reconstruye
+  del Project Bin y **no** preserva la timeline exacta actual de la working copy. La edición
+  *in-place* y la carga del timeline exacto del `.kdenlive` siguen sin implementarse
+  (pendiente de adaptador inverso).
 - Round-trip real de un proyecto generado por el MCP: **bug encontrado, corregido y
   verificado manualmente**. El primer round-trip reveló que el writer creaba chains de
   timeline con `control_uuid` propios (Kdenlive reparaba con el aviso "referencia

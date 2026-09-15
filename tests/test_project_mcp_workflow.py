@@ -527,6 +527,208 @@ def test_apply_timeline_check_mlt_false_skips_validate(monkeypatch, tmp_path: Pa
     assert calls == []
 
 
+_ORCH_EDITS = [
+    {"operation": "trim", "clip_id": "clip_001_v", "source_out": 2.0},
+    {"operation": "insert_gap", "position": 2.0, "duration": 0.5},
+    {"operation": "split", "clip_id": "clip_002_v", "split_at": 4.0},
+]
+
+
+def _prepare_working_copy(monkeypatch, tmp_path: Path) -> str:
+    _allow(monkeypatch, tmp_path)
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_MEDIA_DIRS", str(RECON_DIR))
+    prepared = _assert_ok(
+        _call(
+            "prepare_working_project",
+            {
+                "project": str(SOURCE_PROJECT),
+                "output_directory": str(tmp_path),
+                "lock_directory": str(tmp_path / "locks"),
+                "owner": "agent",
+            },
+        ),
+        "prepare_working_project",
+    )
+    return prepared["working_project"]
+
+
+def _orch_args(working_project: str, tmp_path: Path, **overrides: object) -> dict[str, object]:
+    arguments: dict[str, object] = {
+        "working_project": working_project,
+        "edits": _ORCH_EDITS,
+        "output_directory": str(tmp_path),
+    }
+    arguments.update(overrides)
+    return arguments
+
+
+def test_apply_edits_to_working_project_dry_run(monkeypatch, tmp_path: Path) -> None:
+    working_project = _prepare_working_copy(monkeypatch, tmp_path)
+    working_copy_hash = _sha256(Path(working_project))
+
+    result = _assert_ok(
+        _call("apply_edits_to_working_project", _orch_args(working_project, tmp_path, dry_run=True)),
+        "apply_edits_to_working_project",
+    )
+
+    assert result["dry_run"] is True
+    assert "output_project" not in result
+    assert "plan_timeline" in result
+    assert len(result["plan_timeline"]["clips"]) >= 4
+    assert not list(tmp_path.glob("*edited*.kdenlive"))
+    assert any(warning.get("code") == "TIMELINE_RECONSTRUCTED_FROM_BIN" for warning in result["warnings"])
+    assert _sha256(Path(working_project)) == working_copy_hash
+
+
+def test_apply_edits_to_working_project_dry_run_does_not_block_real_run(monkeypatch, tmp_path: Path) -> None:
+    working_project = _prepare_working_copy(monkeypatch, tmp_path)
+
+    dry = _assert_ok(
+        _call("apply_edits_to_working_project", _orch_args(working_project, tmp_path, dry_run=True)),
+        "apply_edits_to_working_project",
+    )
+    assert dry["dry_run"] is True
+
+    real = _assert_ok(
+        _call(
+            "apply_edits_to_working_project",
+            _orch_args(working_project, tmp_path, dry_run=False, name="after_dry_run"),
+        ),
+        "apply_edits_to_working_project",
+    )
+
+    assert real["success"] is True
+    output = Path(real["output_project"])
+    assert output.exists()
+    ET.parse(output)
+
+
+def test_apply_edits_to_working_project_real_flow(monkeypatch, tmp_path: Path) -> None:
+    working_project = _prepare_working_copy(monkeypatch, tmp_path)
+    working_copy_hash = _sha256(Path(working_project))
+
+    result = _assert_ok(
+        _call(
+            "apply_edits_to_working_project",
+            _orch_args(working_project, tmp_path, dry_run=False, name="orchestrated"),
+        ),
+        "apply_edits_to_working_project",
+    )
+
+    output = Path(result["output_project"])
+    assert output.exists()
+    ET.parse(output)
+    assert result["inspection_summary"]["timeline_clip_count"] >= 4
+    assert any(warning.get("code") == "TIMELINE_RECONSTRUCTED_FROM_BIN" for warning in result["warnings"])
+    assert _sha256(Path(working_project)) == working_copy_hash
+
+
+def test_apply_edits_to_working_project_rejects_existing_output(monkeypatch, tmp_path: Path) -> None:
+    working_project = _prepare_working_copy(monkeypatch, tmp_path)
+    output = tmp_path / "orchestrated_existing.kdenlive"
+    output.write_bytes(b"existing")
+
+    result = _call(
+        "apply_edits_to_working_project",
+        _orch_args(working_project, tmp_path, dry_run=False, name="orchestrated_existing"),
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "OUTPUT_EXISTS"
+    assert output.read_bytes() == b"existing"
+
+
+def test_apply_edits_to_working_project_invalid_edit(monkeypatch, tmp_path: Path) -> None:
+    working_project = _prepare_working_copy(monkeypatch, tmp_path)
+
+    result = _call(
+        "apply_edits_to_working_project",
+        _orch_args(working_project, tmp_path, dry_run=False, edits=[{"operation": "trim", "clip_id": "nope", "source_out": 1.0}]),
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_CLIP"
+    assert result["operation"] == "apply_edits_to_working_project"
+    assert isinstance(result["warnings"], list)
+
+
+def test_apply_edits_to_working_project_check_mlt_loaded(monkeypatch, tmp_path: Path) -> None:
+    working_project = _prepare_working_copy(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        project_tools,
+        "validate_project",
+        lambda project, check_mlt=False: {
+            "success": True,
+            "valid": True,
+            "checks": {"mlt_load": {"checked": True, "valid": True, "status": "loaded", "returncode": 0}},
+        },
+    )
+
+    result = _assert_ok(
+        _call(
+            "apply_edits_to_working_project",
+            _orch_args(working_project, tmp_path, dry_run=False, name="orchestrated_mlt_loaded", check_mlt=True),
+        ),
+        "apply_edits_to_working_project",
+    )
+
+    assert result["mlt_load"]["valid"] is True
+
+
+def test_apply_edits_to_working_project_check_mlt_failed(monkeypatch, tmp_path: Path) -> None:
+    working_project = _prepare_working_copy(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        project_tools,
+        "validate_project",
+        lambda project, check_mlt=False: {
+            "success": True,
+            "valid": False,
+            "checks": {"mlt_load": {"checked": True, "valid": False, "status": "failed", "returncode": 1}},
+        },
+    )
+
+    result = _call(
+        "apply_edits_to_working_project",
+        _orch_args(working_project, tmp_path, dry_run=False, name="orchestrated_mlt_failed", check_mlt=True),
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "MLT_ERROR"
+    assert result["operation"] == "apply_edits_to_working_project"
+    assert result["warnings"] == []
+
+
+def test_apply_edits_to_working_project_check_mlt_unavailable(monkeypatch, tmp_path: Path) -> None:
+    working_project = _prepare_working_copy(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        project_tools,
+        "validate_project",
+        lambda project, check_mlt=False: {
+            "success": True,
+            "valid": True,
+            "checks": {
+                "mlt_load": {
+                    "checked": True,
+                    "valid": None,
+                    "status": "unavailable",
+                    "error": "FLATPAK_EXECUTION_UNAVAILABLE_IN_SANDBOX",
+                }
+            },
+        },
+    )
+
+    result = _assert_ok(
+        _call(
+            "apply_edits_to_working_project",
+            _orch_args(working_project, tmp_path, dry_run=False, name="orchestrated_mlt_unavailable", check_mlt=True),
+        ),
+        "apply_edits_to_working_project",
+    )
+
+    assert result["mlt_load"]["valid"] is None
+    assert any("FLATPAK_EXECUTION_UNAVAILABLE_IN_SANDBOX" in warning.get("code", "") for warning in result["warnings"])
+
+
 @pytest.mark.skip(
     reason="No MCP tool edits a .kdenlive working copy IN PLACE. apply_timeline_to_working_project "
     "applies a timeline to a working copy and writes a new derived project (copy-on-write). "

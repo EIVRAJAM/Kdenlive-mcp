@@ -1307,6 +1307,68 @@ input timeline must be a persisted MCP timeline (schema_version 1)
 output is a new derived file; in-place editing of the working copy is not done
 ```
 
+### apply_edits_to_working_project
+
+Input:
+
+```json
+{
+  "working_project": "/home/abrahamc/Videos/vlog/vlog_ai_001.kdenlive",
+  "edits": [
+    {"operation": "trim", "clip_id": "clip_001_v", "source_out": 2.0},
+    {"operation": "insert_gap", "position": 2.0, "duration": 0.5},
+    {"operation": "split", "clip_id": "clip_002_v", "split_at": 4.0}
+  ],
+  "output_directory": "/home/abrahamc/Videos/vlog",
+  "name": "vlog_ai_001_edited",
+  "overwrite": false,
+  "dry_run": false,
+  "check_mlt": false
+}
+```
+
+Orchestrates the full working-copy edit pipeline without the client coordinating
+timeline JSON + export manually:
+
+```text
+validate the working copy (ensure_project_path + parse)
+derive the media folder from the working copy's Project Bin
+build a rough-cut plan and a base MCP timeline from that media
+apply the edit operations with apply_timeline_edits
+dry_run=true  -> return the edited timeline plan, no .kdenlive written
+dry_run=false -> export a new derived .kdenlive via
+                 apply_timeline_to_working_project (validates XML/references,
+                 optional check_mlt with MLT_ERROR / sandbox warning)
+```
+
+The working copy is never modified in place; the original project and media stay
+untouched. `overwrite=false` refuses an existing output.
+
+Because the base timeline is rebuilt from the working copy's Project Bin media
+(not from its exact current timeline), every response carries a structured
+warning:
+
+```json
+{
+  "code": "TIMELINE_RECONSTRUCTED_FROM_BIN",
+  "message": "The base timeline was rebuilt from Project Bin media; existing timeline edits in the working project are not preserved."
+}
+```
+
+Internal pipeline artifacts (rough-cut plan, base timeline, edited timeline) use
+unique per-execution names, so a `dry_run` never blocks a later real run over the
+same output directory.
+
+Response includes:
+
+```text
+success, operation, working_project, media_folder, timeline_file, dry_run
+steps (plan/timeline/edits)
+plan_timeline (dry_run only)
+output_project + inspection_summary (+ mlt_load) when not dry_run
+warnings
+```
+
 ## Workflow Tools
 
 ### create_vlog_rough_cut_project

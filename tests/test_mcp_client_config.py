@@ -96,5 +96,5 @@ def test_mcp_client_sdk_smoke_script_reports_blocked_or_success() -> None:
     else:
         assert output["success"] is True
         assert output["server"] == "kdenlive-mcp"
-        assert output["tool_count"] == 61
+        assert output["tool_count"] == 62
         assert output["required_tools_present"] is True

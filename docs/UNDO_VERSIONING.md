@@ -86,6 +86,22 @@ The edited copy is a distinct version; the original fixture, the working copy,
 and any backups remain untouched. `list_project_versions` and
 `restore_project_version` work on the same base stem.
 
+For a fully orchestrated edit without coordinating timeline JSON + export:
+
+```text
+prepare_working_project
+apply_edits_to_working_project(
+  working_project=<project>_ai_001.kdenlive,
+  edits=[trim, insert_gap, split, ...],
+  dry_run=False,
+)
+  -> derives a timeline from the working copy's media
+  -> applies the edits
+  -> writes <name>.kdenlive (or <working_stem>_edited.kdenlive) copy-on-write
+```
+
+`dry_run=True` returns the edited timeline plan without writing any `.kdenlive`.
+
 To inspect available undo targets:
 
 ```text
