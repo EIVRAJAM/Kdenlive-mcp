@@ -82,7 +82,7 @@ create_vlog_rough_cut_project
 export_timeline_to_kdenlive_template
 ```
 
-All 62 registered tools are discoverable through the real STDIO channel.
+All 63 registered tools are discoverable through the real STDIO channel.
 
 ## Verify The Local Setup
 
@@ -111,7 +111,7 @@ Expected output:
 {
   "success": true,
   "server": "kdenlive-mcp",
-  "tool_count": 62,
+  "tool_count": 63,
   "required_tools_present": true,
   "error": null
 }

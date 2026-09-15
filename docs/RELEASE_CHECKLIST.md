@@ -206,7 +206,7 @@ isolated venv; run with `.venv/bin/python`):
 Required result:
 
 ```text
-exit 0 with success=true, server kdenlive-mcp, tool_count 62
+exit 0 with success=true, server kdenlive-mcp, tool_count 63
 OR exit 2 with blocked=mcp-sdk-unavailable when the SDK is not installed
 ```
 

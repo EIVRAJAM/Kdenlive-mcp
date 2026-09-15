@@ -40,6 +40,35 @@ def inspect_project(project: str) -> dict[str, Any]:
     }
 
 
+def inspect_kdenlive_timeline(project: str) -> dict[str, Any]:
+    try:
+        path = ensure_project_path(project)
+    except SecurityError as exc:
+        return _error(exc.code, exc.message)
+    if not path.exists():
+        return _error("PROJECT_NOT_FOUND", f"Project does not exist: {path}")
+    try:
+        summary = KdenliveProjectAdapter().extract_timeline_summary(path)
+    except KdenliveProjectError as exc:
+        return _error(exc.code, exc.message)
+
+    warnings: list[dict[str, str]] = []
+    if summary.get("inferred_fields"):
+        warnings.append(
+            {
+                "code": "TIMELINE_SUMMARY_HAS_INFERRED_FIELDS",
+                "message": "Some timeline fields are inferred from Kdenlive XML structure and should not be treated as authoritative edit targets yet.",
+            }
+        )
+    return {
+        "success": True,
+        "operation": "inspect_kdenlive_timeline",
+        "project": str(path),
+        "summary": summary,
+        "warnings": warnings,
+    }
+
+
 def validate_project(
     project: str,
     check_mlt: bool = False,
@@ -140,6 +169,16 @@ TOOLS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
         "handler": inspect_project,
+    },
+    "inspect_kdenlive_timeline": {
+        "description": "Read-only Kdenlive timeline summary of a .kdenlive project (no writes, no conversion).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"project": {"type": "string"}},
+            "required": ["project"],
+            "additionalProperties": False,
+        },
+        "handler": inspect_kdenlive_timeline,
     },
     "validate_project": {
         "description": "Validate a .kdenlive project without modifying it.",

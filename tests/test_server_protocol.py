@@ -207,6 +207,7 @@ def test_tools_list_includes_health_check() -> None:
     assert "edit_timeline_and_export_project" in tool_names
     assert "create_manifest" in tool_names
     assert "inspect_project" in tool_names
+    assert "inspect_kdenlive_timeline" in tool_names
     assert "validate_project" in tool_names
     assert "backup_project" in tool_names
     assert "clone_project" in tool_names

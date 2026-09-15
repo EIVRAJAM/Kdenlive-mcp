@@ -2570,3 +2570,64 @@ exposes confirmed and inferred timeline fields, positioning from entries plus
 blanks, and user-only transitions/effects. Conversion to TimelineDocument is
 deferred until inferred fields are confirmed.
 ```
+
+## 2026-09-14 inspect_kdenlive_timeline Tool
+
+Scope:
+
+```text
+Expose the read-only Kdenlive timeline summary as an MCP tool
+```
+
+Tool:
+
+```text
+inspect_kdenlive_timeline(project)
+```
+
+Behavior:
+
+```text
+read-only, no writes, no TimelineDocument conversion
+uses KdenliveProjectAdapter.extract_timeline_summary
+validates with ensure_project_path (PERMISSION_DENIED / PROJECT_NOT_FOUND / INVALID_PROJECT)
+returns success, operation, project, summary, warnings
+warning TIMELINE_SUMMARY_HAS_INFERRED_FIELDS when inferred_fields is non-empty
+```
+
+Tests:
+
+```text
+via handle_request on manual_trimmed_clip.kdenlive: success, operation, clips
+non-empty, a source_in_frames != 0, inferred warning present
+outside allowlist -> PERMISSION_DENIED
+invalid XML -> INVALID_PROJECT
+no files written in output dirs
+tools/list includes inspect_kdenlive_timeline
+```
+
+Commands:
+
+```bash
+python3 scripts/mcp_stdio_smoke_test.py
+.venv/bin/python scripts/mcp_client_sdk_smoke_test.py
+pytest tests/test_server_protocol.py tests/test_kdenlive_project_adapter.py tests/test_project_mcp_workflow.py -q
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+STDIO smoke: success true, tool_count 63
+SDK smoke: exit 0, tool_count 63
+full suite: 332 passed, 9 skipped
+```
+
+Decision:
+
+```text
+An agent can now ask "what is actually in the timeline" through the MCP boundary
+and reason over confirmed/inferred fields before any edit, without modifying
+anything.
+```

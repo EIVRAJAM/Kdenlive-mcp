@@ -8,13 +8,30 @@ from kdenlive_mcp.adapters.kdenlive_xml import (
     seconds_to_kdenlive_in_timecode,
     seconds_to_kdenlive_out_timecode,
 )
+from kdenlive_mcp.server import handle_request
 from kdenlive_mcp.tools import project_tools
+
+
+import json
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RECON_DIR = REPO_ROOT / "examples" / "recon"
 TWO_CLIPS_PROJECT = RECON_DIR / "manual_two_clips_timeline.kdenlive"
 MARKER_PROJECT = RECON_DIR / "manual_trim_marker.kdenlive"
+
+
+def _mcp_call(name: str, arguments: dict[str, object]) -> dict[str, object]:
+    response = handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": name,
+            "method": "tools/call",
+            "params": {"name": name, "arguments": arguments},
+        }
+    )
+    assert response is not None
+    return json.loads(response["result"]["content"][0]["text"])
 
 
 def test_parse_timecode_to_frames_for_kdenlive_milliseconds() -> None:
@@ -217,3 +234,58 @@ def test_extract_timeline_summary_does_not_classify_internal_added_as_user() -> 
     assert effect_summary["clip_effects"]
     for effect in effect_summary["clip_effects"]:
         assert effect["mlt_service"] == "qtblend"  # only the user effect is present
+
+
+def test_inspect_kdenlive_timeline_via_mcp(monkeypatch) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", str(RECON_DIR))
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", "off")
+
+    result = _mcp_call(
+        "inspect_kdenlive_timeline",
+        {"project": str(RECON_DIR / "manual_trimmed_clip.kdenlive")},
+    )
+
+    assert result["success"] is True
+    assert result["operation"] == "inspect_kdenlive_timeline"
+    assert result["summary"]["timeline_clips"]
+    assert any(clip["source_in_frames"] != 0 for clip in result["summary"]["timeline_clips"])
+    assert any(
+        warning.get("code") == "TIMELINE_SUMMARY_HAS_INFERRED_FIELDS" for warning in result["warnings"]
+    )
+
+
+def test_inspect_kdenlive_timeline_rejects_outside_allowlist(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", str(tmp_path))
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", "off")
+
+    result = _mcp_call("inspect_kdenlive_timeline", {"project": str(RECON_DIR / "manual_trimmed_clip.kdenlive")})
+
+    assert result["success"] is False
+    assert result["error"] == "PERMISSION_DENIED"
+
+
+def test_inspect_kdenlive_timeline_rejects_invalid_xml(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", str(tmp_path))
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", "off")
+    invalid = tmp_path / "broken.kdenlive"
+    invalid.write_text("<mlt><unclosed>", encoding="utf-8")
+
+    result = _mcp_call("inspect_kdenlive_timeline", {"project": str(invalid)})
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_PROJECT"
+
+
+def test_inspect_kdenlive_timeline_does_not_write_files(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", str(RECON_DIR))
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS", str(tmp_path))
+    monkeypatch.setenv("KDENLIVE_MCP_LOG_FILE", "off")
+    before = set(tmp_path.iterdir())
+
+    result = _mcp_call(
+        "inspect_kdenlive_timeline",
+        {"project": str(RECON_DIR / "manual_trimmed_clip.kdenlive")},
+    )
+
+    assert result["success"] is True
+    assert set(tmp_path.iterdir()) == before

@@ -1535,6 +1535,34 @@ media_4f89c2a613bf
 Project tools enforce `KDENLIVE_MCP_ALLOWED_PROJECT_DIRS` for source projects.
 Tools that create files also enforce `KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS`.
 
+### inspect_kdenlive_timeline
+
+Input:
+
+```json
+{
+  "project": "/home/abrahamc/Videos/vlog/vlog_ai_001.kdenlive"
+}
+```
+
+Read-only Kdenlive timeline summary (reverse-adapter phase 1). It parses a real
+`.kdenlive` and returns `active_sequence_id`, `fps`, `profile`, `tracks`,
+`timeline_clips`, `gaps`, `user_transitions`, `clip_effects`, plus
+`confirmed_fields` and `inferred_fields`. It never writes files and never
+converts to `TimelineDocument`.
+
+Because `position_frames/seconds` are inferred (accumulated from entries and
+blanks, not stored by Kdenlive), the response carries a structured warning:
+
+```json
+{
+  "code": "TIMELINE_SUMMARY_HAS_INFERRED_FIELDS",
+  "message": "Some timeline fields are inferred from Kdenlive XML structure and should not be treated as authoritative edit targets yet."
+}
+```
+
+Errors: `PROJECT_NOT_FOUND`, `INVALID_PROJECT`, `PERMISSION_DENIED`.
+
 ### inspect_project
 
 Input:
