@@ -140,7 +140,9 @@ Conteo: DONE 20 · PARTIAL 0 · MISSING 0 · BLOCKED 0.
     la tool `export_kdenlive_timeline` expone la conversión read-only y la
     persiste como `.timeline.json`; el ciclo round-trip completo
     export_kdenlive_timeline -> apply_timeline_edits ->
-    apply_timeline_to_working_project ya está validado end-to-end vía MCP).
+    apply_timeline_to_working_project ya está validado end-to-end vía MCP y el
+    output carga en melt real vía scripts/roundtrip_mlt_smoke_test.py cuando el
+    sandbox lo permite).
 4. Crear manualmente los fixtures complejos pendientes en Kdenlive (stack de
    efectos múltiples, transiciones múltiples, fade de audio, proxy) siguiendo las
    recetas de `docs/KDENLIVE_PROJECT_FORMAT.md`; los detectores y tests skipif ya

@@ -2941,3 +2941,53 @@ Decision:
 An agent can read a real Kdenlive timeline, edit it safely, and return an
 editable .kdenlive project — the round-trip is closed with existing tools.
 ```
+
+## 2026-09-15 Real MLT load of the round-trip output
+
+Scope:
+
+```text
+opt-in/reproducible smoke that loads the round-trip output with real melt
+(flatpak), not only static validate_project
+```
+
+Script:
+
+```text
+scripts/roundtrip_mlt_smoke_test.py
+  export_kdenlive_timeline -> apply_timeline_edits -> prepare_working_project
+  -> apply_timeline_to_working_project -> validate_project(check_mlt=True)
+```
+
+Behavior:
+
+```text
+spawns the real MCP server over STDIO and drives it with tools/call
+mlt_load.status == "loaded"        -> verdict mlt_loaded   (exit 0)
+mlt_load.status == "unavailable"   -> verdict mlt_unavailable (exit 0, structured)
+mlt_load.status == "failed"        -> verdict mlt_failed   (exit 1, no false success)
+the output directory must be readable by the flatpak melt sandbox (e.g. under the
+repo); /tmp is typically NOT reachable from the flatpak sandbox and would produce
+"Failed to load" with status failed even for a valid project
+```
+
+Result (this environment):
+
+```text
+flatpak melt available; round-trip output loaded with returncode 0
+mlt_load.status == "loaded", valid True
+```
+
+Commands:
+
+```bash
+python3 scripts/roundtrip_mlt_smoke_test.py
+```
+
+Decision:
+
+```text
+The round-trip output is not only statically valid: it also loads in a real MLT
+runtime when the environment permits. Sandbox/filesystem limitations are
+reported structurally (unavailable/failed) instead of as a false success.
+```
