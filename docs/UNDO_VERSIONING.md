@@ -95,7 +95,12 @@ apply_edits_to_working_project(
   edits=[trim, insert_gap, split, ...],
   dry_run=False,
 )
-  -> derives a timeline from the working copy's media
+  -> loads the base timeline from the working copy's real current timeline when
+     the project is in the reverse-adapter subset
+     (timeline_source="kdenlive_reverse_adapter")
+  -> otherwise rebuilds the base timeline from the working copy's Project Bin
+     media (timeline_source="project_bin_reconstruction", warning
+     TIMELINE_RECONSTRUCTED_FROM_BIN)
   -> applies the edits
   -> writes <name>.kdenlive (or <working_stem>_edited.kdenlive) copy-on-write
 ```

@@ -528,9 +528,10 @@ def test_apply_timeline_check_mlt_false_skips_validate(monkeypatch, tmp_path: Pa
 
 
 _ORCH_EDITS = [
-    {"operation": "trim", "clip_id": "clip_001_v", "source_out": 2.0},
+    {"operation": "trim", "clip_id": "chain2_v", "source_out": 2.0},
+    {"operation": "trim", "clip_id": "chain0_a", "source_out": 2.0},
     {"operation": "insert_gap", "position": 2.0, "duration": 0.5},
-    {"operation": "split", "clip_id": "clip_002_v", "split_at": 4.0},
+    {"operation": "split", "clip_id": "chain3_v", "split_at": 4.0},
 ]
 
 
@@ -576,7 +577,9 @@ def test_apply_edits_to_working_project_dry_run(monkeypatch, tmp_path: Path) -> 
     assert "plan_timeline" in result
     assert len(result["plan_timeline"]["clips"]) >= 4
     assert not list(tmp_path.glob("*edited*.kdenlive"))
-    assert any(warning.get("code") == "TIMELINE_RECONSTRUCTED_FROM_BIN" for warning in result["warnings"])
+    assert result["timeline_source"] == "kdenlive_reverse_adapter"
+    assert any(warning.get("code") == "TIMELINE_LOADED_FROM_KDENLIVE" for warning in result["warnings"])
+    assert not any(warning.get("code") == "TIMELINE_RECONSTRUCTED_FROM_BIN" for warning in result["warnings"])
     assert _sha256(Path(working_project)) == working_copy_hash
 
 
@@ -619,8 +622,80 @@ def test_apply_edits_to_working_project_real_flow(monkeypatch, tmp_path: Path) -
     assert output.exists()
     ET.parse(output)
     assert result["inspection_summary"]["timeline_clip_count"] >= 4
-    assert any(warning.get("code") == "TIMELINE_RECONSTRUCTED_FROM_BIN" for warning in result["warnings"])
+    assert result["timeline_source"] == "kdenlive_reverse_adapter"
+    assert any(warning.get("code") == "TIMELINE_LOADED_FROM_KDENLIVE" for warning in result["warnings"])
+    assert not any(warning.get("code") == "TIMELINE_RECONSTRUCTED_FROM_BIN" for warning in result["warnings"])
     assert _sha256(Path(working_project)) == working_copy_hash
+
+
+def test_apply_edits_to_working_project_reverse_adapter_trims_linked_audio(monkeypatch, tmp_path: Path) -> None:
+    working_project = _prepare_working_copy(monkeypatch, tmp_path)
+
+    result = _assert_ok(
+        _call(
+            "apply_edits_to_working_project",
+            _orch_args(
+                working_project,
+                tmp_path,
+                dry_run=True,
+                edits=[{"operation": "trim", "clip_id": "chain2_v", "source_out": 2.0}],
+            ),
+        ),
+        "apply_edits_to_working_project",
+    )
+
+    assert result["timeline_source"] == "kdenlive_reverse_adapter"
+    clips = {clip["id"]: clip for clip in result["plan_timeline"]["clips"]}
+    assert clips["chain2_v"]["source_out"] == 2.0
+    assert clips["chain0_a"]["source_out"] == 2.0
+
+
+def test_apply_edits_to_working_project_falls_back_for_transition_project(monkeypatch, tmp_path: Path) -> None:
+    _allow(monkeypatch, tmp_path)
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_MEDIA_DIRS", str(RECON_DIR))
+    prepared = _assert_ok(
+        _call(
+            "prepare_working_project",
+            {
+                "project": str(RECON_DIR / "manual_transition_dissolve.kdenlive"),
+                "output_directory": str(tmp_path),
+                "lock_directory": str(tmp_path / "locks"),
+                "owner": "agent",
+            },
+        ),
+        "prepare_working_project",
+    )
+
+    result = _assert_ok(
+        _call(
+            "apply_edits_to_working_project",
+            _orch_args(
+                prepared["working_project"],
+                tmp_path,
+                dry_run=True,
+                edits=[{"operation": "trim", "clip_id": "clip_001_v", "source_out": 2.0}],
+            ),
+        ),
+        "apply_edits_to_working_project",
+    )
+
+    assert result["timeline_source"] == "project_bin_reconstruction"
+    assert any(warning.get("code") == "TIMELINE_RECONSTRUCTED_FROM_BIN" for warning in result["warnings"])
+
+
+def test_apply_edits_to_working_project_rejects_invalid_project(monkeypatch, tmp_path: Path) -> None:
+    _allow(monkeypatch, tmp_path)
+    invalid = tmp_path / "broken.kdenlive"
+    invalid.write_text("<mlt><unclosed>", encoding="utf-8")
+
+    result = _call(
+        "apply_edits_to_working_project",
+        {"working_project": str(invalid), "edits": [{"operation": "trim", "clip_id": "chain2_v", "source_out": 2.0}]},
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_PROJECT"
+    assert result["operation"] == "apply_edits_to_working_project"
 
 
 def test_apply_edits_to_working_project_rejects_existing_output(monkeypatch, tmp_path: Path) -> None:

@@ -409,3 +409,27 @@ def test_extract_timeline_document_loses_no_convertible_clip() -> None:
 
     convertible = [clip for clip in summary["timeline_clips"] if clip.get("media") and int(clip.get("duration_frames") or 0) > 0]
     assert len(document.clips) == len(convertible)
+
+
+def test_extract_timeline_document_links_audio_video_pairs() -> None:
+    document = _extract_document("manual_two_clips_timeline.kdenlive")
+    by_id = {clip.id: clip for clip in document.clips}
+
+    assert by_id["chain0_a"].linked_clip_id == "chain2_v"
+    assert by_id["chain2_v"].linked_clip_id == "chain0_a"
+    assert by_id["chain1_a"].linked_clip_id == "chain3_v"
+    assert by_id["chain3_v"].linked_clip_id == "chain1_a"
+    TimelineDocument.model_validate(document.model_dump(mode="json", exclude_none=True))
+
+
+def test_extract_timeline_document_trim_keeps_links() -> None:
+    document = _extract_document("manual_trimmed_clip.kdenlive")
+    by_id = {clip.id: clip for clip in document.clips}
+
+    assert by_id["chain0_a"].linked_clip_id == "chain2_v"
+    assert by_id["chain2_v"].linked_clip_id == "chain0_a"
+    assert by_id["chain0_a_1"].linked_clip_id == "chain2_v_1"
+    assert by_id["chain2_v_1"].linked_clip_id == "chain0_a_1"
+    assert by_id["chain1_a"].linked_clip_id == "chain3_v"
+    assert by_id["chain3_v"].linked_clip_id == "chain1_a"
+    TimelineDocument.model_validate(document.model_dump(mode="json", exclude_none=True))

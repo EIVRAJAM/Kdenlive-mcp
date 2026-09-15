@@ -130,10 +130,13 @@ Conteo: DONE 20 · PARTIAL 0 · MISSING 0 · BLOCKED 0.
    checksum) y del gate MLT real; la re-ejecución del 2026-09-02 ya está
    registrada en RELEASE_EVIDENCE.
 3. Ampliar la conversión inversa `extract_timeline_document` más allá del subset
-   simple (hoy convierte tracks/clips/gaps simples y rechaza transiciones/efectos
-   con `UNSUPPORTED_TIMELINE_FEATURE`; la fase 2 ya devuelve un `TimelineDocument`
-   schema_version 1 válido para proyectos simples). Conectar la conversión a
-   `apply_edits_to_working_project` para editar sobre la timeline real.
+    simple (hoy convierte tracks/clips/gaps simples, enlaza audio/video
+    equivalentes con `linked_clip_id` en ambos sentidos y rechaza
+    transiciones/efectos con `UNSUPPORTED_TIMELINE_FEATURE`; la fase 2 ya
+    devuelve un `TimelineDocument` schema_version 1 válido para proyectos simples
+    y `apply_edits_to_working_project` ya edita sobre la timeline real cuando el
+    proyecto está en el subset (`timeline_source="kdenlive_reverse_adapter"`),
+    cayendo al fallback desde Project Bin con warning para proyectos complejos).
 4. Crear manualmente los fixtures complejos pendientes en Kdenlive (stack de
    efectos múltiples, transiciones múltiples, fade de audio, proxy) siguiendo las
    recetas de `docs/KDENLIVE_PROJECT_FORMAT.md`; los detectores y tests skipif ya

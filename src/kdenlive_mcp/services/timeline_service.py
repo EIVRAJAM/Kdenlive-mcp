@@ -2053,10 +2053,6 @@ def apply_edits_to_working_project(
     except KdenliveProjectError as exc:
         return _error(exc.code, exc.message)
 
-    media_folder = _working_copy_media_folder(inspection)
-    if isinstance(media_folder, dict):
-        return media_folder
-
     try:
         work_dir = ensure_output_path(output_directory or str(working_path.parent))
     except SecurityError as exc:
@@ -2066,26 +2062,62 @@ def apply_edits_to_working_project(
     # Unique internal artifact names per execution so a dry-run never blocks a
     # later real run over the same output_directory.
     base_name = f"{working_path.stem}_orchestration_{uuid.uuid4().hex[:8]}"
-    from kdenlive_mcp.tools.rough_cut_tools import create_rough_cut_plan_file
 
-    plan = create_rough_cut_plan_file(
-        folder=str(media_folder),
-        output_directory=str(work_dir),
-        name=base_name,
-        target_duration=_working_copy_duration(inspection),
-        recursive=False,
-        max_files=max(1, len(inspection["bin"]["media"])),
-        remove_silence=False,
-    )
-    if not plan.get("success"):
-        return {**plan, "operation": "apply_edits_to_working_project"}
+    timeline_source = "project_bin_reconstruction"
+    orchestration_warning = {
+        "code": "TIMELINE_RECONSTRUCTED_FROM_BIN",
+        "message": "The base timeline was rebuilt from Project Bin media; existing timeline edits in the working project are not preserved.",
+    }
+    media_folder: str | None = None
+    plan_file: str | None = None
 
-    timeline = create_timeline_from_rough_cut_plan(plan_file=plan["plan_file"])
-    if not timeline.get("success"):
-        return {**timeline, "operation": "apply_edits_to_working_project"}
-    saved = save_timeline(timeline=timeline["timeline"], output_directory=str(work_dir), name=base_name)
-    if not saved.get("success"):
-        return {**saved, "operation": "apply_edits_to_working_project"}
+    try:
+        reverse_document = KdenliveProjectAdapter().extract_timeline_document(working_path)
+    except KdenliveProjectError as exc:
+        if exc.code != "UNSUPPORTED_TIMELINE_FEATURE":
+            return _error(exc.code, exc.message)
+        reverse_document = None
+
+    if reverse_document is not None:
+        timeline_source = "kdenlive_reverse_adapter"
+        orchestration_warning = {
+            "code": "TIMELINE_LOADED_FROM_KDENLIVE",
+            "message": "Base timeline was loaded from the working project's current Kdenlive timeline.",
+        }
+        saved = save_timeline(
+            timeline=reverse_document.model_dump(mode="json", exclude_none=True),
+            output_directory=str(work_dir),
+            name=base_name,
+        )
+        if not saved.get("success"):
+            return {**saved, "operation": "apply_edits_to_working_project"}
+    else:
+        resolved_media_folder = _working_copy_media_folder(inspection)
+        if isinstance(resolved_media_folder, dict):
+            return resolved_media_folder
+        media_folder = str(resolved_media_folder)
+
+        from kdenlive_mcp.tools.rough_cut_tools import create_rough_cut_plan_file
+
+        plan = create_rough_cut_plan_file(
+            folder=media_folder,
+            output_directory=str(work_dir),
+            name=base_name,
+            target_duration=_working_copy_duration(inspection),
+            recursive=False,
+            max_files=max(1, len(inspection["bin"]["media"])),
+            remove_silence=False,
+        )
+        if not plan.get("success"):
+            return {**plan, "operation": "apply_edits_to_working_project"}
+        plan_file = plan["plan_file"]
+
+        timeline = create_timeline_from_rough_cut_plan(plan_file=plan_file)
+        if not timeline.get("success"):
+            return {**timeline, "operation": "apply_edits_to_working_project"}
+        saved = save_timeline(timeline=timeline["timeline"], output_directory=str(work_dir), name=base_name)
+        if not saved.get("success"):
+            return {**saved, "operation": "apply_edits_to_working_project"}
 
     edited = apply_timeline_edits(
         timeline_file=saved["timeline_file"],
@@ -2098,18 +2130,18 @@ def apply_edits_to_working_project(
     if not edited.get("success"):
         return {**edited, "operation": "apply_edits_to_working_project"}
 
-    orchestration_warning = {
-        "code": "TIMELINE_RECONSTRUCTED_FROM_BIN",
-        "message": "The base timeline was rebuilt from Project Bin media; existing timeline edits in the working project are not preserved.",
-    }
+    steps: dict[str, Any] = {"timeline": saved["timeline_file"], "edits": edited.get("steps", [])}
+    if plan_file is not None:
+        steps["plan"] = plan_file
     result: dict[str, Any] = {
         "success": True,
         "operation": "apply_edits_to_working_project",
         "working_project": str(working_path),
-        "media_folder": str(media_folder),
+        "media_folder": media_folder,
+        "timeline_source": timeline_source,
         "timeline_file": edited["timeline_file"],
         "dry_run": dry_run,
-        "steps": {"plan": plan["plan_file"], "timeline": saved["timeline_file"], "edits": edited.get("steps", [])},
+        "steps": steps,
         "warnings": [orchestration_warning],
     }
     if dry_run:

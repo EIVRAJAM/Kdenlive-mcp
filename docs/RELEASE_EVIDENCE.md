@@ -2694,3 +2694,126 @@ The reverse adapter now produces a valid TimelineDocument for simple projects
 and refuses complex ones explicitly. It is not yet wired into
 apply_edits_to_working_project; that connection is the next step.
 ```
+
+## 2026-09-14 Orchestration edits over the real timeline
+
+Scope:
+
+```text
+apply_edits_to_working_project edits over the working copy's real current
+timeline when the project is in the reverse-adapter subset, with a Project Bin
+fallback for complex projects.
+```
+
+Behavior:
+
+```text
+before rebuilding from bin, try extract_timeline_document(working_project)
+success -> base timeline saved to a unique internal .timeline.json,
+           apply_timeline_edits over it, export; timeline_source=
+           "kdenlive_reverse_adapter", warning TIMELINE_LOADED_FROM_KDENLIVE
+UNSUPPORTED_TIMELINE_FEATURE -> Project Bin fallback, timeline_source=
+           "project_bin_reconstruction", warning TIMELINE_RECONSTRUCTED_FROM_BIN
+PROJECT_NOT_FOUND / INVALID_PROJECT -> error, no fallback
+clip media resolved to absolute paths via the project bin (resolved_media)
+response carries timeline_source; no TIMELINE_RECONSTRUCTED_FROM_BIN when the
+reverse adapter is used
+```
+
+Tests (tests/test_project_mcp_workflow.py, tests/test_kdenlive_project_adapter.py):
+
+```text
+simple working copy -> timeline_source=kdenlive_reverse_adapter, no
+  TIMELINE_RECONSTRUCTED_FROM_BIN, output .kdenlive exists and parses
+transition/effect working copy -> timeline_source=project_bin_reconstruction +
+  TIMELINE_RECONSTRUCTED_FROM_BIN
+invalid XML -> INVALID_PROJECT, no fallback
+dry_run on simple project -> reverse adapter, no .kdenlive written
+dry_run then real run -> still works (unique internal names)
+working copy and media not modified
+check_mlt loaded/failed/unavailable kept
+extract_timeline_document per-playlist tracks, trim/gap/transition/effect tests
+  kept
+```
+
+Commands:
+
+```bash
+python3 scripts/mcp_stdio_smoke_test.py
+.venv/bin/python scripts/mcp_client_sdk_smoke_test.py
+pytest tests/test_project_mcp_workflow.py tests/test_kdenlive_project_adapter.py tests/test_timeline_service.py -q
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+test_project_mcp_workflow.py: 23 passed, 1 skipped
+full suite: 343 passed, 9 skipped
+```
+
+Decision:
+
+```text
+Simple real projects are no longer edited "blind"; the base timeline is the
+working copy's actual current timeline. Complex projects keep the honest
+Project Bin fallback with its warning. The Project Bin fallback is retained
+until reverse-adapter coverage is complete.
+```
+
+## 2026-09-14 Audio/video linking in reverse conversion
+
+Scope:
+
+```text
+reverse-converted clips keep audio/video sync through include_linked edits
+```
+
+Behavior:
+
+```text
+after building clips, extract_timeline_document pairs equivalent audio/video
+clips with linked_clip_id in both directions
+matching is conservative: same media (or media_id) AND same source_in/source_out
+AND same timeline_in/timeline_out AND opposite track types
+ambiguous pairing (more than one candidate) -> UNSUPPORTED_TIMELINE_FEATURE,
+never a silent guess
+video-only/audio-only segments stay unlinked
+```
+
+Tests:
+
+```text
+test_extract_timeline_document_links_audio_video_pairs:
+  manual_two_clips_timeline -> chain0_a<->chain2_v, chain1_a<->chain3_v
+test_extract_timeline_document_trim_keeps_links:
+  manual_trimmed_clip -> chain0_a<->chain2_v, chain0_a_1<->chain2_v_1,
+  chain1_a<->chain3_v
+test_apply_edits_to_working_project_reverse_adapter_trims_linked_audio:
+  trim chain2_v (dry_run) -> chain0_a also ends at source_out 2.0
+transition/effect rejection tests kept
+```
+
+Commands:
+
+```bash
+pytest tests/test_kdenlive_project_adapter.py tests/test_project_mcp_workflow.py tests/test_timeline_service.py -q
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+adapter + workflow + timeline_service: 110 passed, 1 skipped
+full suite: 346 passed, 9 skipped
+```
+
+Decision:
+
+```text
+The reverse adapter no longer desynchronizes audio/video: equivalent pairs are
+linked conservatively and ambiguous cases are refused, so include_linked edits
+behave correctly on simple real projects.
+```

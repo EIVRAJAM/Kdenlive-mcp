@@ -280,6 +280,11 @@ class KdenliveProjectAdapter:
                 "frame_rate_num": fps_num,
                 "frame_rate_den": fps_den,
             },
+            "resolved_media": {
+                item["media_id"]: item["resolved_path"]
+                for item in self._bin_media(main_bin, chains, root, path)
+                if item["media_id"] and item["resolved_path"]
+            },
             "tracks": tracks,
             "timeline_clips": clips,
             "gaps": gaps,
@@ -378,12 +383,17 @@ class KdenliveProjectAdapter:
             used_ids.add(clip_id)
 
             media_id = clip.get("media_id") or f"media_{hashlib.sha1(str(media).encode('utf-8')).hexdigest()[:12]}"
+            resolved_media = summary.get("resolved_media") or {}
+            media_path = resolved_media.get(clip.get("media_id") or "")
+            if not media_path:
+                raw = Path(str(media))
+                media_path = str(raw if raw.is_absolute() else Path(project_path).resolve().parent / raw)
             clips.append(
                 TimelineClip(
                     id=clip_id,
                     track_id=timeline_track.id,
                     media_id=media_id,
-                    media=str(media),
+                    media=str(media_path),
                     source_in=round(source_in, 6),
                     source_out=round(source_out, 6),
                     timeline_in=round(timeline_in, 6),
@@ -392,6 +402,8 @@ class KdenliveProjectAdapter:
                 )
             )
 
+        self._link_audio_video_pairs(tracks, clips)
+
         return TimelineDocument(
             fps=float(fps),
             width=width,
@@ -399,6 +411,36 @@ class KdenliveProjectAdapter:
             tracks=tracks,
             clips=clips,
         )
+
+    def _link_audio_video_pairs(self, tracks: list[TimelineTrack], clips: list[TimelineClip]) -> None:
+        track_by_id = {track.id: track for track in tracks}
+        audio_clips = [clip for clip in clips if track_by_id[clip.track_id].type == "audio"]
+        unlinked_audio = list(audio_clips)
+        for video_clip in clips:
+            if track_by_id[video_clip.track_id].type != "video" or video_clip.linked_clip_id:
+                continue
+            candidates = [
+                audio_clip
+                for audio_clip in unlinked_audio
+                if audio_clip.linked_clip_id is None
+                and (
+                    (video_clip.media_id and audio_clip.media_id and video_clip.media_id == audio_clip.media_id)
+                    or video_clip.media == audio_clip.media
+                )
+                and video_clip.source_in == audio_clip.source_in
+                and video_clip.source_out == audio_clip.source_out
+                and video_clip.timeline_in == audio_clip.timeline_in
+                and video_clip.timeline_out == audio_clip.timeline_out
+            ]
+            if len(candidates) > 1:
+                raise KdenliveProjectError(
+                    "UNSUPPORTED_TIMELINE_FEATURE",
+                    f"Ambiguous audio/video pairing for clip {video_clip.id}; reverse linking is not lossless.",
+                )
+            if len(candidates) == 1:
+                audio_clip = candidates[0]
+                video_clip.linked_clip_id = audio_clip.id
+                audio_clip.linked_clip_id = video_clip.id
 
     def _walk_playlist_summary(
         self,

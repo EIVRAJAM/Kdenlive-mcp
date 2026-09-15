@@ -1332,8 +1332,12 @@ timeline JSON + export manually:
 
 ```text
 validate the working copy (ensure_project_path + parse)
-derive the media folder from the working copy's Project Bin
-build a rough-cut plan and a base MCP timeline from that media
+try KdenliveProjectAdapter.extract_timeline_document(working_project)
+  success -> use that real current timeline as the base (timeline_source =
+             "kdenlive_reverse_adapter")
+  UNSUPPORTED_TIMELINE_FEATURE -> fall back to Project Bin reconstruction
+             (timeline_source = "project_bin_reconstruction")
+  PROJECT_NOT_FOUND / INVALID_PROJECT -> error, no fallback
 apply the edit operations with apply_timeline_edits
 dry_run=true  -> return the edited timeline plan, no .kdenlive written
 dry_run=false -> export a new derived .kdenlive via
@@ -1344,9 +1348,20 @@ dry_run=false -> export a new derived .kdenlive via
 The working copy is never modified in place; the original project and media stay
 untouched. `overwrite=false` refuses an existing output.
 
-Because the base timeline is rebuilt from the working copy's Project Bin media
-(not from its exact current timeline), every response carries a structured
-warning:
+When the reverse adapter loads the real timeline (simple projects without user
+transitions or clip effects), the response carries `timeline_source` and an
+informational warning:
+
+```json
+{
+  "code": "TIMELINE_LOADED_FROM_KDENLIVE",
+  "message": "Base timeline was loaded from the working project's current Kdenlive timeline."
+}
+```
+
+For projects outside the supported subset, the base timeline is rebuilt from the
+working copy's Project Bin media (not from its exact current timeline), so the
+response carries `timeline_source` plus the structured warning:
 
 ```json
 {
@@ -1363,6 +1378,7 @@ Response includes:
 
 ```text
 success, operation, working_project, media_folder, timeline_file, dry_run
+timeline_source ("kdenlive_reverse_adapter" | "project_bin_reconstruction")
 steps (plan/timeline/edits)
 plan_timeline (dry_run only)
 output_project + inspection_summary (+ mlt_load) when not dry_run

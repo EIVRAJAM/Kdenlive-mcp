@@ -667,6 +667,33 @@ This is deliberately conservative: complex projects with transitions or effects
 are refused instead of producing a TimelineDocument that would lose that
 information.
 
+Consumer: `apply_edits_to_working_project` tries `extract_timeline_document`
+first; on success it edits over the real current timeline
+(`timeline_source="kdenlive_reverse_adapter"`), and on
+`UNSUPPORTED_TIMELINE_FEATURE` it falls back to Project Bin reconstruction with
+the `TIMELINE_RECONSTRUCTED_FROM_BIN` warning. Clip media in the converted
+document is resolved to absolute paths via the project's bin
+(`resolved_media`), so working copies that live in another directory still
+reference the real media files.
+
+Audio/video linking:
+
+```text
+after conversion, equivalent audio/video clips are paired with
+linked_clip_id in both directions
+matching is conservative: same media (or media_id) AND same
+source_in/source_out AND same timeline_in/timeline_out AND opposite track types
+more than one candidate for a pair -> UNSUPPORTED_TIMELINE_FEATURE (never a
+silent guess)
+no candidate -> the clip stays unlinked (video-only or audio-only segments)
+links keep trim/move/split operations in sync (include_linked=True in
+apply_timeline_edits)
+```
+
+Kdenlive does not store this link explicitly in simple projects, so it is
+re-derived by the reverse adapter and is only claimed when the match is
+unambiguous.
+
 ## Remaining Unknowns
 
 Confirmed by the new fixtures (see sections above): trim entry in/out, playlist
