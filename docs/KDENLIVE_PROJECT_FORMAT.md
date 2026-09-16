@@ -649,6 +649,7 @@ Explicitly rejected (UNSUPPORTED_TIMELINE_FEATURE):
 ```text
 user transitions (is_user=true)
 clip effects (any clip-level filter without internal_added=237)
+proxy attachments (bin chains with kdenlive:proxy / kdenlive:proxy_metadata)
 ```
 
 Confirmed vs inferred in the conversion:
@@ -672,6 +673,26 @@ document is resolved to absolute paths via the project's bin
 (`resolved_media`), so working copies that live in another directory still
 reference the real media files. The `export_kdenlive_timeline` tool exposes the
 same conversion read-only and persists the result as a `.timeline.json`.
+
+Export hardening: `extract_timeline_document` / `export_kdenlive_timeline`
+reject with `UNSUPPORTED_TIMELINE_FEATURE` any project that the reverse adapter
+cannot represent losslessly. Confirmed rejections (read-only detected, not
+exportable):
+
+```text
+user transitions          -> "User transitions are not supported..."
+clip effects              -> "Clip effects are not supported..."
+proxy attachments         -> "Proxy attachments are not supported..." (detected
+                              via bin chains carrying kdenlive:proxy /
+                              kdenlive:proxy_metadata; the summary exposes
+                              proxy_media_ids)
+```
+
+The complex fixtures in `examples/recon/` (`multiple_effect_stack_on_clip`,
+`multiple_transitions_timeline`, `audio_fade_fixture`, `proxy_fixture`) all
+fail export with `success=false`, `error=UNSUPPORTED_TIMELINE_FEATURE`, and no
+`.timeline.json` is written — so a proxied clip is never silently exported as
+its proxy `.mov`.
 
 Audio/video linking:
 

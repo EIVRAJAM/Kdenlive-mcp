@@ -3100,3 +3100,65 @@ patterns; the detectors no longer rely on unconfirmed assumptions and the
 corresponding test skips are gone. The proxy fixture must be committed together
 with its generated .mov so the well-formed-with-media check passes elsewhere.
 ```
+
+## 2026-09-15 Export hardening against complex fixtures
+
+Scope:
+
+```text
+confirm export_kdenlive_timeline never silently exports projects with complex
+features the reverse adapter cannot represent
+```
+
+Behavior:
+
+```text
+proxy attachments are now rejected too: extract_timeline_document raises
+UNSUPPORTED_TIMELINE_FEATURE when the summary reports proxy_media_ids (bin
+chains carrying kdenlive:proxy / kdenlive:proxy_metadata); the summary exposes
+proxy_media_ids
+without this, proxy_fixture exported success=true with the timeline referencing
+the proxy .mov as media (silent semantic loss)
+```
+
+Confirmed behavior per complex fixture (via MCP tools/call):
+
+```text
+multiple_effect_stack_on_clip  -> UNSUPPORTED_TIMELINE_FEATURE (clip effects)
+multiple_transitions_timeline  -> UNSUPPORTED_TIMELINE_FEATURE (user transitions)
+audio_fade_fixture             -> UNSUPPORTED_TIMELINE_FEATURE (clip effects)
+proxy_fixture                  -> UNSUPPORTED_TIMELINE_FEATURE (proxy attachments)
+all: success=false, operation=export_kdenlive_timeline, clear message,
+warnings is a list, no .timeline.json written
+```
+
+Tests (tests/test_kdenlive_project_adapter.py):
+
+```text
+test_export_kdenlive_timeline_rejects_complex_fixture[...] (parametrized over the
+4 complex fixtures)
+```
+
+Commands:
+
+```bash
+pytest tests/test_kdenlive_project_adapter.py tests/test_kdenlive_project_fixtures.py -q
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+adapter + fixtures: 88 passed
+full suite: 370 passed, 1 skipped
+```
+
+Decision:
+
+```text
+The reverse adapter is conservative by design: anything it cannot represent
+losslessly (transitions, effects, proxy attachments) is rejected instead of
+exported with a silent data loss. The proxy case in particular can never be
+mistaken for its proxy .mov.
+```

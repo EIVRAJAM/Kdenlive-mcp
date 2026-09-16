@@ -213,6 +213,15 @@ def test_extract_timeline_summary_detects_clip_effect() -> None:
     assert any(effect["mlt_service"] == "qtblend" for effect in summary["clip_effects"])
 
 
+def test_extract_timeline_summary_reports_proxy_media_ids() -> None:
+    summary = _timeline_summary("proxy_fixture.kdenlive")
+
+    assert summary["proxy_media_ids"] == ["4"]
+
+    plain = _timeline_summary("manual_two_clips_timeline.kdenlive")
+    assert plain["proxy_media_ids"] == []
+
+
 def test_extract_timeline_summary_positions_accumulate_entries_and_blanks() -> None:
     gap_summary = _timeline_summary("manual_gap_timeline.kdenlive")
     base_summary = _timeline_summary("manual_two_clips_timeline.kdenlive")
@@ -433,6 +442,36 @@ def test_export_kdenlive_timeline_accepts_null_name(monkeypatch, tmp_path) -> No
     expected = tmp_path / "manual_two_clips_timeline.timeline.json"
     assert result["timeline_file"] == str(expected)
     assert expected.exists()
+
+
+_COMPLEX_FIXTURES = [
+    "multiple_effect_stack_on_clip.kdenlive",
+    "multiple_transitions_timeline.kdenlive",
+    "audio_fade_fixture.kdenlive",
+    "proxy_fixture.kdenlive",
+]
+
+
+@pytest.mark.parametrize("name", _COMPLEX_FIXTURES)
+def test_export_kdenlive_timeline_rejects_complex_fixture(monkeypatch, tmp_path, name: str) -> None:
+    _allow_export(monkeypatch, tmp_path)
+
+    result = _mcp_call(
+        "export_kdenlive_timeline",
+        {
+            "project": str(RECON_DIR / name),
+            "output_directory": str(tmp_path),
+            "name": name,
+        },
+    )
+
+    assert result["success"] is False
+    assert result["operation"] == "export_kdenlive_timeline"
+    assert result["error"] == "UNSUPPORTED_TIMELINE_FEATURE"
+    assert isinstance(result["message"], str) and result["message"]
+    assert isinstance(result["warnings"], list)
+    assert "timeline_file" not in result
+    assert not list(tmp_path.glob("*.timeline.json"))
 
 
 def test_extract_timeline_document_two_clips_validates() -> None:

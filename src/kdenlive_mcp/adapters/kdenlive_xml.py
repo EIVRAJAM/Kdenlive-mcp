@@ -285,6 +285,7 @@ class KdenliveProjectAdapter:
                 for item in self._bin_media(main_bin, chains, root, path)
                 if item["media_id"] and item["resolved_path"]
             },
+            "proxy_media_ids": self._proxy_media_ids(main_bin, chains),
             "tracks": tracks,
             "timeline_clips": clips,
             "gaps": gaps,
@@ -318,6 +319,11 @@ class KdenliveProjectAdapter:
             raise KdenliveProjectError(
                 "UNSUPPORTED_TIMELINE_FEATURE",
                 "Clip effects are not supported by reverse timeline conversion yet.",
+            )
+        if summary.get("proxy_media_ids"):
+            raise KdenliveProjectError(
+                "UNSUPPORTED_TIMELINE_FEATURE",
+                "Proxy attachments are not supported by reverse timeline conversion yet.",
             )
 
         fps = summary["fps"] or 30.0
@@ -596,6 +602,20 @@ class KdenliveProjectAdapter:
                 if sequence.get("uuid") == active_uuid:
                     return sequence["id"]
         return sequences[0]["id"] if sequences else None
+
+    def _proxy_media_ids(self, main_bin: ET.Element, chains: dict[str, ET.Element]) -> list[str]:
+        proxy_ids: set[str] = set()
+        for entry in main_bin.findall("entry"):
+            producer = entry.attrib.get("producer")
+            chain = chains.get(producer or "")
+            if chain is None:
+                continue
+            props = element_properties(chain)
+            if props.get("kdenlive:proxy") or props.get("kdenlive:proxy_metadata"):
+                media_id = props.get("kdenlive:id")
+                if media_id:
+                    proxy_ids.add(media_id)
+        return sorted(proxy_ids)
 
     def _bin_media(
         self,
