@@ -68,14 +68,18 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
   `initialize` + `tools/list`, 64 tools) y smoke de cliente SDK real validado con
   el SDK oficial `mcp` (`.venv` aislado). El servidor ahora soporta el framing
   JSONL del SDK (además de Content-Length).
-- Pruebas con fixtures reales múltiples: **DONE** (SHOULD). `examples/recon/`
+- Pruebas con fixtures reales múltiples: **DONE**. `examples/recon/`
   tiene 4 proyectos manuales validados + 4 fixtures reales nuevos creados en
   Kdenlive 26.04.3 (trim, gap, dissolve, efecto) con detectores que pasan:
   `manual_trimmed_clip`, `manual_gap_timeline`, `manual_transition_dissolve`,
-  `manual_basic_effect`. Patrones XML documentados en
-  `docs/KDENLIVE_PROJECT_FORMAT.md`. Pendiente (SHOULD/COULD): fixtures complejos
-  de stack de efectos múltiples, transiciones múltiples, fade de audio y proxy —
-  tests skipif y detectores listos, recetas manuales documentadas.
+  `manual_basic_effect`, más 4 fixtures complejos confirmados
+  (`multiple_effect_stack_on_clip`, `multiple_transitions_timeline`,
+  `audio_fade_fixture`, `proxy_fixture`) con sus patrones XML reales
+  documentados en `docs/KDENLIVE_PROJECT_FORMAT.md`. Los tests de fixtures ya no
+  tienen skips. Pendiente (SHOULD/COULD): la *escritura/generación MCP* de esas
+  features (stack de efectos, transiciones múltiples, fade de audio, proxy) —
+  hoy `export_kdenlive_timeline` y `extract_timeline_document` las rechazan con
+  `UNSUPPORTED_TIMELINE_FEATURE` para evitar pérdida silenciosa.
 - Edición de una working copy `.kdenlive` (spike de orquestación): **DONE con caveat**.
   `apply_timeline_to_working_project` aplica un timeline MCP a una working copy y escribe
   un proyecto derivado nuevo (copy-on-write). `apply_edits_to_working_project` orquesta el
@@ -115,8 +119,9 @@ Razón: los 20 requisitos MUST del target `production-local-agent-single-user`
 están en DONE. El único PARTIAL restante (validación real de carga MLT/Kdenlive)
 quedó cubierto el 2026-09-01 con una validación real, no mockeada, de un proyecto
 generado por el MCP a través del melt de Flatpak (exit 0, `status: loaded`, sin
-medios faltantes). Los pendientes que siguen abiertos (locks/versioning e2e,
-más fixtures reales, cliente MCP externo real, evidencia por-release) son SHOULD
+medios faltantes). Los pendientes que siguen abiertos (escritura/generación MCP
+de effect stacks/transiciones múltiples/fade/proxy, edición in-place de working
+copy, segundo cliente MCP externo real, evidencia por-release) son SHOULD
 o evidencia de mantenimiento, no bloqueos MUST del target.
 
 Conteo: DONE 20 · PARTIAL 0 · MISSING 0 · BLOCKED 0.
@@ -143,10 +148,12 @@ Conteo: DONE 20 · PARTIAL 0 · MISSING 0 · BLOCKED 0.
     apply_timeline_to_working_project ya está validado end-to-end vía MCP y el
     output carga en melt real vía scripts/roundtrip_mlt_smoke_test.py cuando el
     sandbox lo permite).
-4. Crear manualmente los fixtures complejos pendientes en Kdenlive (stack de
-   efectos múltiples, transiciones múltiples, fade de audio, proxy) siguiendo las
-   recetas de `docs/KDENLIVE_PROJECT_FORMAT.md`; los detectores y tests skipif ya
-   están listos y se activan al añadir cada archivo.
+4. Implementar la *escritura/generación MCP* de las features complejas hoy
+   rechazadas en el reverse adapter (stack de efectos múltiples, transiciones
+   múltiples, fade de audio, proxy) usando los patrones XML ya confirmados por
+   los fixtures reales en `docs/KDENLIVE_PROJECT_FORMAT.md`; mientras tanto
+   `export_kdenlive_timeline` las rechaza con `UNSUPPORTED_TIMELINE_FEATURE` sin
+   pérdida silenciosa.
 5. Ampliar la verificación a un segundo cliente MCP distinto del SDK oficial `mcp`
    (el gate de cliente real ya pasa con el SDK oficial en `.venv`; el checklist
    "MCP tool discovery works" queda cerrado para ese cliente).

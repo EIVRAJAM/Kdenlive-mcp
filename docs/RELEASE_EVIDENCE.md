@@ -3162,3 +3162,61 @@ losslessly (transitions, effects, proxy attachments) is rejected instead of
 exported with a silent data loss. The proxy case in particular can never be
 mistaken for its proxy .mov.
 ```
+
+## 2026-09-15 Post-hardening documentation audit
+
+Scope:
+
+```text
+align docs/PRODUCTION_READINESS_MATRIX.md with the current state after the
+complex fixtures and export hardening landed
+```
+
+Changes (docs only, no code):
+
+```text
+docs/PRODUCTION_READINESS_MATRIX.md:
+  - fixtures complejos ya existen (multiple_effect_stack_on_clip,
+    multiple_transitions_timeline, audio_fade_fixture, proxy_fixture) y los
+    tests de fixtures ya no tienen skips
+  - el pendiente de "crear fixtures complejos" se reemplaza por la
+    *escritura/generación MCP* de esas features (hoy rechazadas con
+    UNSUPPORTED_TIMELINE_FEATURE sin pérdida silenciosa)
+  - los riesgos residuales de efectos/transiciones/fade/proxy quedan acotados a
+    escritura MCP pendiente, no a observación XML
+  - el veredicto READY se mantiene; los pendientes legítimos son SHOULD
+    (escritura MCP de features complejas, edición in-place de working copy,
+    segundo cliente MCP)
+```
+
+Current test state:
+
+```text
+tests/test_kdenlive_project_fixtures.py: 43 passed, 0 skipped
+tests/test_kdenlive_project_adapter.py + fixtures: 88 passed
+full suite: 371 passed, 1 skipped (only the in-place working copy edit skip)
+```
+
+Remaining known skips (legitimate):
+
+```text
+test_project_mcp_workflow.py:890: in-place .kdenlive working copy editing is a
+pending SHOULD (copy-on-write is the supported path)
+```
+
+Commands:
+
+```bash
+rg -n "pending|pendiente|skip|UNCONFIRMED|best-effort|fixture.*pending|complex.*pending" docs tests
+pytest tests/test_production_readiness_matrix.py tests/test_kdenlive_project_fixtures.py tests/test_kdenlive_project_adapter.py -q
+pytest
+scripts/dev_check.sh
+```
+
+Decision:
+
+```text
+Documentation is aligned with the implemented state; remaining pendientes are
+writing/generation MCP support (not XML observation), in-place editing, and a
+second MCP client — all SHOULD, not MUST. Verdict: READY_WITH_KNOWN_LIMITATIONS.
+```
