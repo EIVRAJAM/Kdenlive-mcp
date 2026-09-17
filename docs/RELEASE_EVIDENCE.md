@@ -3419,3 +3419,60 @@ The MCP-generated audio fade project is valid and loads in real MLT. The next
 step is a manual resave in Kdenlive to confirm the window_ms values and filter
 shape survive, before expanding to volume keyframes or advanced effects.
 ```
+
+## 2026-09-16 Audio fade Kdenlive resave verified
+
+Scope:
+
+```text
+verify the manually resaved Kdenlive project produced from the MCP-generated
+audio fade project
+```
+
+Behavior:
+
+```text
+the user opened:
+  examples/recon/audio_fade_ai_generated.kdenlive
+in Kdenlive 26.04.3 and saved it as:
+  examples/recon/audio_fade_ai_resaved_by_kdenlive.kdenlive
+the first save attempt produced a filename with embedded newlines; it was
+renamed to the expected fixture path before validation
+the resaved XML preserves the simple fades:
+  fadein:  mlt_service=volume, kdenlive_id=fadein,  window=500, gain=0, end=1
+  fadeout: mlt_service=volume, kdenlive_id=fadeout, window=400, gain=1, end=0
+no level keyframes were introduced for those fades
+KdenliveProjectAdapter.extract_timeline_document reads the resaved fades back as
+TimelineEffect values with window_ms 500 and 400
+all clip_effects in the resaved project are classified as supported
+```
+
+Commands:
+
+```bash
+xmllint --noout examples/recon/audio_fade_ai_resaved_by_kdenlive.kdenlive
+pytest tests/test_kdenlive_project_fixtures.py -q
+pytest tests/test_kdenlive_project_adapter.py tests/test_kdenlive_project_fixtures.py -q
+pytest
+timeout 60 flatpak run --command=melt org.kde.kdenlive \
+  examples/recon/audio_fade_ai_resaved_by_kdenlive.kdenlive \
+  -consumer null terminate_on_pause=1
+```
+
+Results:
+
+```text
+xml lint: OK
+fixture tests: 49 passed (the 3 audio-fade-resave skipif tests now run)
+adapter + fixture tests: passed
+full suite: passed with only the existing in-place working-copy skip
+real melt load: exit 0
+```
+
+Decision:
+
+```text
+The simple audio fade loop is now confirmed through a real Kdenlive resave:
+write -> open/save in Kdenlive -> read back through the reverse adapter -> load
+in melt. Volume keyframes and advanced effects remain intentionally unsupported.
+```
