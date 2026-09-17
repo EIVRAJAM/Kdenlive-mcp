@@ -3476,3 +3476,65 @@ The simple audio fade loop is now confirmed through a real Kdenlive resave:
 write -> open/save in Kdenlive -> read back through the reverse adapter -> load
 in melt. Volume keyframes and advanced effects remain intentionally unsupported.
 ```
+
+## 2026-09-17 Audio volume keyframes Kdenlive resave verified
+
+Scope:
+
+```text
+verify that Kdenlive preserves the manual volume-keyframe oracle on resave,
+before implementing MCP read/write support for volume curves
+```
+
+Behavior:
+
+```text
+the user opened:
+  examples/recon/audio_fade_fixture.kdenlive
+in Kdenlive 26.04.3 and saved it as:
+  examples/recon/audio_volume_keyframes_resaved_by_kdenlive.kdenlive
+the first save attempt produced a filename with an embedded newline; it was
+renamed to the expected fixture path before validation
+the resaved XML preserves the keyframed volume filter exactly:
+  mlt_service=volume
+  kdenlive_id=volume
+  window=75
+  level=00:00:00.000=1;00:00:01.233=50;00:00:01.833=50;00:00:02.667=50
+the same entry still contains the fadein/fadeout filters:
+  fadein:  window=75, gain=0, end=1
+  fadeout: window=75, gain=1, end=0
+kdenlive:activeeffect remains property value 2
+the volume-keyframe filter remains classified as unsupported by the simple-fade
+reader, as intended
+```
+
+Commands:
+
+```bash
+xmllint --noout examples/recon/audio_volume_keyframes_resaved_by_kdenlive.kdenlive
+pytest tests/test_kdenlive_project_fixtures.py -q
+pytest tests/test_kdenlive_project_adapter.py tests/test_kdenlive_project_fixtures.py -q
+pytest
+timeout 60 flatpak run --command=melt org.kde.kdenlive \
+  examples/recon/audio_volume_keyframes_resaved_by_kdenlive.kdenlive \
+  -consumer null terminate_on_pause=1
+```
+
+Results:
+
+```text
+xml lint: OK
+fixture tests: 52 passed (the 3 volume-keyframe-resave skipif tests now run)
+adapter + fixture tests: passed
+full suite: passed with only the existing in-place working-copy skip
+real melt load: exit 0
+```
+
+Decision:
+
+```text
+The XML semantics for Kdenlive volume keyframes are now confirmed through a real
+Kdenlive resave. The next implementation can add a strict volume_keyframes
+TimelineEffect/read-write path using the preserved level format, while keeping
+unsupported curves rejected until explicitly modeled.
+```
