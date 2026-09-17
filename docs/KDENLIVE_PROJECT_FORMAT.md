@@ -648,7 +648,8 @@ Explicitly rejected (UNSUPPORTED_TIMELINE_FEATURE):
 
 ```text
 user transitions (is_user=true)
-clip effects (any clip-level filter without internal_added=237)
+clip effects (any clip-level filter without internal_added=237, EXCEPT simple
+audio fades fadein/fadeout which are converted to TimelineEffect)
 proxy attachments (bin chains with kdenlive:proxy / kdenlive:proxy_metadata)
 ```
 
@@ -681,12 +682,24 @@ exportable):
 
 ```text
 user transitions          -> "User transitions are not supported..."
-clip effects              -> "Clip effects are not supported..."
+clip effects              -> "Clip effects are not supported..." for any
+                             clip-level filter that is NOT a supported simple
+                             audio fade
 proxy attachments         -> "Proxy attachments are not supported..." (detected
-                              via bin chains carrying kdenlive:proxy /
-                              kdenlive:proxy_metadata; the summary exposes
-                              proxy_media_ids)
+                             via bin chains carrying kdenlive:proxy /
+                             kdenlive:proxy_metadata; the summary exposes
+                             proxy_media_ids)
 ```
+
+Supported audio fades (read, 2026-09-15): `extract_timeline_document` converts
+simple `fadein`/`fadeout` to `TimelineEffect` when the filter is inside an audio
+track entry with `mlt_service=volume`, `kdenlive_id=fadein|fadeout`, positive
+integer `window`, matching `gain`/`end` (fadein 0/1, fadeout 1/0), and no
+`level` keyframes. Each timeline clip summary carries `supported_audio_fades`;
+the `clip_effects` entries carry a `supported` flag. Anything else (volume
+keyframes, fades on video tracks, other services, unexpected gain/end, missing/
+invalid window, duplicate fade kind on a clip) is still rejected with
+`UNSUPPORTED_TIMELINE_FEATURE`.
 
 The complex fixtures in `examples/recon/` (`multiple_effect_stack_on_clip`,
 `multiple_transitions_timeline`, `audio_fade_fixture`, `proxy_fixture`) all

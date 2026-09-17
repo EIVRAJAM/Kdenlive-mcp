@@ -500,6 +500,207 @@ def test_apply_timeline_edits_fade_via_mcp_boundary(monkeypatch, tmp_path) -> No
     ]
 
 
+def test_export_kdenlive_timeline_roundtrip_preserves_fade_effects(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_MEDIA_DIRS", str(RECON_DIR))
+    _allow_export(monkeypatch, tmp_path, project_dirs=f"{RECON_DIR}:{tmp_path}")
+
+    exported = _export_timeline("manual_two_clips_timeline", tmp_path, name="fade_rt_base")
+    edited = _mcp_call(
+        "apply_timeline_edits",
+        {
+            "timeline_file": exported["timeline_file"],
+            "edits": [
+                {"operation": "fade_in_audio", "clip_id": "chain0_a", "duration_ms": 500},
+                {"operation": "fade_out_audio", "clip_id": "chain0_a", "duration_ms": 400},
+            ],
+            "output_directory": str(tmp_path),
+            "name": "fade_rt_edited",
+            "dry_run": False,
+        },
+    )
+    assert edited["success"] is True
+
+    prepared = _mcp_call(
+        "prepare_working_project",
+        {
+            "project": str(RECON_DIR / "manual_two_clips_timeline.kdenlive"),
+            "output_directory": str(tmp_path),
+            "lock_directory": str(tmp_path / "locks"),
+            "owner": "agent",
+        },
+    )
+    applied = _mcp_call(
+        "apply_timeline_to_working_project",
+        {
+            "working_project": prepared["working_project"],
+            "timeline_file": edited["timeline_file"],
+            "output_directory": str(tmp_path),
+            "name": "fade_rt_output",
+        },
+    )
+    assert applied["success"] is True
+
+    readback = _mcp_call(
+        "export_kdenlive_timeline",
+        {
+            "project": applied["output_project"],
+            "output_directory": str(tmp_path),
+            "name": "fade_rt_readback",
+        },
+    )
+    assert readback["success"] is True
+    faded_clips = [clip for clip in readback["timeline"]["clips"] if clip.get("effects")]
+    assert len(faded_clips) == 1
+    effects = faded_clips[0]["effects"]
+    assert {effect["kind"]: effect["window_ms"] for effect in effects} == {"fadein": 500, "fadeout": 400}
+
+
+def test_extract_timeline_document_rejects_duplicate_fade_kind(monkeypatch) -> None:
+    adapter = KdenliveProjectAdapter()
+    synthetic = {
+        "fps": 30.0,
+        "profile": {"width": 1080, "height": 1920, "frame_rate_num": 30, "frame_rate_den": 1},
+        "user_transitions": [],
+        "clip_effects": [
+            {
+                "entry_producer": "chain0",
+                "filter_id": "filter0",
+                "mlt_service": "volume",
+                "kdenlive_id": "fadein",
+                "track_kind": "audio",
+                "supported": True,
+            },
+            {
+                "entry_producer": "chain0",
+                "filter_id": "filter1",
+                "mlt_service": "volume",
+                "kdenlive_id": "fadein",
+                "track_kind": "audio",
+                "supported": True,
+            },
+        ],
+        "proxy_media_ids": [],
+        "resolved_media": {"4": str(RECON_DIR / "sample1.mp4")},
+        "tracks": [
+            {"id": "playlist0", "track_kind": "audio", "clip_count": 1, "gap_count": 0},
+        ],
+        "timeline_clips": [
+            {
+                "producer": "chain0",
+                "playlist_id": "playlist0",
+                "track_kind": "audio",
+                "media": "sample1.mp4",
+                "media_id": "4",
+                "source_in_frames": 0,
+                "source_out_frames": 89,
+                "duration_frames": 90,
+                "position_frames": 0,
+                "supported_audio_fades": [
+                    {"kind": "fadein", "window_ms": 500, "gain": "0", "end": "1"},
+                    {"kind": "fadein", "window_ms": 700, "gain": "0", "end": "1"},
+                ],
+            }
+        ],
+        "confirmed_fields": [],
+        "inferred_fields": [],
+    }
+    monkeypatch.setattr(adapter, "extract_timeline_summary", lambda project: synthetic)
+
+    with pytest.raises(KdenliveProjectError) as excinfo:
+        adapter.extract_timeline_document("dummy.kdenlive")
+    assert excinfo.value.code == "UNSUPPORTED_TIMELINE_FEATURE"
+    assert "duplicate audio fades" in excinfo.value.message
+
+
+def test_extract_timeline_document_rejects_fade_on_video_track(monkeypatch) -> None:
+    adapter = KdenliveProjectAdapter()
+    synthetic = {
+        "fps": 30.0,
+        "profile": {"width": 1080, "height": 1920, "frame_rate_num": 30, "frame_rate_den": 1},
+        "user_transitions": [],
+        "clip_effects": [
+            {
+                "entry_producer": "chain0",
+                "filter_id": "filter0",
+                "mlt_service": "volume",
+                "kdenlive_id": "fadein",
+                "track_kind": "video",
+                "supported": False,
+            }
+        ],
+        "proxy_media_ids": [],
+        "resolved_media": {"4": str(RECON_DIR / "sample1.mp4")},
+        "tracks": [
+            {"id": "playlist6", "track_kind": "video", "clip_count": 1, "gap_count": 0},
+        ],
+        "timeline_clips": [
+            {
+                "producer": "chain0",
+                "playlist_id": "playlist6",
+                "track_kind": "video",
+                "media": "sample1.mp4",
+                "media_id": "4",
+                "source_in_frames": 0,
+                "source_out_frames": 89,
+                "duration_frames": 90,
+                "position_frames": 0,
+                "supported_audio_fades": [],
+            }
+        ],
+        "confirmed_fields": [],
+        "inferred_fields": [],
+    }
+    monkeypatch.setattr(adapter, "extract_timeline_summary", lambda project: synthetic)
+
+    with pytest.raises(KdenliveProjectError) as excinfo:
+        adapter.extract_timeline_document("dummy.kdenlive")
+    assert excinfo.value.code == "UNSUPPORTED_TIMELINE_FEATURE"
+
+
+def test_classify_audio_fade_criteria() -> None:
+    from kdenlive_mcp.adapters.kdenlive_xml import _classify_audio_fade
+
+    base_fadein = {
+        "window": "500",
+        "max_gain": "20dB",
+        "channel_mask": "-1",
+        "mlt_service": "volume",
+        "kdenlive_id": "fadein",
+        "gain": "0",
+        "end": "1",
+    }
+    supported, fade = _classify_audio_fade("audio", base_fadein)
+    assert supported is True
+    assert fade == {"kind": "fadein", "window_ms": 500, "gain": "0", "end": "1"}
+
+    fadeout = {**base_fadein, "kdenlive_id": "fadeout", "gain": "1", "end": "0"}
+    supported, fade = _classify_audio_fade("audio", fadeout)
+    assert supported is True
+    assert fade["kind"] == "fadeout"
+    assert fade["window_ms"] == 500
+
+    keyframed = {**base_fadein, "level": "00:00:00.000=1;00:00:01.000=50"}
+    assert _classify_audio_fade("audio", keyframed)[0] is False
+
+    video_track = _classify_audio_fade("video", base_fadein)
+    assert video_track[0] is False
+
+    wrong_gain = {**base_fadein, "gain": "1", "end": "0"}
+    assert _classify_audio_fade("audio", wrong_gain)[0] is False
+
+    no_window = {k: v for k, v in base_fadein.items() if k != "window"}
+    assert _classify_audio_fade("audio", no_window)[0] is False
+
+    bad_window = {**base_fadein, "window": "abc"}
+    assert _classify_audio_fade("audio", bad_window)[0] is False
+
+    zero_window = {**base_fadein, "window": "0"}
+    assert _classify_audio_fade("audio", zero_window)[0] is False
+
+    other_service = {**base_fadein, "mlt_service": "qtblend"}
+    assert _classify_audio_fade("audio", other_service)[0] is False
+
+
 def test_extract_timeline_document_two_clips_validates() -> None:
     document = _extract_document("manual_two_clips_timeline.kdenlive")
     validated = TimelineDocument.model_validate(document.model_dump(mode="json", exclude_none=True))

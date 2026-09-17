@@ -3292,3 +3292,70 @@ confirmed fixture pattern and the output loads in real MLT. Volume keyframes and
 other effects are still write-only-off; export_kdenlive_timeline keeps rejecting
 clip effects on read until the reverse adapter learns to read them.
 ```
+
+## 2026-09-15 Reverse read of simple audio fades
+
+Scope:
+
+```text
+export_kdenlive_timeline now accepts simple fadein/fadeout filters and converts
+them to TimelineClip.effects, closing the write->read round-trip for the MVP
+```
+
+Behavior:
+
+```text
+_walk_playlist_summary classifies each clip filter via _classify_audio_fade:
+  accept only: audio track entry, mlt_service=volume, kdenlive_id in
+  (fadein, fadeout), positive integer window, gain/end expected per kind
+  (fadein 0/1, fadeout 1/0), no level keyframes
+supported fades are attached directly to the timeline clip as
+  supported_audio_fades; clip_effects entries gain a supported flag
+extract_timeline_document:
+  - rejects when any clip_effect has supported=False (volume keyframes, fades on
+    video, other services, wrong gain/end, missing/invalid window)
+  - rejects duplicate fade kinds on the same clip
+  - converts supported_audio_fades to TimelineEffect
+  - TimelineDocument validation remains as a second line of defense
+```
+
+Tests:
+
+```text
+tests/test_kdenlive_project_adapter.py:
+  - roundtrip: export -> fade_in_audio/fade_out_audio -> apply_timeline_to_
+    working_project -> export_kdenlive_timeline preserves effects
+    (fadein=500, fadeout=400)
+  - duplicate fade kind on a clip -> UNSUPPORTED_TIMELINE_FEATURE
+  - fade on video track (supported=False) -> UNSUPPORTED_TIMELINE_FEATURE
+  - _classify_audio_fade criteria (valid fadein/fadeout, keyframed volume
+    rejected, non-audio rejected, wrong gain/end rejected, missing/invalid/zero
+    window rejected, other service rejected)
+audio_fade_fixture still rejected (has volume keyframes); multiple_effect_stack,
+multiple_transitions, proxy fixtures still rejected
+```
+
+Commands:
+
+```bash
+pytest tests/test_kdenlive_project_adapter.py tests/test_timeline_service.py tests/test_kdenlive_project_fixtures.py -q
+pytest
+scripts/dev_check.sh
+python3 scripts/roundtrip_mlt_smoke_test.py
+```
+
+Results:
+
+```text
+adapter + timeline_service + fixtures: passed
+full suite: 389 passed, 1 skipped
+roundtrip_mlt_smoke_test.py: verdict mlt_loaded
+```
+
+Decision:
+
+```text
+The fade round-trip is closed: the MCP can write fades, export a .kdenlive, and
+read them back as TimelineEffect, while anything outside the strict fade subset
+is still refused with UNSUPPORTED_TIMELINE_FEATURE.
+```

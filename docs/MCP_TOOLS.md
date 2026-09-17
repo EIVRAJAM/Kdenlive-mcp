@@ -1632,7 +1632,7 @@ reverse-adapter subset (`extract_timeline_document`) and persists it as
 ```text
 validate project (ensure_project_path) -> output_directory (ensure_output_path)
 convert with extract_timeline_document (no writes to the .kdenlive or media)
-unsupported transition/effect -> UNSUPPORTED_TIMELINE_FEATURE, no output
+unsupported transition/effect/proxy -> UNSUPPORTED_TIMELINE_FEATURE, no output
 existing output + overwrite=false -> OUTPUT_EXISTS
 save the TimelineDocument JSON
 ```
@@ -1657,9 +1657,12 @@ Response:
 
 The `.kdenlive` source and its media are never modified. The exported
 `TimelineDocument` includes audio/video `linked_clip_id` pairs, absolute media
-paths, and only the supported subset (user transitions and clip effects are
-refused). Errors: `PROJECT_NOT_FOUND`, `INVALID_PROJECT`,
-`UNSUPPORTED_TIMELINE_FEATURE`, `OUTPUT_EXISTS`, `PERMISSION_DENIED`.
+paths, and only the supported subset. Simple audio fades written by the MCP
+(`fade_in_audio`/`fade_out_audio`) are read back into `TimelineClip.effects`;
+everything else (user transitions, volume keyframes, fades on video tracks, or
+any other clip effect) is refused. Errors: `PROJECT_NOT_FOUND`,
+`INVALID_PROJECT`, `UNSUPPORTED_TIMELINE_FEATURE`, `OUTPUT_EXISTS`,
+`PERMISSION_DENIED`.
 
 ### inspect_project
 

@@ -31,6 +31,29 @@ def element_properties(element: ET.Element) -> dict[str, str]:
     }
 
 
+def _classify_audio_fade(track_kind: str, props: dict[str, str]) -> tuple[bool, dict[str, Any] | None]:
+    if track_kind != "audio":
+        return False, None
+    if props.get("mlt_service") != "volume":
+        return False, None
+    kind = props.get("kdenlive_id")
+    if kind not in ("fadein", "fadeout"):
+        return False, None
+    if "level" in props:
+        return False, None
+    window = props.get("window")
+    try:
+        window_ms = int(window) if window is not None else None
+    except (TypeError, ValueError):
+        window_ms = None
+    if window_ms is None or window_ms <= 0:
+        return False, None
+    expected = ("0", "1") if kind == "fadein" else ("1", "0")
+    if (props.get("gain"), props.get("end")) != expected:
+        return False, None
+    return True, {"kind": kind, "window_ms": window_ms, "gain": props.get("gain"), "end": props.get("end")}
+
+
 def parse_timecode_to_frames(value: str | None, fps_num: int, fps_den: int = 1) -> int | None:
     if value is None:
         return None
@@ -315,7 +338,7 @@ class KdenliveProjectAdapter:
                 "UNSUPPORTED_TIMELINE_FEATURE",
                 "User transitions are not supported by reverse timeline conversion yet.",
             )
-        if summary["clip_effects"]:
+        if any(not effect.get("supported") for effect in summary["clip_effects"]):
             raise KdenliveProjectError(
                 "UNSUPPORTED_TIMELINE_FEATURE",
                 "Clip effects are not supported by reverse timeline conversion yet.",
@@ -394,6 +417,18 @@ class KdenliveProjectAdapter:
             if not media_path:
                 raw = Path(str(media))
                 media_path = str(raw if raw.is_absolute() else Path(project_path).resolve().parent / raw)
+
+            effects: list[TimelineEffect] = []
+            for fade in clip.get("supported_audio_fades") or []:
+                effects.append(
+                    TimelineEffect(id=f"{clip_id}_{fade['kind']}", kind=fade["kind"], window_ms=int(fade["window_ms"]))
+                )
+            fade_kinds = [effect.kind for effect in effects]
+            if len(fade_kinds) != len(set(fade_kinds)):
+                raise KdenliveProjectError(
+                    "UNSUPPORTED_TIMELINE_FEATURE",
+                    f"Clip {clip_id} has duplicate audio fades of the same kind.",
+                )
             clips.append(
                 TimelineClip(
                     id=clip_id,
@@ -405,6 +440,7 @@ class KdenliveProjectAdapter:
                     timeline_in=round(timeline_in, 6),
                     timeline_out=round(timeline_out, 6),
                     reason="reverse_converted",
+                    effects=effects,
                 )
             )
 
@@ -488,15 +524,22 @@ class KdenliveProjectAdapter:
             if in_frames is not None and out_frames is not None:
                 duration_frames = out_frames - in_frames + 1
             entry_effects: list[dict[str, Any]] = []
+            supported_fades: list[dict[str, Any]] = []
             for filter_ in child.findall("filter"):
                 filter_props = element_properties(filter_)
                 if filter_props.get("mlt_service") and filter_props.get("internal_added") != "237":
+                    supported, fade = _classify_audio_fade(track_kind, filter_props)
+                    if fade is not None:
+                        fade["filter_id"] = filter_.attrib.get("id")
+                        supported_fades.append(fade)
                     entry_effects.append(
                         {
                             "entry_producer": producer,
                             "filter_id": filter_.attrib.get("id"),
                             "mlt_service": filter_props.get("mlt_service"),
                             "kdenlive_id": filter_props.get("kdenlive_id"),
+                            "track_kind": track_kind,
+                            "supported": supported,
                         }
                     )
             effects.extend(entry_effects)
@@ -516,6 +559,7 @@ class KdenliveProjectAdapter:
                     "position_frames": position_frames,
                     "position_seconds": round(position_frames / fps_num * fps_den, 6),
                     "effect_count": len(entry_effects),
+                    "supported_audio_fades": supported_fades,
                 }
             )
             if duration_frames is not None:
