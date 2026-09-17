@@ -794,6 +794,48 @@ Verified result:
 - the resaved project loads in real melt (exit 0)
 ```
 
+## Audio Volume Keyframes Resave Verification (Pending Manual Resave)
+
+The manual fixture `examples/recon/audio_fade_fixture.kdenlive` (created in
+Kdenlive 26.04.3) is the oracle for `kdenlive_id=volume` with a keyframed
+`level`:
+
+```text
+level = 00:00:00.000=1;00:00:01.233=50;00:00:01.833=50;00:00:02.667=50
+```
+
+This is the real semantics Kdenlive writes (timecode=value points, values on a
+0..100 scale, times quantized to frames at 30fps, coexisting with fadein/fadeout
+on the same clip). Before designing curve writing, verify Kdenlive re-saves it
+unchanged.
+
+Required manual step (user, in Kdenlive 26.04.3):
+
+```text
+flatpak run org.kde.kdenlive examples/recon/audio_fade_fixture.kdenlive
+```
+then `File > Save As`:
+```text
+examples/recon/audio_volume_keyframes_resaved_by_kdenlive.kdenlive
+```
+
+What to compare after the resave (skipif tests activate once the resaved file
+exists):
+
+```text
+- XML well-formed and bin media present
+- a filter mlt_service=volume / kdenlive_id=volume with level still exists
+- level point count, times (within 1 frame) and values are preserved; if
+  Kdenlive transforms any of them, update the test assertion with the exact
+  transformed values
+- fadein/fadeout filters still coexist on the same clip
+- simple fade detection (_has_audio_fade / _classify_audio_fade) is unaffected
+  (the volume keyframes filter stays "unsupported", never a simple fade)
+```
+
+No `TimelineEffect`/`apply_timeline_edits` change is made until this resave
+confirms the semantics.
+
 ## Kdenlive Round-Trip Of An AI-Generated Project
 
 The MCP generates `examples/recon/roundtrip_ai_generated.kdenlive` from the

@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
-from kdenlive_mcp.adapters.kdenlive_xml import KdenliveProjectAdapter
+from kdenlive_mcp.adapters.kdenlive_xml import KdenliveProjectAdapter, _classify_audio_fade
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -32,6 +32,7 @@ ROUNDTRIP_RESAVED = "roundtrip_ai_resaved_by_kdenlive.kdenlive"
 COMPOSITE_GENERATED = "composite_edit_ai_generated.kdenlive"
 AUDIO_FADE_GENERATED = "audio_fade_ai_generated.kdenlive"
 AUDIO_FADE_RESAVED = "audio_fade_ai_resaved_by_kdenlive.kdenlive"
+AUDIO_VOLUME_KEYFRAMES_RESAVED = "audio_volume_keyframes_resaved_by_kdenlive.kdenlive"
 
 # Complex fixtures require manual creation in Kdenlive; tests skip until each
 # file exists. Manual recipes and expected/unknown patterns are documented in
@@ -740,3 +741,82 @@ def test_resaved_audio_fade_project_has_no_unexpected_clip_effects() -> None:
 
     summary = KdenliveProjectAdapter().extract_timeline_summary(RECON_DIR / AUDIO_FADE_RESAVED)
     assert all(effect.get("supported") for effect in summary["clip_effects"])
+
+
+def _parse_level(level: str) -> list[tuple[float, float]]:
+    points: list[tuple[float, float]] = []
+    for segment in level.split(";"):
+        if not segment:
+            continue
+        timecode, value = segment.split("=", 1)
+        hours, minutes, rest = timecode.split(":")
+        seconds, millis = rest.split(".")
+        total = int(hours) * 3600 + int(minutes) * 60 + int(seconds) + int(millis) / 1000
+        points.append((total, float(value)))
+    return points
+
+
+def _volume_keyframe_level(root: ET.Element) -> str | None:
+    for playlist in root.findall("playlist"):
+        if playlist.get("id") == "main_bin":
+            continue
+        for entry in playlist.findall("entry"):
+            for filter_ in entry.findall("filter"):
+                props = _props(filter_)
+                if props.get("mlt_service") == "volume" and props.get("kdenlive_id") == "volume":
+                    return props.get("level")
+    return None
+
+
+@pytest.mark.skipif(not (RECON_DIR / AUDIO_VOLUME_KEYFRAMES_RESAVED).exists(), reason=f"{AUDIO_VOLUME_KEYFRAMES_RESAVED} requires opening audio_fade_fixture.kdenlive in Kdenlive and saving it under that name; instructions in docs/KDENLIVE_PROJECT_FORMAT.md")
+def test_resaved_audio_volume_keyframes_is_well_formed_with_media() -> None:
+    root = _parse(AUDIO_VOLUME_KEYFRAMES_RESAVED)
+
+    assert root.tag == "mlt"
+    assert root.attrib["producer"] == "main_bin"
+    for chain in root.findall("chain"):
+        resource = _props(chain).get("resource")
+        if resource and resource != "black":
+            assert (RECON_DIR / resource).exists()
+
+
+@pytest.mark.skipif(not (RECON_DIR / AUDIO_VOLUME_KEYFRAMES_RESAVED).exists(), reason=f"{AUDIO_VOLUME_KEYFRAMES_RESAVED} requires opening audio_fade_fixture.kdenlive in Kdenlive and saving it under that name; instructions in docs/KDENLIVE_PROJECT_FORMAT.md")
+def test_resaved_audio_volume_keyframes_preserves_level_and_coexists_with_fades() -> None:
+    root = _parse(AUDIO_VOLUME_KEYFRAMES_RESAVED)
+
+    level = _volume_keyframe_level(root)
+    assert level is not None, "expected a volume filter with kdenlive_id=volume and level"
+
+    expected = _parse_level("00:00:00.000=1;00:00:01.233=50;00:00:01.833=50;00:00:02.667=50")
+    actual = _parse_level(level)
+    assert len(actual) == len(expected), f"point count changed: {actual}"
+    frame_seconds = 1 / 30.0
+    for (exp_time, exp_value), (act_time, act_value) in zip(expected, actual):
+        assert abs(act_time - exp_time) <= frame_seconds, f"time {act_time} != {exp_time}"
+        assert abs(act_value - exp_value) <= 0.5, f"value {act_value} != {exp_value}"
+
+    fades = [
+        _props(filter_)["kdenlive_id"]
+        for playlist in root.findall("playlist")
+        if playlist.get("id") != "main_bin"
+        for entry in playlist.findall("entry")
+        for filter_ in entry.findall("filter")
+        if _props(filter_).get("kdenlive_id") in ("fadein", "fadeout")
+    ]
+    assert "fadein" in fades and "fadeout" in fades, "volume keyframes must coexist with fadein/fadeout"
+
+
+@pytest.mark.skipif(not (RECON_DIR / AUDIO_VOLUME_KEYFRAMES_RESAVED).exists(), reason=f"{AUDIO_VOLUME_KEYFRAMES_RESAVED} requires opening audio_fade_fixture.kdenlive in Kdenlive and saving it under that name; instructions in docs/KDENLIVE_PROJECT_FORMAT.md")
+def test_resaved_audio_volume_keyframes_does_not_break_fade_detection() -> None:
+    root = _parse(AUDIO_VOLUME_KEYFRAMES_RESAVED)
+
+    assert _has_audio_fade(root) is True
+    for playlist in root.findall("playlist"):
+        if playlist.get("id") == "main_bin":
+            continue
+        for entry in playlist.findall("entry"):
+            for filter_ in entry.findall("filter"):
+                props = _props(filter_)
+                if props.get("kdenlive_id") == "volume":
+                    supported, _fade = _classify_audio_fade("audio", props)
+                    assert supported is False, "volume keyframes must not be classified as a supported simple fade"
