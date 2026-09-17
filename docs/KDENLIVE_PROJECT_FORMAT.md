@@ -755,10 +755,11 @@ Audio fade writing (MVP, 2026-09-15): `fade_in_audio` / `fade_out_audio` in
 verbatim; `gain`/`end` fixed per kind) inside the audio clip's playlist entry,
 matching the confirmed `audio_fade_fixture.kdenlive` pattern. The exact semantic
 unit of Kdenlive's `window` is not yet confirmed by a resave. Volume keyframes
-(`kdenlive_id=volume` with `level=timecode=value;...`) are NOT written yet, and
-`export_kdenlive_timeline` still rejects clip effects on read. A
-`TimelineDocument` with effects on non-audio clips or duplicate effect kinds is
-rejected as invalid.
+(`kdenlive_id=volume` with `level=timecode=value;...`) are NOT written yet. On
+read, the reverse adapter converts simple fadein/fadeout back to
+`TimelineEffect` (see "Supported audio fades" above); volume keyframes and any
+other clip effect are still rejected. A `TimelineDocument` with effects on
+non-audio clips or duplicate effect kinds is rejected as invalid.
 
 ## Kdenlive Round-Trip Of An AI-Generated Project
 

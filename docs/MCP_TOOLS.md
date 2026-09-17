@@ -1167,7 +1167,8 @@ non-audio tracks, or duplicate effect kinds, is rejected as `INVALID_TIMELINE`
 even if the `.timeline.json` is hand-written. On export the fade becomes a
 clip-level `<filter>` `volume` with `kdenlive_id=fadein|fadeout`, `gain`/`end`
 fixed per kind, inside the audio clip's playlist entry. Volume keyframes are not
-written yet and `export_kdenlive_timeline` still rejects clip effects on read.
+written yet and `export_kdenlive_timeline` reads back only simple fades (other
+clip effects remain rejected on read).
 
 If one edit has invalid arguments, the tool returns a structured error with
 `failed_step`, `failed_edit`, and the successful `steps` applied before that
