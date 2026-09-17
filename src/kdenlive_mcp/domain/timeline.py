@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime
 from typing import Literal
 
@@ -20,15 +21,42 @@ class TimelineTrack(BaseModel):
     muted: bool = False
 
 
+class VolumeKeyframe(BaseModel):
+    position_s: float
+    value: float
+
+    @model_validator(mode="after")
+    def validate_keyframe(self) -> "VolumeKeyframe":
+        if self.position_s < 0 or not math.isfinite(self.position_s):
+            raise ValueError("position_s must be finite and non-negative")
+        if self.value < 0.0 or self.value > 1.0 or not math.isfinite(self.value):
+            raise ValueError("value must be finite and between 0.0 and 1.0")
+        if abs(round(self.value * 100) - self.value * 100) > 1e-6:
+            raise ValueError("value must have a 0.01 resolution (Kdenlive level uses integer 0..100)")
+        return self
+
+
 class TimelineEffect(BaseModel):
     id: str
-    kind: Literal["fadein", "fadeout"]
-    window_ms: int
+    kind: Literal["fadein", "fadeout", "volume_keyframes"]
+    window_ms: int | None = None
+    points: list[VolumeKeyframe] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_effect(self) -> "TimelineEffect":
-        if self.window_ms <= 0:
-            raise ValueError("window_ms must be positive")
+        if self.kind in ("fadein", "fadeout"):
+            if self.window_ms is None or self.window_ms <= 0:
+                raise ValueError("window_ms must be a positive integer for fades")
+            if self.points:
+                raise ValueError("fadein/fadeout must not have points")
+        elif self.kind == "volume_keyframes":
+            if self.window_ms is not None:
+                raise ValueError("window_ms must be null for volume_keyframes")
+            if len(self.points) < 2:
+                raise ValueError("volume_keyframes requires at least 2 points")
+            positions = [point.position_s for point in self.points]
+            if any(next_ <= current for current, next_ in zip(positions, positions[1:])):
+                raise ValueError("volume_keyframes positions must be strictly increasing")
         return self
 
 
@@ -124,6 +152,16 @@ class TimelineDocument(BaseModel):
                 kinds = [effect.kind for effect in clip.effects]
                 if len(kinds) != len(set(kinds)):
                     raise ValueError(f"clip {clip.id} has duplicate effect kinds: {sorted(kinds)}")
+                source_duration = clip.source_out - clip.source_in
+                for effect in clip.effects:
+                    if effect.kind != "volume_keyframes":
+                        continue
+                    for point in effect.points:
+                        if point.position_s > source_duration + 1e-6:
+                            raise ValueError(
+                                f"clip {clip.id} volume keyframe position {point.position_s} exceeds "
+                                f"source duration {source_duration}"
+                            )
 
         marker_ids = {marker.id for marker in self.markers}
         if len(marker_ids) != len(self.markers):

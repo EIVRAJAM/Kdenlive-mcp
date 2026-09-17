@@ -649,7 +649,8 @@ Explicitly rejected (UNSUPPORTED_TIMELINE_FEATURE):
 ```text
 user transitions (is_user=true)
 clip effects (any clip-level filter without internal_added=237, EXCEPT simple
-audio fades fadein/fadeout which are converted to TimelineEffect)
+audio fades fadein/fadeout and volume keyframes kdenlive_id=volume which are
+converted to TimelineEffect)
 proxy attachments (bin chains with kdenlive:proxy / kdenlive:proxy_metadata)
 ```
 
@@ -691,21 +692,28 @@ proxy attachments         -> "Proxy attachments are not supported..." (detected
                              proxy_media_ids)
 ```
 
-Supported audio fades (read, 2026-09-15): `extract_timeline_document` converts
-simple `fadein`/`fadeout` to `TimelineEffect` when the filter is inside an audio
-track entry with `mlt_service=volume`, `kdenlive_id=fadein|fadeout`, positive
-integer `window`, matching `gain`/`end` (fadein 0/1, fadeout 1/0), and no
-`level` keyframes. Each timeline clip summary carries `supported_audio_fades`;
-the `clip_effects` entries carry a `supported` flag. Anything else (volume
-keyframes, fades on video tracks, other services, unexpected gain/end, missing/
-invalid window, duplicate fade kind on a clip) is still rejected with
-`UNSUPPORTED_TIMELINE_FEATURE`.
+Supported audio effects (read, 2026-09-15/16): `extract_timeline_document`
+converts simple `fadein`/`fadeout` and `volume` keyframe curves to
+`TimelineEffect` when the filter is inside an audio track entry:
+
+```text
+fadein/fadeout: mlt_service=volume, kdenlive_id=fadein|fadeout, positive
+  integer window, matching gain/end (fadein 0/1, fadeout 1/0), no level
+volume_keyframes: mlt_service=volume, kdenlive_id=volume, level =
+  "timecode=value;..." with >=2 points, strictly increasing times, values
+  0..100, times within the clip source duration (+1 frame tolerance)
+```
+
+Each timeline clip summary carries `supported_audio_fades` and
+`supported_volume_keyframes`; the `clip_effects` entries carry a `supported`
+flag. Anything else (fades/curves on video tracks, other services, unexpected
+gain/end, missing/invalid window, invalid level, multiple curves on a clip,
+duplicate fade kind) is still rejected with `UNSUPPORTED_TIMELINE_FEATURE`.
 
 The complex fixtures in `examples/recon/` (`multiple_effect_stack_on_clip`,
-`multiple_transitions_timeline`, `audio_fade_fixture`, `proxy_fixture`) all
-fail export with `success=false`, `error=UNSUPPORTED_TIMELINE_FEATURE`, and no
-`.timeline.json` is written — so a proxied clip is never silently exported as
-its proxy `.mov`.
+`multiple_transitions_timeline`, `proxy_fixture`) fail export with
+`success=false`, `error=UNSUPPORTED_TIMELINE_FEATURE`, and no `.timeline.json`
+is written. `audio_fade_fixture` is now read back (fades + volume keyframes).
 
 Audio/video linking:
 
@@ -749,19 +757,27 @@ Round-trip behavior for complex AI-written projects with effect stacks, multiple
 transitions, proxies, subtitles, or advanced metadata
 ```
 
-Audio fade writing (MVP, 2026-09-15): `fade_in_audio` / `fade_out_audio` in
-`apply_timeline_edits` write a clip-level `<filter>` `volume` with
-`kdenlive_id=fadein|fadeout` (`window` receives the MCP `window_ms` value
-verbatim; `gain`/`end` fixed per kind) inside the audio clip's playlist entry,
-matching the confirmed `audio_fade_fixture.kdenlive` pattern. The exact semantic
-unit of Kdenlive's `window` is still treated as Kdenlive-specific, but a real
-Kdenlive 26.04.3 resave preserves the MCP-written values (`500` and `400`) byte
-for value. Volume keyframes (`kdenlive_id=volume` with
-`level=timecode=value;...`) are NOT written yet. On read, the reverse adapter
-converts simple fadein/fadeout back to
-`TimelineEffect` (see "Supported audio fades" above); volume keyframes and any
-other clip effect are still rejected. A `TimelineDocument` with effects on
-non-audio clips or duplicate effect kinds is rejected as invalid.
+Audio effects writing (MVP, 2026-09-15/16):
+
+```text
+fade_in_audio / fade_out_audio in apply_timeline_edits write a clip-level
+  <filter> volume with kdenlive_id=fadein|fadeout (window receives the MCP
+  window_ms value verbatim; gain/end fixed per kind) inside the audio clip's
+  playlist entry, matching the confirmed audio_fade_fixture.kdenlive pattern. A
+  real Kdenlive 26.04.3 resave preserves the values (500 and 400) byte for value.
+set_clip_volume_curve writes a clip-level <filter> volume with
+  kdenlive_id=volume and level=timecode=value;... using the confirmed
+  audio_fade_fixture level format (value 0..100, HH:MM:SS.mmm timecodes,
+  window=75, max_gain=20dB, channel_mask=-1). It replaces any previous curve and
+  coexists with fades. Internal value is 0.0..1.0 with a confirmed 0.01
+  resolution (Kdenlive oracle uses integer 0..100); a value that is not an exact
+  multiple of 0.01 is rejected, never silently rounded.
+```
+
+On read, the reverse adapter converts fadein/fadeout and volume keyframes back
+to `TimelineEffect` (see "Supported audio effects" above); any other clip effect
+is still rejected. A `TimelineDocument` with effects on non-audio clips,
+duplicate effect kinds, or multiple volume curves is rejected as invalid.
 
 ## Audio Fade Round-Trip Verification
 
@@ -831,9 +847,9 @@ Verified result:
 - the resaved project loads in real melt (exit 0)
 ```
 
-No `TimelineEffect`/`apply_timeline_edits` change exists yet for volume
-keyframes. This fixture only confirms the Kdenlive resave semantics for the
-next implementation step.
+This oracle confirmed the `level` semantics, which are now used by the MCP
+writer (`set_clip_volume_curve`) and the reverse reader
+(`kdenlive_id=volume` -> `TimelineEffect(kind="volume_keyframes", points)`).
 
 ## Kdenlive Round-Trip Of An AI-Generated Project
 

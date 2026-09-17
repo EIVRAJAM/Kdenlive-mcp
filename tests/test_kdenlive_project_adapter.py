@@ -447,7 +447,6 @@ def test_export_kdenlive_timeline_accepts_null_name(monkeypatch, tmp_path) -> No
 _COMPLEX_FIXTURES = [
     "multiple_effect_stack_on_clip.kdenlive",
     "multiple_transitions_timeline.kdenlive",
-    "audio_fade_fixture.kdenlive",
     "proxy_fixture.kdenlive",
 ]
 
@@ -495,8 +494,8 @@ def test_apply_timeline_edits_fade_via_mcp_boundary(monkeypatch, tmp_path) -> No
     assert result["success"] is True
     clips = {clip["id"]: clip for clip in result["timeline"]["clips"]}
     assert clips["chain0_a"]["effects"] == [
-        {"id": "chain0_a_fadein", "kind": "fadein", "window_ms": 500},
-        {"id": "chain0_a_fadeout", "kind": "fadeout", "window_ms": 400},
+        {"id": "chain0_a_fadein", "kind": "fadein", "window_ms": 500, "points": []},
+        {"id": "chain0_a_fadeout", "kind": "fadeout", "window_ms": 400, "points": []},
     ]
 
 
@@ -553,6 +552,111 @@ def test_export_kdenlive_timeline_roundtrip_preserves_fade_effects(monkeypatch, 
     assert len(faded_clips) == 1
     effects = faded_clips[0]["effects"]
     assert {effect["kind"]: effect["window_ms"] for effect in effects} == {"fadein": 500, "fadeout": 400}
+
+
+def test_extract_timeline_document_converts_audio_fade_fixture_volume_keyframes() -> None:
+    document = _extract_document("audio_fade_fixture.kdenlive")
+    faded = [clip for clip in document.clips if clip.effects]
+
+    assert len(faded) == 1
+    kinds = {effect.kind for effect in faded[0].effects}
+    assert kinds == {"fadein", "fadeout", "volume_keyframes"}
+    curve = next(effect for effect in faded[0].effects if effect.kind == "volume_keyframes")
+    assert [(point.position_s, point.value) for point in curve.points] == [
+        (0.0, 0.01),
+        (1.233333, 0.5),
+        (1.833333, 0.5),
+        (2.666667, 0.5),
+    ]
+
+
+def test_export_kdenlive_timeline_accepts_audio_fade_fixture(monkeypatch, tmp_path) -> None:
+    _allow_export(monkeypatch, tmp_path)
+
+    result = _export_timeline("audio_fade_fixture", tmp_path)
+
+    assert result["success"] is True
+    assert result["timeline_file"] and Path(result["timeline_file"]).exists()
+
+
+def test_extract_timeline_document_converts_resaved_volume_keyframes() -> None:
+    document = _extract_document("audio_volume_keyframes_resaved_by_kdenlive.kdenlive")
+    faded = [clip for clip in document.clips if clip.effects]
+
+    assert len(faded) == 1
+    curve = next(effect for effect in faded[0].effects if effect.kind == "volume_keyframes")
+    assert [(point.position_s, point.value) for point in curve.points] == [
+        (0.0, 0.01),
+        (1.233333, 0.5),
+        (1.833333, 0.5),
+        (2.666667, 0.5),
+    ]
+
+
+def test_export_kdenlive_timeline_roundtrip_preserves_volume_curve(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_MEDIA_DIRS", str(RECON_DIR))
+    _allow_export(monkeypatch, tmp_path, project_dirs=f"{RECON_DIR}:{tmp_path}")
+
+    exported = _export_timeline("manual_two_clips_timeline", tmp_path, name="curve_rt_base")
+    edited = _mcp_call(
+        "apply_timeline_edits",
+        {
+            "timeline_file": exported["timeline_file"],
+            "edits": [
+                {
+                    "operation": "set_clip_volume_curve",
+                    "clip_id": "chain0_a",
+                    "points": [
+                        {"position_s": 0.0, "value": 0.01},
+                        {"position_s": 1.233, "value": 0.5},
+                        {"position_s": 2.667, "value": 0.5},
+                    ],
+                }
+            ],
+            "output_directory": str(tmp_path),
+            "name": "curve_rt_edited",
+            "dry_run": False,
+        },
+    )
+    assert edited["success"] is True
+
+    prepared = _mcp_call(
+        "prepare_working_project",
+        {
+            "project": str(RECON_DIR / "manual_two_clips_timeline.kdenlive"),
+            "output_directory": str(tmp_path),
+            "lock_directory": str(tmp_path / "locks"),
+            "owner": "agent",
+        },
+    )
+    applied = _mcp_call(
+        "apply_timeline_to_working_project",
+        {
+            "working_project": prepared["working_project"],
+            "timeline_file": edited["timeline_file"],
+            "output_directory": str(tmp_path),
+            "name": "curve_rt_output",
+        },
+    )
+    assert applied["success"] is True
+
+    readback = _mcp_call(
+        "export_kdenlive_timeline",
+        {
+            "project": applied["output_project"],
+            "output_directory": str(tmp_path),
+            "name": "curve_rt_readback",
+        },
+    )
+    assert readback["success"] is True
+    curved = [clip for clip in readback["timeline"]["clips"] if clip.get("effects")]
+    assert len(curved) == 1
+    curve = next(effect for effect in curved[0]["effects"] if effect["kind"] == "volume_keyframes")
+    assert [(point["position_s"], point["value"]) for point in curve["points"]] == [
+        (0.0, 0.01),
+        (1.233333, 0.5),
+        (2.666667, 0.5),
+    ]
 
 
 def test_extract_timeline_document_rejects_duplicate_fade_kind(monkeypatch) -> None:
@@ -699,6 +803,75 @@ def test_classify_audio_fade_criteria() -> None:
 
     other_service = {**base_fadein, "mlt_service": "qtblend"}
     assert _classify_audio_fade("audio", other_service)[0] is False
+
+
+def test_classify_volume_keyframes_rejects_non_finite_values() -> None:
+    from kdenlive_mcp.adapters.kdenlive_xml import _classify_volume_keyframes
+
+    base = {"mlt_service": "volume", "kdenlive_id": "volume"}
+
+    nan = {**base, "level": "00:00:00.000=1;00:00:01.000=nan"}
+    assert _classify_volume_keyframes("audio", nan, 30, 1, 3.0) is None
+
+    pos_inf = {**base, "level": "00:00:00.000=1;00:00:01.000=inf"}
+    assert _classify_volume_keyframes("audio", pos_inf, 30, 1, 3.0) is None
+
+    neg_inf = {**base, "level": "00:00:00.000=1;00:00:01.000=-inf"}
+    assert _classify_volume_keyframes("audio", neg_inf, 30, 1, 3.0) is None
+
+
+def test_classify_volume_keyframes_rejects_non_integer_resolution() -> None:
+    from kdenlive_mcp.adapters.kdenlive_xml import _classify_volume_keyframes
+
+    base = {"mlt_service": "volume", "kdenlive_id": "volume"}
+    decimal_level = {**base, "level": "00:00:00.000=1;00:00:01.000=33.5"}
+    assert _classify_volume_keyframes("audio", decimal_level, 30, 1, 3.0) is None
+
+
+def test_extract_timeline_document_rejects_unsupported_volume_level(monkeypatch) -> None:
+    adapter = KdenliveProjectAdapter()
+    synthetic = {
+        "fps": 30.0,
+        "profile": {"width": 1080, "height": 1920, "frame_rate_num": 30, "frame_rate_den": 1},
+        "user_transitions": [],
+        "clip_effects": [
+            {
+                "entry_producer": "chain0",
+                "filter_id": "filter0",
+                "mlt_service": "volume",
+                "kdenlive_id": "volume",
+                "track_kind": "audio",
+                "supported": False,
+            }
+        ],
+        "proxy_media_ids": [],
+        "resolved_media": {"4": str(RECON_DIR / "sample1.mp4")},
+        "tracks": [
+            {"id": "playlist0", "track_kind": "audio", "clip_count": 1, "gap_count": 0},
+        ],
+        "timeline_clips": [
+            {
+                "producer": "chain0",
+                "playlist_id": "playlist0",
+                "track_kind": "audio",
+                "media": "sample1.mp4",
+                "media_id": "4",
+                "source_in_frames": 0,
+                "source_out_frames": 89,
+                "duration_frames": 90,
+                "position_frames": 0,
+                "supported_audio_fades": [],
+                "supported_volume_keyframes": [],
+            }
+        ],
+        "confirmed_fields": [],
+        "inferred_fields": [],
+    }
+    monkeypatch.setattr(adapter, "extract_timeline_summary", lambda project: synthetic)
+
+    with pytest.raises(KdenliveProjectError) as excinfo:
+        adapter.extract_timeline_document("dummy.kdenlive")
+    assert excinfo.value.code == "UNSUPPORTED_TIMELINE_FEATURE"
 
 
 def test_extract_timeline_document_two_clips_validates() -> None:

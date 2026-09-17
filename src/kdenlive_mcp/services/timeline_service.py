@@ -12,7 +12,14 @@ from pydantic import ValidationError
 
 from kdenlive_mcp.adapters.mlt_xml import write_mlt_xml
 from kdenlive_mcp.adapters.kdenlive_xml import KdenliveProjectAdapter, KdenliveProjectError
-from kdenlive_mcp.domain.timeline import TimelineClip, TimelineDocument, TimelineEffect, TimelineMarker, TimelineTrack
+from kdenlive_mcp.domain.timeline import (
+    TimelineClip,
+    TimelineDocument,
+    TimelineEffect,
+    TimelineMarker,
+    TimelineTrack,
+    VolumeKeyframe,
+)
 from kdenlive_mcp.security import SecurityError, ensure_media_path, ensure_output_path, ensure_project_path
 from kdenlive_mcp.services.manifest_service import slugify_name
 
@@ -268,6 +275,56 @@ def _apply_audio_fade(
     target = edited_clips[clip_id]
     before = {"clip": target.model_dump(mode="json", exclude_none=True)}
     effect = TimelineEffect(id=f"{clip_id}_{kind}", kind=kind, window_ms=window_ms)
+    target.effects.append(effect)
+    after = {"clip": target.model_dump(mode="json", exclude_none=True)}
+    return edited, before, after
+
+
+def _apply_volume_curve(
+    document: TimelineDocument,
+    clip_id: str,
+    points: list[dict[str, Any]],
+) -> tuple[TimelineDocument, dict[str, Any], dict[str, Any]] | dict[str, Any]:
+    clips_by_id = _clip_map(document)
+    clip = clips_by_id.get(clip_id)
+    if clip is None:
+        return _error("INVALID_CLIP", f"Clip does not exist: {clip_id}")
+    track = next((track for track in document.tracks if track.id == clip.track_id), None)
+    if track is None or track.type != "audio":
+        return _error(
+            "INVALID_ARGUMENT",
+            f"Clip {clip_id} is not on an audio track; set_clip_volume_curve requires an audio clip.",
+            clip_id=clip_id,
+        )
+    if not isinstance(points, list) or len(points) < 2:
+        return _error("INVALID_ARGUMENT", "set_clip_volume_curve requires at least 2 points.", clip_id=clip_id)
+    source_duration = round(clip.source_out - clip.source_in, 6)
+    keyframes: list[VolumeKeyframe] = []
+    for point in points:
+        if not isinstance(point, dict) or "position_s" not in point or "value" not in point:
+            return _error("INVALID_ARGUMENT", "Each point must have position_s and value.", clip_id=clip_id)
+        try:
+            position_s = float(point["position_s"])
+            value = float(point["value"])
+        except (TypeError, ValueError):
+            return _error("INVALID_ARGUMENT", "point position_s and value must be numeric.", clip_id=clip_id)
+        if position_s > source_duration:
+            return _error(
+                "INVALID_ARGUMENT",
+                f"point position {position_s}s exceeds clip source duration {source_duration}s.",
+                clip_id=clip_id,
+            )
+        try:
+            keyframes.append(VolumeKeyframe(position_s=position_s, value=value))
+        except (ValueError, ValidationError) as exc:
+            return _error("INVALID_ARGUMENT", f"Invalid volume keyframe: {exc}", clip_id=clip_id)
+    effect = TimelineEffect(id=f"{clip_id}_volume_keyframes", kind="volume_keyframes", points=keyframes)
+
+    edited = document.model_copy(deep=True)
+    edited_clips = _clip_map(edited)
+    target = edited_clips[clip_id]
+    before = {"clip": target.model_dump(mode="json", exclude_none=True)}
+    target.effects = [existing for existing in target.effects if existing.kind != "volume_keyframes"]
     target.effects.append(effect)
     after = {"clip": target.model_dump(mode="json", exclude_none=True)}
     return edited, before, after
@@ -1832,6 +1889,20 @@ def apply_timeline_edits(
                 window_ms=duration_ms,
             )
             step_clip_id = clip_id
+        elif operation == "set_clip_volume_curve":
+            if "points" not in edit:
+                return _error(
+                    "INVALID_ARGUMENT",
+                    "set_clip_volume_curve edit requires points.",
+                    failed_step=index,
+                    steps=steps,
+                )
+            edited_result = _apply_volume_curve(
+                document=document,
+                clip_id=clip_id,
+                points=edit["points"],
+            )
+            step_clip_id = clip_id
         else:
             return _error(
                 "INVALID_ARGUMENT",
@@ -1848,6 +1919,7 @@ def apply_timeline_edits(
                     "remove_gap",
                     "fade_in_audio",
                     "fade_out_audio",
+                    "set_clip_volume_curve",
                 ],
                 steps=steps,
             )

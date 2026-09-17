@@ -78,10 +78,11 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
   documentados en `docs/KDENLIVE_PROJECT_FORMAT.md`. Los tests de fixtures ya no
   tienen skips. Pendiente (SHOULD/COULD): la *escritura/generación MCP* de las
   features restantes (stack de efectos, transiciones múltiples, proxy). El fade
-  de audio simple ya tiene ciclo cerrado: `fade_in_audio`/`fade_out_audio`
-  escriben y `export_kdenlive_timeline` los lee de vuelta a `TimelineEffect`.
-  Siguen rechazados: volume keyframes, fades en tracks de video, cualquier otro
-  clip effect, transiciones y proxies (en lectura y escritura).
+  de audio simple y las curvas de volumen (volume keyframes) ya tienen ciclo
+  cerrado: `fade_in_audio`/`fade_out_audio`/`set_clip_volume_curve` escriben y
+  `export_kdenlive_timeline` los lee de vuelta a `TimelineEffect`. Siguen
+  rechazados: fades/curvas en tracks de video, curvas ambiguas o múltiples,
+  cualquier otro clip effect, transiciones y proxies (en lectura y escritura).
 - Edición de una working copy `.kdenlive` (spike de orquestación): **DONE con caveat**.
   `apply_timeline_to_working_project` aplica un timeline MCP a una working copy y escribe
   un proyecto derivado nuevo (copy-on-write). `apply_edits_to_working_project` orquesta el
@@ -122,8 +123,8 @@ están en DONE. El único PARTIAL restante (validación real de carga MLT/Kdenli
 quedó cubierto el 2026-09-01 con una validación real, no mockeada, de un proyecto
 generado por el MCP a través del melt de Flatpak (exit 0, `status: loaded`, sin
 medios faltantes). Los pendientes que siguen abiertos (escritura/generación MCP
-de volume keyframes/effect stacks/transiciones múltiples/proxy, edición in-place
-de working copy, segundo cliente MCP externo real, evidencia por-release) son
+de effect stacks/transiciones múltiples/proxy, edición in-place de working copy,
+segundo cliente MCP externo real, evidencia por-release) son
 SHOULD o evidencia de mantenimiento, no bloqueos MUST del target.
 
 Conteo: DONE 20 · PARTIAL 0 · MISSING 0 · BLOCKED 0.
@@ -151,12 +152,12 @@ Conteo: DONE 20 · PARTIAL 0 · MISSING 0 · BLOCKED 0.
     output carga en melt real vía scripts/roundtrip_mlt_smoke_test.py cuando el
     sandbox lo permite).
 4. Ampliar la *escritura/generación MCP* de las features complejas aún sin
-   escritor ni lector (volume keyframes, stack de efectos múltiples,
-   transiciones múltiples, proxy) usando los patrones XML confirmados en
-   `docs/KDENLIVE_PROJECT_FORMAT.md`. El fade de audio simple ya tiene ciclo
-   cerrado (escritor `fade_in_audio`/`fade_out_audio` + lectura inversa a
-   `TimelineEffect`); lo pendiente son keyframes de volumen y efectos más
-   avanzados.
+   escritor ni lector (stack de efectos múltiples, transiciones múltiples,
+   proxy) usando los patrones XML confirmados en
+   `docs/KDENLIVE_PROJECT_FORMAT.md`. El fade de audio simple y las curvas de
+   volumen ya tienen ciclo cerrado (escritores `fade_in_audio`/
+   `fade_out_audio`/`set_clip_volume_curve` + lectura inversa a
+   `TimelineEffect`); lo pendiente son efectos más avanzados.
 5. Ampliar la verificación a un segundo cliente MCP distinto del SDK oficial `mcp`
    (el gate de cliente real ya pasa con el SDK oficial en `.venv`; el checklist
    "MCP tool discovery works" queda cerrado para ese cliente).

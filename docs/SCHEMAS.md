@@ -336,16 +336,28 @@ reason
 effects
 ```
 
-`effects` (Clip v1, audio fade MVP only):
+`effects` (Clip v1, audio fade + volume keyframes MVP only):
 
 ```text
-each effect: { id, kind: "fadein" | "fadeout", window_ms }
-window_ms is the MCP-side value; the Kdenlive writer emits it verbatim into the
-filter property "window". The exact semantic unit of Kdenlive's "window" is not
-yet confirmed by a resave.
+fadein/fadeout: { id, kind: "fadein" | "fadeout", window_ms }
+  window_ms is the MCP-side value; the Kdenlive writer emits it verbatim into
+  the filter property "window". The exact semantic unit of Kdenlive's "window"
+  is not yet confirmed by a resave.
+volume_keyframes: { id, kind: "volume_keyframes", points: [...] }
+  points: list of { position_s: float, value: float }
+  position_s is seconds relative to the clip start (source-local); value is the
+  internal linear gain 0.0..1.0. The writer converts to Kdenlive `level`
+  (timecode=value;...) with value on a 0..100 scale; the reader converts back
+  (/100).
+  value resolution is 0.01 (Kdenlive level is integer 0..100); a value whose
+  value*100 is not an integer is rejected (no silent rounding).
+validations: points >= 2; position_s finite and >= 0; value finite in 0.0..1.0
+  with 0.01 resolution; positions strictly increasing; each position_s within
+  the clip source duration (source_out - source_in, tolerance 1e-6).
 effects are only valid on audio-track clips; a clip with effects on a video (or
-unknown) track is rejected. Duplicate kinds on the same clip are rejected. No
-generic effects are supported in v1.
+unknown) track is rejected. Duplicate kinds on the same clip are rejected. At
+most one volume_keyframes curve per clip. fadein/fadeout must not carry points.
+No generic effects are supported in v1.
 ```
 
 Example:
@@ -438,7 +450,8 @@ multiple editable tracks
 clip groups
 transitions
 effects (generic)          <- TimelineClip.effects already exists in v1 for the
-                              audio fade MVP only (fadein/fadeout); generic
+                              audio fade + volume keyframes MVP only
+                              (fadein/fadeout/volume_keyframes); generic
                               effects remain future
 subtitles
 proxy references

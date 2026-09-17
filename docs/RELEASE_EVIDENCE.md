@@ -3420,6 +3420,79 @@ step is a manual resave in Kdenlive to confirm the window_ms values and filter
 shape survive, before expanding to volume keyframes or advanced effects.
 ```
 
+## 2026-09-16 Volume keyframes read/write MVP
+
+Scope:
+
+```text
+strict read/write of audio volume keyframe curves using the confirmed
+kdenlive_id=volume + level=timecode=value;... pattern
+```
+
+Behavior:
+
+```text
+model: TimelineEffect.kind gains "volume_keyframes" with points:
+  VolumeKeyframe { position_s, value }; window_ms becomes optional (null for
+  curves). Schema stays version 1 (additive). value is internal linear gain
+  0.0..1.0; Kdenlive level uses 0..100; position_s is source-local seconds
+  written as HH:MM:SS.mmm timecodes (frame-quantized).
+apply_timeline_edits: set_clip_volume_curve (clip_id, points). Replaces any
+  previous curve on the clip; coexists with fade_in_audio/fade_out_audio;
+  audio-only; positions within clip source duration; structured errors
+  INVALID_CLIP / INVALID_ARGUMENT / INVALID_TIMELINE.
+writer: emits <filter> volume with kdenlive_id=volume, window=75,
+  max_gain=20dB, channel_mask=-1, kdenlive:kfrhidden=0, kdenlive:collapsed=0,
+  level=timecode=value;...
+reverse: _classify_volume_keyframes accepts audio-track volume filters with a
+  parseable level (>=2 points, strictly increasing, values 0..100, times within
+  source duration + 1 frame). Converts to TimelineEffect(volume_keyframes).
+  Rejects video curves, invalid level, multiple curves per clip, other effects.
+audio_fade_fixture.kdenlive and audio_volume_keyframes_resaved_by_kdenlive now
+  convert (fades + curve); multiple_effect_stack/multiple_transitions/proxy
+  still rejected.
+```
+
+Tests:
+
+```text
+unit: VolumeKeyframe/TimelineEffect validation (few points, non-increasing,
+  out-of-range value, negative position)
+apply_timeline_edits: set + replace, coexists with fades, rejects video /
+  invalid points (out-of-range, nan, beyond duration), export writes exact
+  level and media sha256 unchanged
+reverse: audio_fade_fixture -> fades + volume_keyframes points;
+  resaved -> same points; export accepts audio_fade_fixture
+round-trip: set_clip_volume_curve -> .kdenlive -> export reads back points
+MLT: roundtrip_mlt_smoke_test.py includes set_clip_volume_curve; output loads
+  in real melt (mlt_loaded)
+```
+
+Commands:
+
+```bash
+pytest tests/test_timeline_service.py tests/test_kdenlive_project_adapter.py tests/test_kdenlive_project_fixtures.py -q
+pytest
+scripts/dev_check.sh
+python3 scripts/roundtrip_mlt_smoke_test.py
+```
+
+Results:
+
+```text
+full suite: 413 passed, 1 skipped
+roundtrip_mlt_smoke_test.py: verdict mlt_loaded
+```
+
+Decision:
+
+```text
+Volume keyframes are now read/written strictly on audio: value internal 0..1
+maps to Kdenlive level 0..100, positions are source-local seconds -> timecode.
+One curve per clip, no ambiguity, no video. Remaining write/read gaps are effect
+stacks, multiple transitions, and proxy.
+```
+
 ## 2026-09-16 Audio fade Kdenlive resave verified
 
 Scope:

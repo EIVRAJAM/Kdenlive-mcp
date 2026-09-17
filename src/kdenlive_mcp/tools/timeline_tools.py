@@ -343,6 +343,7 @@ TOOLS: dict[str, dict[str, Any]] = {
                                     "remove_gap",
                                     "fade_in_audio",
                                     "fade_out_audio",
+                                    "set_clip_volume_curve",
                                 ],
                             },
                             "clip_id": {"type": "string"},
@@ -357,6 +358,18 @@ TOOLS: dict[str, dict[str, Any]] = {
                             "position": {"type": "number"},
                             "duration": {"type": "number"},
                             "duration_ms": {"type": "integer"},
+                            "points": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "position_s": {"type": "number"},
+                                        "value": {"type": "number"},
+                                    },
+                                    "required": ["position_s", "value"],
+                                    "additionalProperties": False,
+                                },
+                            },
                             "split_at": {"type": "number"},
                             "media_id": {"type": "string"},
                             "speed": {"type": "number", "default": 1.0},
@@ -459,6 +472,7 @@ TOOLS: dict[str, dict[str, Any]] = {
                                     "remove_gap",
                                     "fade_in_audio",
                                     "fade_out_audio",
+                                    "set_clip_volume_curve",
                                 ],
                             },
                             "clip_id": {"type": "string"},
@@ -468,6 +482,18 @@ TOOLS: dict[str, dict[str, Any]] = {
                             "position": {"type": "number"},
                             "duration": {"type": "number"},
                             "duration_ms": {"type": "integer"},
+                            "points": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "position_s": {"type": "number"},
+                                        "value": {"type": "number"},
+                                    },
+                                    "required": ["position_s", "value"],
+                                    "additionalProperties": False,
+                                },
+                            },
                             "split_at": {"type": "number"},
                             "track_id": {"type": "string"},
                             "track_ids": {"type": "array", "items": {"type": "string"}},

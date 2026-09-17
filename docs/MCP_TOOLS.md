@@ -1149,11 +1149,11 @@ Input:
 ```
 
 Applies an ordered batch of `add`, `duplicate`, `remove`, `insert_gap`,
-`remove_gap`, `trim`, `move`, `split`, `fade_in_audio`, and `fade_out_audio`
-operations to the MCP-owned timeline, then validates the final result before
-writing one derived timeline JSON file. This is the preferred tool when an agent
-wants to execute a small edit plan without producing one intermediate file per
-operation.
+`remove_gap`, `trim`, `move`, `split`, `fade_in_audio`, `fade_out_audio`, and
+`set_clip_volume_curve` operations to the MCP-owned timeline, then validates the
+final result before writing one derived timeline JSON file. This is the preferred
+tool when an agent wants to execute a small edit plan without producing one
+intermediate file per operation.
 
 Audio fades (MVP): `fade_in_audio` and `fade_out_audio` take `clip_id` plus
 `duration_ms`. `duration_ms` is the `window_ms` field of the MCP model; it is
@@ -1166,9 +1166,18 @@ and a fade of the same kind cannot be added twice to the same clip
 non-audio tracks, or duplicate effect kinds, is rejected as `INVALID_TIMELINE`
 even if the `.timeline.json` is hand-written. On export the fade becomes a
 clip-level `<filter>` `volume` with `kdenlive_id=fadein|fadeout`, `gain`/`end`
-fixed per kind, inside the audio clip's playlist entry. Volume keyframes are not
-written yet and `export_kdenlive_timeline` reads back only simple fades (other
-clip effects remain rejected on read).
+fixed per kind, inside the audio clip's playlist entry.
+
+Volume keyframes (MVP): `set_clip_volume_curve` takes `clip_id` and `points`
+(each `{position_s, value}`). `position_s` is seconds relative to the clip
+start (source-local, must be within the clip's source duration); `value` is the
+internal linear gain `0.0..1.0`. It replaces any previous `volume_keyframes`
+curve on the clip and coexists with `fade_in_audio`/`fade_out_audio`. The writer
+emits a `kdenlive_id=volume` filter with `level=timecode=value;...` using a
+0..100 value scale and `HH:MM:SS.mmm` timecodes; the reader converts back to
+internal 0..1. Only audio clips, one curve per clip, no ambiguous curves.
+`export_kdenlive_timeline` reads back only the simple fades and volume curves
+(other clip effects remain rejected on read).
 
 If one edit has invalid arguments, the tool returns a structured error with
 `failed_step`, `failed_edit`, and the successful `steps` applied before that
@@ -1658,12 +1667,11 @@ Response:
 
 The `.kdenlive` source and its media are never modified. The exported
 `TimelineDocument` includes audio/video `linked_clip_id` pairs, absolute media
-paths, and only the supported subset. Simple audio fades written by the MCP
-(`fade_in_audio`/`fade_out_audio`) are read back into `TimelineClip.effects`;
-everything else (user transitions, volume keyframes, fades on video tracks, or
-any other clip effect) is refused. Errors: `PROJECT_NOT_FOUND`,
-`INVALID_PROJECT`, `UNSUPPORTED_TIMELINE_FEATURE`, `OUTPUT_EXISTS`,
-`PERMISSION_DENIED`.
+paths, and only the supported subset. Simple audio fades and volume keyframe
+curves written by the MCP are read back into `TimelineClip.effects`; everything
+else (user transitions, fades/curves on video tracks, or any other clip effect)
+is refused. Errors: `PROJECT_NOT_FOUND`, `INVALID_PROJECT`,
+`UNSUPPORTED_TIMELINE_FEATURE`, `OUTPUT_EXISTS`, `PERMISSION_DENIED`.
 
 ### inspect_project
 

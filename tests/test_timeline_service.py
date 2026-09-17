@@ -7,7 +7,14 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
-from kdenlive_mcp.domain.timeline import TimelineClip, TimelineDocument, TimelineEffect, TimelineTrack
+from kdenlive_mcp.domain.timeline import (
+    TimelineClip,
+    TimelineDocument,
+    TimelineEffect,
+    TimelineMarker,
+    TimelineTrack,
+    VolumeKeyframe,
+)
 from kdenlive_mcp.services import timeline_service
 from kdenlive_mcp.tools import rough_cut_tools, timeline_tools
 
@@ -737,8 +744,8 @@ def test_apply_timeline_edits_can_fade_in_out_audio(monkeypatch, tmp_path: Path)
     clips = {clip["id"]: clip for clip in result["timeline"]["clips"]}
     effects = clips["clip_001_a"]["effects"]
     assert effects == [
-        {"id": "clip_001_a_fadein", "kind": "fadein", "window_ms": 500},
-        {"id": "clip_001_a_fadeout", "kind": "fadeout", "window_ms": 400},
+        {"id": "clip_001_a_fadein", "kind": "fadein", "window_ms": 500, "points": []},
+        {"id": "clip_001_a_fadeout", "kind": "fadeout", "window_ms": 400, "points": []},
     ]
 
 
@@ -840,6 +847,227 @@ def test_apply_timeline_edits_fade_export_writes_filters_and_keeps_media(monkeyp
     assert fadeout["window"] == "400"
     assert fadeout["gain"] == "1"
     assert fadeout["end"] == "0"
+
+    assert {str(path): _sha256(path) for path in media_paths} == media_hashes
+
+
+def test_apply_timeline_edits_can_set_volume_curve_and_replace(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="curve_source")
+
+    first = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[
+            {
+                "operation": "set_clip_volume_curve",
+                "clip_id": "clip_001_a",
+                "points": [
+                    {"position_s": 0.0, "value": 0.01},
+                    {"position_s": 1.0, "value": 0.5},
+                    {"position_s": 2.0, "value": 0.5},
+                ],
+            }
+        ],
+        output_directory=str(tmp_path),
+        name="curve_first",
+        dry_run=True,
+    )
+    assert first["success"] is True
+    clips = {clip["id"]: clip for clip in first["timeline"]["clips"]}
+    assert clips["clip_001_a"]["effects"] == [
+        {
+            "id": "clip_001_a_volume_keyframes",
+            "kind": "volume_keyframes",
+            "points": [
+                {"position_s": 0.0, "value": 0.01},
+                {"position_s": 1.0, "value": 0.5},
+                {"position_s": 2.0, "value": 0.5},
+            ],
+        }
+    ]
+
+    replaced = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[
+            {
+                "operation": "set_clip_volume_curve",
+                "clip_id": "clip_001_a",
+                "points": [
+                    {"position_s": 0.0, "value": 0.0},
+                    {"position_s": 1.5, "value": 0.9},
+                ],
+            }
+        ],
+        output_directory=str(tmp_path),
+        name="curve_replace",
+        dry_run=True,
+    )
+    assert replaced["success"] is True
+    replaced_clips = {clip["id"]: clip for clip in replaced["timeline"]["clips"]}
+    assert len(replaced_clips["clip_001_a"]["effects"]) == 1
+    assert replaced_clips["clip_001_a"]["effects"][0]["points"] == [
+        {"position_s": 0.0, "value": 0.0},
+        {"position_s": 1.5, "value": 0.9},
+    ]
+
+
+def test_apply_timeline_edits_volume_curve_coexists_with_fades(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="curve_fade_source")
+
+    result = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[
+            {"operation": "fade_in_audio", "clip_id": "clip_001_a", "duration_ms": 500},
+            {
+                "operation": "set_clip_volume_curve",
+                "clip_id": "clip_001_a",
+                "points": [
+                    {"position_s": 0.0, "value": 0.01},
+                    {"position_s": 1.0, "value": 0.5},
+                ],
+            },
+            {"operation": "fade_out_audio", "clip_id": "clip_001_a", "duration_ms": 400},
+        ],
+        output_directory=str(tmp_path),
+        name="curve_fade_result",
+        dry_run=True,
+    )
+
+    assert result["success"] is True
+    clips = {clip["id"]: clip for clip in result["timeline"]["clips"]}
+    kinds = [effect["kind"] for effect in clips["clip_001_a"]["effects"]]
+    assert kinds == ["fadein", "volume_keyframes", "fadeout"]
+
+
+def test_apply_timeline_edits_rejects_volume_curve_on_video(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="curve_video_source")
+
+    result = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[
+            {
+                "operation": "set_clip_volume_curve",
+                "clip_id": "clip_001_v",
+                "points": [{"position_s": 0.0, "value": 0.5}, {"position_s": 1.0, "value": 0.5}],
+            }
+        ],
+        output_directory=str(tmp_path),
+        name="curve_video_result",
+        dry_run=True,
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_ARGUMENT"
+    assert "not on an audio track" in result["message"]
+
+
+def test_apply_timeline_edits_rejects_invalid_volume_curve_points(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="curve_invalid_source")
+
+    out_of_range = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[
+            {
+                "operation": "set_clip_volume_curve",
+                "clip_id": "clip_001_a",
+                "points": [{"position_s": 0.0, "value": 2.0}, {"position_s": 1.0, "value": 0.5}],
+            }
+        ],
+        output_directory=str(tmp_path),
+        name="curve_invalid_value",
+        dry_run=True,
+    )
+    assert out_of_range["success"] is False
+    assert out_of_range["error"] == "INVALID_ARGUMENT"
+
+    sub_cent = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[
+            {
+                "operation": "set_clip_volume_curve",
+                "clip_id": "clip_001_a",
+                "points": [{"position_s": 0.0, "value": 0.333}, {"position_s": 1.0, "value": 0.5}],
+            }
+        ],
+        output_directory=str(tmp_path),
+        name="curve_sub_cent",
+        dry_run=True,
+    )
+    assert sub_cent["success"] is False
+    assert sub_cent["error"] == "INVALID_ARGUMENT"
+    assert "0.01" in sub_cent["message"]
+
+    non_finite = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[
+            {
+                "operation": "set_clip_volume_curve",
+                "clip_id": "clip_001_a",
+                "points": [{"position_s": 0.0, "value": 0.5}, {"position_s": float("nan"), "value": 0.5}],
+            }
+        ],
+        output_directory=str(tmp_path),
+        name="curve_non_finite",
+        dry_run=True,
+    )
+    assert non_finite["success"] is False
+    assert non_finite["error"] == "INVALID_ARGUMENT"
+
+    beyond_duration = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[
+            {
+                "operation": "set_clip_volume_curve",
+                "clip_id": "clip_001_a",
+                "points": [{"position_s": 0.0, "value": 0.5}, {"position_s": 9999.0, "value": 0.5}],
+            }
+        ],
+        output_directory=str(tmp_path),
+        name="curve_beyond",
+        dry_run=True,
+    )
+    assert beyond_duration["success"] is False
+    assert beyond_duration["error"] == "INVALID_ARGUMENT"
+    assert "exceeds clip source duration" in beyond_duration["message"]
+
+
+def test_apply_timeline_edits_volume_curve_export_writes_level_and_keeps_media(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="curve_export_source")
+
+    edited = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[
+            {
+                "operation": "set_clip_volume_curve",
+                "clip_id": "clip_001_a",
+                "points": [
+                    {"position_s": 0.0, "value": 0.01},
+                    {"position_s": 1.233, "value": 0.5},
+                    {"position_s": 2.667, "value": 0.5},
+                ],
+            }
+        ],
+        output_directory=str(tmp_path),
+        name="curve_export_edited",
+        dry_run=False,
+    )
+    assert edited["success"] is True
+
+    media_paths = [Path(clip["media"]) for clip in edited["timeline"]["clips"] if clip["id"] == "clip_001_a"]
+    media_hashes = {str(path): _sha256(path) for path in media_paths}
+
+    exported = _export_project(monkeypatch, tmp_path, edited["timeline_file"], "curve_export_output")
+
+    root = ET.parse(exported["project"]).getroot()
+    levels: list[str] = []
+    for playlist in root.findall("playlist"):
+        if playlist.get("id") == "main_bin":
+            continue
+        for entry in playlist.findall("entry"):
+            for filter_ in entry.findall("filter"):
+                props = {p.attrib["name"]: p.text or "" for p in filter_.findall("property") if "name" in p.attrib}
+                if props.get("mlt_service") == "volume" and props.get("kdenlive_id") == "volume":
+                    levels.append(props.get("level", ""))
+    assert levels == ["00:00:00.000=1;00:00:01.233=50;00:00:02.667=50"]
 
     assert {str(path): _sha256(path) for path in media_paths} == media_hashes
 
@@ -1441,6 +1669,90 @@ def test_timeline_effect_rejects_non_positive_window() -> None:
         TimelineEffect(id="e1", kind="fadein", window_ms=0)
 
 
+def test_timeline_effect_rejects_volume_keyframes_with_few_points() -> None:
+    with pytest.raises(ValueError, match="at least 2 points"):
+        TimelineEffect(id="e1", kind="volume_keyframes", points=[{"position_s": 0.0, "value": 0.5}])
+
+
+def test_timeline_effect_rejects_volume_keyframes_non_increasing() -> None:
+    with pytest.raises(ValueError, match="strictly increasing"):
+        TimelineEffect(
+            id="e1",
+            kind="volume_keyframes",
+            points=[{"position_s": 1.0, "value": 0.5}, {"position_s": 1.0, "value": 0.6}],
+        )
+
+
+def test_timeline_effect_rejects_volume_keyframe_value_out_of_range() -> None:
+    with pytest.raises(ValueError, match="0.0 and 1.0"):
+        TimelineEffect(
+            id="e1",
+            kind="volume_keyframes",
+            points=[{"position_s": 0.0, "value": 1.5}, {"position_s": 1.0, "value": 0.5}],
+        )
+
+
+def test_timeline_effect_rejects_volume_keyframe_negative_position() -> None:
+    with pytest.raises(ValueError, match="non-negative"):
+        VolumeKeyframe(position_s=-1.0, value=0.5)
+
+
+def test_timeline_effect_accepts_volume_keyframes() -> None:
+    effect = TimelineEffect(
+        id="e1",
+        kind="volume_keyframes",
+        points=[VolumeKeyframe(position_s=0.0, value=0.01), VolumeKeyframe(position_s=1.233, value=0.5)],
+    )
+
+    assert effect.kind == "volume_keyframes"
+    assert effect.window_ms is None
+    assert effect.points[1].value == 0.5
+
+
+def test_timeline_effect_rejects_fade_with_points() -> None:
+    with pytest.raises(ValueError, match="must not have points"):
+        TimelineEffect(
+            id="e1",
+            kind="fadein",
+            window_ms=500,
+            points=[VolumeKeyframe(position_s=0.0, value=0.5)],
+        )
+
+
+def test_timeline_effect_rejects_volume_keyframe_sub_cent_resolution() -> None:
+    with pytest.raises(ValueError, match="0.01"):
+        VolumeKeyframe(position_s=0.0, value=0.333)
+
+
+def test_timeline_document_rejects_volume_curve_outside_clip_duration() -> None:
+    with pytest.raises(ValueError, match="exceeds source duration"):
+        TimelineDocument(
+            tracks=[TimelineTrack(id="track_a", type="audio", name="Audio 1")],
+            clips=[
+                TimelineClip(
+                    id="clip_001_a",
+                    track_id="track_a",
+                    media_id="media_a",
+                    media="/tmp/a.mp4",
+                    source_in=0.0,
+                    source_out=1.0,
+                    timeline_in=0.0,
+                    timeline_out=1.0,
+                    effects=[
+                        TimelineEffect(
+                            id="clip_001_a_volume_keyframes",
+                            kind="volume_keyframes",
+                            points=[
+                                VolumeKeyframe(position_s=0.0, value=0.5),
+                                VolumeKeyframe(position_s=2.0, value=0.5),
+                            ],
+                        )
+                    ],
+                )
+            ],
+        )
+
+
 def test_timeline_clip_accepts_effects_and_round_trips() -> None:
     clip = TimelineClip(
         id="clip_001_a",
@@ -1544,6 +1856,60 @@ def test_apply_timeline_to_working_project_rejects_manual_fade_on_video(monkeypa
         timeline_file=str(timeline_file),
         output_directory=str(tmp_path),
         name="manual_fade_video_output",
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_TIMELINE"
+
+
+def test_apply_timeline_to_working_project_rejects_manual_curve_beyond_duration(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", f"{RECON_DIR}:{tmp_path}")
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS", str(tmp_path))
+    timeline_file = tmp_path / "manual_curve_beyond.timeline.json"
+    timeline_file.write_text(
+        json.dumps(
+            {
+                "kind": "kdenlive_mcp_timeline",
+                "schema_version": 1,
+                "created_by": "test",
+                "created_with_version": "0",
+                "created_at": "2026-09-16T00:00:00Z",
+                "fps": 30.0,
+                "width": 1080,
+                "height": 1920,
+                "tracks": [{"id": "track_a", "type": "audio", "name": "Audio 1"}],
+                "clips": [
+                    {
+                        "id": "clip_001_a",
+                        "track_id": "track_a",
+                        "media_id": "4",
+                        "media": str(RECON_DIR / "sample1.mp4"),
+                        "source_in": 0.0,
+                        "source_out": 3.0,
+                        "timeline_in": 0.0,
+                        "timeline_out": 3.0,
+                        "effects": [
+                            {
+                                "id": "clip_001_a_volume_keyframes",
+                                "kind": "volume_keyframes",
+                                "points": [
+                                    {"position_s": 0.0, "value": 0.5},
+                                    {"position_s": 9999.0, "value": 0.5},
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = timeline_tools.apply_timeline_to_working_project(
+        working_project=str(RECON_DIR / "manual_empty_vertical.kdenlive"),
+        timeline_file=str(timeline_file),
+        output_directory=str(tmp_path),
+        name="manual_curve_beyond_output",
     )
 
     assert result["success"] is False

@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import json
 import hashlib
+import math
 import re
 import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
-from kdenlive_mcp.domain.timeline import TimelineClip, TimelineDocument, TimelineEffect, TimelineTrack
+from kdenlive_mcp.domain.timeline import TimelineClip, TimelineDocument, TimelineEffect, TimelineTrack, VolumeKeyframe
 
 
 TIMECODE_RE = re.compile(
@@ -52,6 +53,66 @@ def _classify_audio_fade(track_kind: str, props: dict[str, str]) -> tuple[bool, 
     if (props.get("gain"), props.get("end")) != expected:
         return False, None
     return True, {"kind": kind, "window_ms": window_ms, "gain": props.get("gain"), "end": props.get("end")}
+
+
+def _parse_level(level: str, fps_num: int, fps_den: int) -> list[tuple[float, float]] | None:
+    points: list[tuple[float, float]] = []
+    for segment in level.split(";"):
+        if not segment:
+            return None
+        if "=" not in segment:
+            return None
+        timecode, value = segment.split("=", 1)
+        frame = parse_timecode_to_frames(timecode, fps_num, fps_den)
+        if frame is None or frame < 0:
+            return None
+        try:
+            parsed_value = float(value)
+        except ValueError:
+            return None
+        points.append((round(frame * fps_den / fps_num, 6), parsed_value))
+    return points
+
+
+def _classify_volume_keyframes(
+    track_kind: str,
+    props: dict[str, str],
+    fps_num: int,
+    fps_den: int,
+    source_duration: float | None,
+) -> list[dict[str, float]] | None:
+    if track_kind != "audio":
+        return None
+    if props.get("mlt_service") != "volume":
+        return None
+    if props.get("kdenlive_id") != "volume":
+        return None
+    level = props.get("level")
+    if not level:
+        return None
+    raw = _parse_level(level, fps_num, fps_den)
+    if raw is None:
+        return None
+    if len(raw) < 2:
+        return None
+    times = [point[0] for point in raw]
+    if any(next_ <= current for current, next_ in zip(times, times[1:])):
+        return None
+    values = [point[1] for point in raw]
+    if any(not math.isfinite(value) for value in values):
+        return None
+    if any(abs(round(value) - value) > 1e-6 for value in values):
+        return None
+    if any(value < 0 or value > 100 for value in values):
+        return None
+    if source_duration is not None:
+        tolerance = 1 / fps_num * fps_den
+        if any(time > source_duration + tolerance for time in times):
+            return None
+    return [
+        {"position_s": round(time, 6), "value": round(value / 100.0, 6)}
+        for time, value in raw
+    ]
 
 
 def parse_timecode_to_frames(value: str | None, fps_num: int, fps_den: int = 1) -> int | None:
@@ -423,6 +484,20 @@ class KdenliveProjectAdapter:
                 effects.append(
                     TimelineEffect(id=f"{clip_id}_{fade['kind']}", kind=fade["kind"], window_ms=int(fade["window_ms"]))
                 )
+            volume_curves = clip.get("supported_volume_keyframes") or []
+            if len(volume_curves) > 1:
+                raise KdenliveProjectError(
+                    "UNSUPPORTED_TIMELINE_FEATURE",
+                    f"Clip {clip_id} has multiple volume keyframe curves.",
+                )
+            if volume_curves:
+                effects.append(
+                    TimelineEffect(
+                        id=f"{clip_id}_volume_keyframes",
+                        kind="volume_keyframes",
+                        points=[VolumeKeyframe(**point) for point in volume_curves[0]["points"]],
+                    )
+                )
             fade_kinds = [effect.kind for effect in effects]
             if len(fade_kinds) != len(set(fade_kinds)):
                 raise KdenliveProjectError(
@@ -523,13 +598,26 @@ class KdenliveProjectAdapter:
             duration_frames = None
             if in_frames is not None and out_frames is not None:
                 duration_frames = out_frames - in_frames + 1
+            source_duration = None
+            if in_frames is not None and out_frames is not None:
+                source_duration = round((out_frames - in_frames) * fps_den / fps_num, 6)
             entry_effects: list[dict[str, Any]] = []
             supported_fades: list[dict[str, Any]] = []
+            supported_volume_keyframes: list[dict[str, Any]] = []
             for filter_ in child.findall("filter"):
                 filter_props = element_properties(filter_)
                 if filter_props.get("mlt_service") and filter_props.get("internal_added") != "237":
                     supported, fade = _classify_audio_fade(track_kind, filter_props)
-                    if fade is not None:
+                    volume_points = None
+                    if fade is None:
+                        volume_points = _classify_volume_keyframes(
+                            track_kind, filter_props, fps_num, fps_den, source_duration
+                        )
+                        if volume_points is not None:
+                            supported_volume_keyframes.append(
+                                {"filter_id": filter_.attrib.get("id"), "points": volume_points}
+                            )
+                    elif fade is not None:
                         fade["filter_id"] = filter_.attrib.get("id")
                         supported_fades.append(fade)
                     entry_effects.append(
@@ -539,7 +627,7 @@ class KdenliveProjectAdapter:
                             "mlt_service": filter_props.get("mlt_service"),
                             "kdenlive_id": filter_props.get("kdenlive_id"),
                             "track_kind": track_kind,
-                            "supported": supported,
+                            "supported": supported or volume_points is not None,
                         }
                     )
             effects.extend(entry_effects)
@@ -560,6 +648,7 @@ class KdenliveProjectAdapter:
                     "position_seconds": round(position_frames / fps_num * fps_den, 6),
                     "effect_count": len(entry_effects),
                     "supported_audio_fades": supported_fades,
+                    "supported_volume_keyframes": supported_volume_keyframes,
                 }
             )
             if duration_frames is not None:
@@ -993,10 +1082,23 @@ class KdenliveProjectAdapter:
             nonlocal filter_counter
             filter_el = ET.SubElement(entry, "filter", {"id": f"filter{filter_counter}"})
             filter_counter += 1
+            _set_property(filter_el, "mlt_service", "volume")
+            if effect.kind == "volume_keyframes":
+                _set_property(filter_el, "kdenlive_id", "volume")
+                _set_property(filter_el, "window", "75")
+                _set_property(filter_el, "max_gain", "20dB")
+                _set_property(filter_el, "channel_mask", "-1")
+                level = ";".join(
+                    f"{seconds_to_kdenlive_in_timecode(point.position_s, fps_num, fps_den)}={int(round(point.value * 100))}"
+                    for point in effect.points
+                )
+                _set_property(filter_el, "level", level)
+                _set_property(filter_el, "kdenlive:kfrhidden", "0")
+                _set_property(filter_el, "kdenlive:collapsed", "0")
+                return
             _set_property(filter_el, "window", str(effect.window_ms))
             _set_property(filter_el, "max_gain", "20dB")
             _set_property(filter_el, "channel_mask", "-1")
-            _set_property(filter_el, "mlt_service", "volume")
             _set_property(filter_el, "kdenlive_id", effect.kind)
             if effect.kind == "fadein":
                 _set_property(filter_el, "gain", "0")

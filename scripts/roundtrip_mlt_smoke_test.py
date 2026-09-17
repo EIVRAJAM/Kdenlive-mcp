@@ -16,6 +16,15 @@ EDIT_OPS = [
     {"operation": "insert_gap", "position": 2.0, "duration": 0.5},
     {"operation": "split", "clip_id": "chain3_v", "split_at": 4.0},
     {"operation": "fade_in_audio", "clip_id": "chain0_a", "duration_ms": 500},
+    {
+        "operation": "set_clip_volume_curve",
+        "clip_id": "chain0_a",
+        "points": [
+            {"position_s": 0.0, "value": 0.01},
+            {"position_s": 1.0, "value": 0.5},
+            {"position_s": 1.8, "value": 0.5},
+        ],
+    },
 ]
 
 
