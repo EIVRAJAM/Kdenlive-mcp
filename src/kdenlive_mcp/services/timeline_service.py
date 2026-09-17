@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from kdenlive_mcp.adapters.mlt_xml import write_mlt_xml
 from kdenlive_mcp.adapters.kdenlive_xml import KdenliveProjectAdapter, KdenliveProjectError
-from kdenlive_mcp.domain.timeline import TimelineClip, TimelineDocument, TimelineMarker, TimelineTrack
+from kdenlive_mcp.domain.timeline import TimelineClip, TimelineDocument, TimelineEffect, TimelineMarker, TimelineTrack
 from kdenlive_mcp.security import SecurityError, ensure_media_path, ensure_output_path, ensure_project_path
 from kdenlive_mcp.services.manifest_service import slugify_name
 
@@ -229,6 +229,47 @@ def _trim_document_clip(
         return _error("INVALID_TIMELINE", f"Edited timeline is invalid: {exc}")
     after_clips = _clip_map(edited)
     after = {"clips": {target_id: after_clips[target_id].model_dump(mode="json", exclude_none=True) for target_id in target_ids}}
+    return edited, before, after
+
+
+def _apply_audio_fade(
+    document: TimelineDocument,
+    clip_id: str,
+    kind: Literal["fadein", "fadeout"],
+    window_ms: int,
+) -> tuple[TimelineDocument, dict[str, Any], dict[str, Any]] | dict[str, Any]:
+    clips_by_id = _clip_map(document)
+    clip = clips_by_id.get(clip_id)
+    if clip is None:
+        return _error("INVALID_CLIP", f"Clip does not exist: {clip_id}")
+    track = next((track for track in document.tracks if track.id == clip.track_id), None)
+    if track is None or track.type != "audio":
+        return _error(
+            "INVALID_ARGUMENT",
+            f"Clip {clip_id} is not on an audio track; {kind} requires an audio clip.",
+            clip_id=clip_id,
+        )
+    if any(effect.kind == kind for effect in clip.effects):
+        return _error(
+            "INVALID_ARGUMENT",
+            f"Clip {clip_id} already has a {kind} effect.",
+            clip_id=clip_id,
+        )
+    clip_duration_ms = int(round((clip.timeline_out - clip.timeline_in) * 1000))
+    if window_ms > clip_duration_ms:
+        return _error(
+            "INVALID_ARGUMENT",
+            f"fade window {window_ms}ms exceeds clip duration {clip_duration_ms}ms.",
+            clip_id=clip_id,
+        )
+
+    edited = document.model_copy(deep=True)
+    edited_clips = _clip_map(edited)
+    target = edited_clips[clip_id]
+    before = {"clip": target.model_dump(mode="json", exclude_none=True)}
+    effect = TimelineEffect(id=f"{clip_id}_{kind}", kind=kind, window_ms=window_ms)
+    target.effects.append(effect)
+    after = {"clip": target.model_dump(mode="json", exclude_none=True)}
     return edited, before, after
 
 
@@ -1768,12 +1809,46 @@ def apply_timeline_edits(
                 remove_markers_in_gap=bool(edit.get("remove_markers_in_gap", True)),
             )
             step_clip_id = None
+        elif operation in ("fade_in_audio", "fade_out_audio"):
+            if "duration_ms" not in edit:
+                return _error(
+                    "INVALID_ARGUMENT",
+                    f"{operation} edit requires duration_ms.",
+                    failed_step=index,
+                    steps=steps,
+                )
+            duration_ms = edit["duration_ms"]
+            if not isinstance(duration_ms, int) or duration_ms <= 0:
+                return _error(
+                    "INVALID_ARGUMENT",
+                    f"{operation} duration_ms must be a positive integer.",
+                    failed_step=index,
+                    steps=steps,
+                )
+            edited_result = _apply_audio_fade(
+                document=document,
+                clip_id=clip_id,
+                kind="fadein" if operation == "fade_in_audio" else "fadeout",
+                window_ms=duration_ms,
+            )
+            step_clip_id = clip_id
         else:
             return _error(
                 "INVALID_ARGUMENT",
                 f"Unsupported timeline edit operation: {operation}",
                 failed_step=index,
-                supported_operations=["add", "duplicate", "remove", "trim", "move", "split", "insert_gap", "remove_gap"],
+                supported_operations=[
+                    "add",
+                    "duplicate",
+                    "remove",
+                    "trim",
+                    "move",
+                    "split",
+                    "insert_gap",
+                    "remove_gap",
+                    "fade_in_audio",
+                    "fade_out_audio",
+                ],
                 steps=steps,
             )
 

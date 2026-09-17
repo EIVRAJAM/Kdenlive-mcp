@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
 import pytest
 
-from kdenlive_mcp.domain.timeline import TimelineClip, TimelineDocument
+from kdenlive_mcp.domain.timeline import TimelineClip, TimelineDocument, TimelineEffect, TimelineTrack
 from kdenlive_mcp.services import timeline_service
 from kdenlive_mcp.tools import rough_cut_tools, timeline_tools
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -713,6 +718,132 @@ def test_apply_timeline_edits_writes_single_copy(monkeypatch, tmp_path: Path) ->
     assert clips["clip_002_v"]["timeline_in"] == 4.0
 
 
+def test_apply_timeline_edits_can_fade_in_out_audio(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="fade_source")
+
+    result = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[
+            {"operation": "fade_in_audio", "clip_id": "clip_001_a", "duration_ms": 500},
+            {"operation": "fade_out_audio", "clip_id": "clip_001_a", "duration_ms": 400},
+        ],
+        output_directory=str(tmp_path),
+        name="fade_result",
+        dry_run=True,
+    )
+
+    assert result["success"] is True
+    assert [step["operation"] for step in result["steps"]] == ["fade_in_audio", "fade_out_audio"]
+    clips = {clip["id"]: clip for clip in result["timeline"]["clips"]}
+    effects = clips["clip_001_a"]["effects"]
+    assert effects == [
+        {"id": "clip_001_a_fadein", "kind": "fadein", "window_ms": 500},
+        {"id": "clip_001_a_fadeout", "kind": "fadeout", "window_ms": 400},
+    ]
+
+
+def test_apply_timeline_edits_rejects_fade_on_non_audio_clip(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="fade_badclip_source")
+
+    result = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[{"operation": "fade_in_audio", "clip_id": "clip_001_v", "duration_ms": 500}],
+        output_directory=str(tmp_path),
+        name="fade_badclip_result",
+        dry_run=True,
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_ARGUMENT"
+    assert "not on an audio track" in result["message"]
+
+
+def test_apply_timeline_edits_rejects_duplicate_fade(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="fade_dup_source")
+
+    result = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[
+            {"operation": "fade_in_audio", "clip_id": "clip_001_a", "duration_ms": 500},
+            {"operation": "fade_in_audio", "clip_id": "clip_001_a", "duration_ms": 700},
+        ],
+        output_directory=str(tmp_path),
+        name="fade_dup_result",
+        dry_run=True,
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_ARGUMENT"
+    assert "already has a fadein" in result["message"]
+    assert result["failed_step"] == 2
+
+
+def test_apply_timeline_edits_rejects_fade_window_exceeding_clip(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="fade_toolong_source")
+
+    result = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[{"operation": "fade_out_audio", "clip_id": "clip_001_a", "duration_ms": 999999}],
+        output_directory=str(tmp_path),
+        name="fade_toolong_result",
+        dry_run=True,
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_ARGUMENT"
+    assert "exceeds clip duration" in result["message"]
+
+
+def test_apply_timeline_edits_fade_export_writes_filters_and_keeps_media(monkeypatch, tmp_path: Path) -> None:
+    saved = _create_saved_timeline(monkeypatch, tmp_path, name="fade_export_source")
+
+    edited = timeline_tools.apply_timeline_edits(
+        timeline_file=str(saved["timeline_file"]),
+        edits=[
+            {"operation": "fade_in_audio", "clip_id": "clip_001_a", "duration_ms": 500},
+            {"operation": "fade_out_audio", "clip_id": "clip_001_a", "duration_ms": 400},
+        ],
+        output_directory=str(tmp_path),
+        name="fade_export_edited",
+        dry_run=False,
+    )
+    assert edited["success"] is True
+
+    media_paths = [Path(clip["media"]) for clip in edited["timeline"]["clips"] if clip["id"] == "clip_001_a"]
+    media_hashes = {str(path): _sha256(path) for path in media_paths}
+
+    exported = _export_project(monkeypatch, tmp_path, edited["timeline_file"], "fade_export_output")
+
+    root = ET.parse(exported["project"]).getroot()
+    fade_filters: list[dict[str, str]] = []
+    for playlist in root.findall("playlist"):
+        if playlist.get("id") == "main_bin":
+            continue
+        for entry in playlist.findall("entry"):
+            for filter_ in entry.findall("filter"):
+                props = {p.attrib["name"]: p.text or "" for p in filter_.findall("property") if "name" in p.attrib}
+                if props.get("kdenlive_id") in ("fadein", "fadeout"):
+                    fade_filters.append(props)
+    assert len(fade_filters) == 2
+    fadein = next(f for f in fade_filters if f["kdenlive_id"] == "fadein")
+    fadeout = next(f for f in fade_filters if f["kdenlive_id"] == "fadeout")
+    assert fadein == {
+        "window": "500",
+        "max_gain": "20dB",
+        "channel_mask": "-1",
+        "mlt_service": "volume",
+        "kdenlive_id": "fadein",
+        "gain": "0",
+        "end": "1",
+        "kdenlive:collapsed": "0",
+    }
+    assert fadeout["window"] == "400"
+    assert fadeout["gain"] == "1"
+    assert fadeout["end"] == "0"
+
+    assert {str(path): _sha256(path) for path in media_paths} == media_hashes
+
+
 def test_apply_timeline_edits_dry_run_does_not_write(monkeypatch, tmp_path: Path) -> None:
     saved = _create_saved_timeline(monkeypatch, tmp_path, name="batch_dry_run_source")
 
@@ -1298,3 +1429,122 @@ def test_timeline_document_rejects_unknown_track() -> None:
                 )
             ],
         )
+
+
+def test_timeline_effect_rejects_invalid_kind() -> None:
+    with pytest.raises(ValueError):
+        TimelineEffect(id="e1", kind="volume", window_ms=500)  # type: ignore[arg-type]
+
+
+def test_timeline_effect_rejects_non_positive_window() -> None:
+    with pytest.raises(ValueError, match="window_ms"):
+        TimelineEffect(id="e1", kind="fadein", window_ms=0)
+
+
+def test_timeline_clip_accepts_effects_and_round_trips() -> None:
+    clip = TimelineClip(
+        id="clip_001_a",
+        track_id="track_a",
+        media_id="media_a",
+        media="/tmp/a.mp4",
+        source_in=0.0,
+        source_out=1.0,
+        timeline_in=0.0,
+        timeline_out=1.0,
+        effects=[TimelineEffect(id="clip_001_a_fadein", kind="fadein", window_ms=500)],
+    )
+
+    assert clip.effects[0].kind == "fadein"
+    assert clip.effects[0].window_ms == 500
+    TimelineDocument(
+        tracks=[TimelineTrack(id="track_a", type="audio", name="Audio 1")],
+        clips=[clip],
+    )
+
+
+def test_timeline_document_rejects_effects_on_video_clip() -> None:
+    with pytest.raises(ValueError, match="not on an audio track"):
+        TimelineDocument(
+            tracks=[TimelineTrack(id="track_v", type="video", name="Video 1")],
+            clips=[
+                TimelineClip(
+                    id="clip_001_v",
+                    track_id="track_v",
+                    media_id="media_a",
+                    media="/tmp/a.mp4",
+                    source_in=0.0,
+                    source_out=1.0,
+                    timeline_in=0.0,
+                    timeline_out=1.0,
+                    effects=[TimelineEffect(id="clip_001_v_fadein", kind="fadein", window_ms=500)],
+                )
+            ],
+        )
+
+
+def test_timeline_document_rejects_duplicate_effect_kinds() -> None:
+    with pytest.raises(ValueError, match="duplicate effect kinds"):
+        TimelineDocument(
+            tracks=[TimelineTrack(id="track_a", type="audio", name="Audio 1")],
+            clips=[
+                TimelineClip(
+                    id="clip_001_a",
+                    track_id="track_a",
+                    media_id="media_a",
+                    media="/tmp/a.mp4",
+                    source_in=0.0,
+                    source_out=1.0,
+                    timeline_in=0.0,
+                    timeline_out=1.0,
+                    effects=[
+                        TimelineEffect(id="clip_001_a_fadein", kind="fadein", window_ms=500),
+                        TimelineEffect(id="clip_001_a_fadein_2", kind="fadein", window_ms=700),
+                    ],
+                )
+            ],
+        )
+
+
+def test_apply_timeline_to_working_project_rejects_manual_fade_on_video(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_PROJECT_DIRS", f"{RECON_DIR}:{tmp_path}")
+    monkeypatch.setenv("KDENLIVE_MCP_ALLOWED_OUTPUT_DIRS", str(tmp_path))
+    timeline_file = tmp_path / "manual_fade_on_video.timeline.json"
+    timeline_file.write_text(
+        json.dumps(
+            {
+                "kind": "kdenlive_mcp_timeline",
+                "schema_version": 1,
+                "created_by": "test",
+                "created_with_version": "0",
+                "created_at": "2026-09-15T00:00:00Z",
+                "fps": 30.0,
+                "width": 1080,
+                "height": 1920,
+                "tracks": [{"id": "track_v", "type": "video", "name": "Video 1"}],
+                "clips": [
+                    {
+                        "id": "clip_001_v",
+                        "track_id": "track_v",
+                        "media_id": "4",
+                        "media": str(RECON_DIR / "sample1.mp4"),
+                        "source_in": 0.0,
+                        "source_out": 3.0,
+                        "timeline_in": 0.0,
+                        "timeline_out": 3.0,
+                        "effects": [{"id": "clip_001_v_fadein", "kind": "fadein", "window_ms": 500}],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = timeline_tools.apply_timeline_to_working_project(
+        working_project=str(RECON_DIR / "manual_empty_vertical.kdenlive"),
+        timeline_file=str(timeline_file),
+        output_directory=str(tmp_path),
+        name="manual_fade_video_output",
+    )
+
+    assert result["success"] is False
+    assert result["error"] == "INVALID_TIMELINE"

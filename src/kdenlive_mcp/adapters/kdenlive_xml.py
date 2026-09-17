@@ -8,7 +8,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
-from kdenlive_mcp.domain.timeline import TimelineClip, TimelineDocument, TimelineTrack
+from kdenlive_mcp.domain.timeline import TimelineClip, TimelineDocument, TimelineEffect, TimelineTrack
 
 
 TIMECODE_RE = re.compile(
@@ -908,6 +908,7 @@ class KdenliveProjectAdapter:
 
         chain_insert_index = 1
         chain_counter = 0
+        filter_counter = 0
         bin_chain_ids: dict[str, str] = {}
         timeline_chain_ids: dict[str, str] = {}
         media_id_map = {media_id: str(index) for index, media_id in enumerate(sorted(media_paths), start=4)}
@@ -944,6 +945,23 @@ class KdenliveProjectAdapter:
                 media_id, set_audio=True, set_image=True, control_uuid=control_uuid
             )
 
+        def append_clip_fade_filter(entry: ET.Element, effect: TimelineEffect) -> None:
+            nonlocal filter_counter
+            filter_el = ET.SubElement(entry, "filter", {"id": f"filter{filter_counter}"})
+            filter_counter += 1
+            _set_property(filter_el, "window", str(effect.window_ms))
+            _set_property(filter_el, "max_gain", "20dB")
+            _set_property(filter_el, "channel_mask", "-1")
+            _set_property(filter_el, "mlt_service", "volume")
+            _set_property(filter_el, "kdenlive_id", effect.kind)
+            if effect.kind == "fadein":
+                _set_property(filter_el, "gain", "0")
+                _set_property(filter_el, "end", "1")
+            else:
+                _set_property(filter_el, "gain", "1")
+                _set_property(filter_el, "end", "0")
+            _set_property(filter_el, "kdenlive:collapsed", "0")
+
         def append_playlist_entry(playlist: ET.Element, clip: TimelineClip) -> None:
             entry = ET.SubElement(
                 playlist,
@@ -956,6 +974,8 @@ class KdenliveProjectAdapter:
             )
             _set_property(entry, "kdenlive:id", media_id_map[clip.media_id])
             _set_property(entry, "kdenlive:audio_index", "1")
+            for effect in clip.effects:
+                append_clip_fade_filter(entry, effect)
 
         def append_track_clips(playlist: ET.Element, track_id: str) -> None:
             cursor = 0.0

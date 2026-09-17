@@ -275,9 +275,10 @@ def _has_multiple_user_transitions(root: ET.Element) -> bool:
 
 
 def _has_audio_fade(root: ET.Element) -> bool:
-    # Best-effort: a clip-level filter whose service is volume/fade-like with a
-    # keyframed property (a property value containing a "=" timecode). Pattern
-    # unconfirmed until the fixture exists.
+    # A clip-level volume/fade filter. Recognized forms:
+    #   kdenlive_id = fadein / fadeout (window/gain/end properties, no keyframes)
+    #   any volume/fade-like filter with a keyframed property (a property value
+    #   containing a "=" timecode).
     fade_services = {"volume", "fade", "fadein", "fadeout", "fade_tocurrentcolor"}
     for playlist in root.findall("playlist"):
         for entry in playlist.findall("entry"):
@@ -285,6 +286,8 @@ def _has_audio_fade(root: ET.Element) -> bool:
                 props = _props(filter_)
                 if props.get("mlt_service") not in fade_services:
                     continue
+                if props.get("kdenlive_id") in ("fadein", "fadeout"):
+                    return True
                 for name, value in props.items():
                     if "=" in value:
                         return True
@@ -637,3 +640,36 @@ def test_multiple_effects_detector_counts_user_filters_only() -> None:
 
     assert _clip_effect_counts(root) == {"chainX": 2}
     assert _has_multiple_effects_on_clip(root) is True
+
+
+def test_audio_fade_detector_recognizes_fadein_without_keyframes() -> None:
+    playlist = ET.Element("playlist")
+    entry = ET.SubElement(playlist, "entry", {"producer": "chain0"})
+    filter_ = ET.SubElement(entry, "filter", {"id": "filter0"})
+    for name, text in (
+        ("window", "75"),
+        ("mlt_service", "volume"),
+        ("kdenlive_id", "fadein"),
+        ("gain", "0"),
+        ("end", "1"),
+    ):
+        prop = ET.SubElement(filter_, "property")
+        prop.set("name", name)
+        prop.text = text
+    root = ET.Element("mlt")
+    root.append(playlist)
+
+    assert _has_audio_fade(root) is True
+
+
+def test_audio_fade_detector_ignores_plain_volume_without_keyframes() -> None:
+    playlist = ET.Element("playlist")
+    entry = ET.SubElement(playlist, "entry", {"producer": "chain0"})
+    filter_ = ET.SubElement(entry, "filter", {"id": "filter0"})
+    prop = ET.SubElement(filter_, "property")
+    prop.set("name", "mlt_service")
+    prop.text = "volume"
+    root = ET.Element("mlt")
+    root.append(playlist)
+
+    assert _has_audio_fade(root) is False

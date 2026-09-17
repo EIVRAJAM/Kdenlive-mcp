@@ -76,10 +76,11 @@ BLOCKED  bloqueado por un principio no negociable o rediseño pendiente
   (`multiple_effect_stack_on_clip`, `multiple_transitions_timeline`,
   `audio_fade_fixture`, `proxy_fixture`) con sus patrones XML reales
   documentados en `docs/KDENLIVE_PROJECT_FORMAT.md`. Los tests de fixtures ya no
-  tienen skips. Pendiente (SHOULD/COULD): la *escritura/generación MCP* de esas
-  features (stack de efectos, transiciones múltiples, fade de audio, proxy) —
-  hoy `export_kdenlive_timeline` y `extract_timeline_document` las rechazan con
-  `UNSUPPORTED_TIMELINE_FEATURE` para evitar pérdida silenciosa.
+  tienen skips. Pendiente (SHOULD/COULD): la *escritura/generación MCP* de las
+  features restantes (stack de efectos, transiciones múltiples, proxy) — la
+  escritura de audio fade ya existe como MVP (`fade_in_audio`/`fade_out_audio` en
+  `apply_timeline_edits`); `export_kdenlive_timeline` sigue rechazando clip
+  effects en lectura con `UNSUPPORTED_TIMELINE_FEATURE`.
 - Edición de una working copy `.kdenlive` (spike de orquestación): **DONE con caveat**.
   `apply_timeline_to_working_project` aplica un timeline MCP a una working copy y escribe
   un proyecto derivado nuevo (copy-on-write). `apply_edits_to_working_project` orquesta el
@@ -148,12 +149,12 @@ Conteo: DONE 20 · PARTIAL 0 · MISSING 0 · BLOCKED 0.
     apply_timeline_to_working_project ya está validado end-to-end vía MCP y el
     output carga en melt real vía scripts/roundtrip_mlt_smoke_test.py cuando el
     sandbox lo permite).
-4. Implementar la *escritura/generación MCP* de las features complejas hoy
-   rechazadas en el reverse adapter (stack de efectos múltiples, transiciones
-   múltiples, fade de audio, proxy) usando los patrones XML ya confirmados por
-   los fixtures reales en `docs/KDENLIVE_PROJECT_FORMAT.md`; mientras tanto
-   `export_kdenlive_timeline` las rechaza con `UNSUPPORTED_TIMELINE_FEATURE` sin
-   pérdida silenciosa.
+4. Ampliar la *escritura/generación MCP* de las features complejas aún sin
+   escritor (stack de efectos múltiples, transiciones múltiples, proxy) usando
+   los patrones XML confirmados en `docs/KDENLIVE_PROJECT_FORMAT.md`. El fade de
+   audio ya tiene escritor MVP (`fade_in_audio`/`fade_out_audio`); falta leer los
+   fades en el reverse adapter (hoy `export_kdenlive_timeline` rechaza clip
+   effects en lectura).
 5. Ampliar la verificación a un segundo cliente MCP distinto del SDK oficial `mcp`
    (el gate de cliente real ya pasa con el SDK oficial en `.venv`; el checklist
    "MCP tool discovery works" queda cerrado para ese cliente).

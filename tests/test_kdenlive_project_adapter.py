@@ -474,6 +474,32 @@ def test_export_kdenlive_timeline_rejects_complex_fixture(monkeypatch, tmp_path,
     assert not list(tmp_path.glob("*.timeline.json"))
 
 
+def test_apply_timeline_edits_fade_via_mcp_boundary(monkeypatch, tmp_path) -> None:
+    _allow_export(monkeypatch, tmp_path)
+    exported = _export_timeline("manual_two_clips_timeline", tmp_path)
+
+    result = _mcp_call(
+        "apply_timeline_edits",
+        {
+            "timeline_file": exported["timeline_file"],
+            "edits": [
+                {"operation": "fade_in_audio", "clip_id": "chain0_a", "duration_ms": 500},
+                {"operation": "fade_out_audio", "clip_id": "chain0_a", "duration_ms": 400},
+            ],
+            "output_directory": str(tmp_path),
+            "name": "fade_via_mcp",
+            "dry_run": True,
+        },
+    )
+
+    assert result["success"] is True
+    clips = {clip["id"]: clip for clip in result["timeline"]["clips"]}
+    assert clips["chain0_a"]["effects"] == [
+        {"id": "chain0_a_fadein", "kind": "fadein", "window_ms": 500},
+        {"id": "chain0_a_fadeout", "kind": "fadeout", "window_ms": 400},
+    ]
+
+
 def test_extract_timeline_document_two_clips_validates() -> None:
     document = _extract_document("manual_two_clips_timeline.kdenlive")
     validated = TimelineDocument.model_validate(document.model_dump(mode="json", exclude_none=True))

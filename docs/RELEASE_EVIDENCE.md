@@ -3220,3 +3220,75 @@ Documentation is aligned with the implemented state; remaining pendientes are
 writing/generation MCP support (not XML observation), in-place editing, and a
 second MCP client — all SHOULD, not MUST. Verdict: READY_WITH_KNOWN_LIMITATIONS.
 ```
+
+## 2026-09-15 Audio fade write MVP
+
+Scope:
+
+```text
+minimal MCP writing support for audio fadein/fadeout over timeline clips, using
+the confirmed audio_fade_fixture.kdenlive pattern, without generalizing effects
+```
+
+Behavior:
+
+```text
+TimelineEffect model (id, kind fadein|fadeout, window_ms) + TimelineClip.effects
+(additive field, schema_version stays 1)
+apply_timeline_edits gains fade_in_audio / fade_out_audio (clip_id, duration_ms):
+  - non-audio clip          -> INVALID_ARGUMENT
+  - duplicate same kind     -> INVALID_ARGUMENT
+  - window > clip duration  -> INVALID_ARGUMENT
+  - dry_run / copy-on-write / error shape same as other edit ops
+Kdenlive writer emits a clip-level <filter> volume with
+  kdenlive_id=fadein|fadeout; window receives the MCP window_ms value verbatim;
+  gain/end fixed per kind (fadein 0->1, fadeout 1->0), kdenlive:collapsed=0
+  The exact semantic unit of Kdenlive's window property is not yet confirmed by
+  a resave.
+export_kdenlive_timeline still rejects clip effects on read (write-only path
+for fades for now)
+```
+
+Tests:
+
+```text
+tests/test_timeline_service.py:
+  - TimelineEffect validation (invalid kind, non-positive window)
+  - TimelineClip accepts and round-trips effects
+  - fade_in_audio/fade_out_audio dry-run (effects in timeline)
+  - non-audio clip / duplicate / window exceeding clip -> INVALID_ARGUMENT
+  - export writes the expected volume filters and media sha256 unchanged
+tests/test_kdenlive_project_fixtures.py:
+  - _has_audio_fade recognizes kdenlive_id=fadein/fadeout without keyframes
+    (and still ignores a plain volume filter)
+tests/test_kdenlive_project_adapter.py:
+  - fade_in_audio/fade_out_audio via tools/call MCP boundary
+scripts/roundtrip_mlt_smoke_test.py: EDIT_OPS now includes fade_in_audio; the
+round-trip output with the fade loads in real melt (mlt_loaded)
+```
+
+Commands:
+
+```bash
+pytest tests/test_timeline_service.py tests/test_kdenlive_project_adapter.py tests/test_kdenlive_project_fixtures.py -q
+python3 scripts/roundtrip_mlt_smoke_test.py
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+timeline_service + adapter + fixtures: passed
+roundtrip_mlt_smoke_test.py: verdict mlt_loaded (output with audio fade loads)
+full suite: 385 passed, 1 skipped
+```
+
+Decision:
+
+```text
+Audio fade writing is available as an MVP: the generated XML matches the
+confirmed fixture pattern and the output loads in real MLT. Volume keyframes and
+other effects are still write-only-off; export_kdenlive_timeline keeps rejecting
+clip effects on read until the reverse adapter learns to read them.
+```

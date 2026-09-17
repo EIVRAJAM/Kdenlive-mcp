@@ -20,6 +20,18 @@ class TimelineTrack(BaseModel):
     muted: bool = False
 
 
+class TimelineEffect(BaseModel):
+    id: str
+    kind: Literal["fadein", "fadeout"]
+    window_ms: int
+
+    @model_validator(mode="after")
+    def validate_effect(self) -> "TimelineEffect":
+        if self.window_ms <= 0:
+            raise ValueError("window_ms must be positive")
+        return self
+
+
 class TimelineClip(BaseModel):
     id: str
     track_id: str
@@ -33,6 +45,7 @@ class TimelineClip(BaseModel):
     linked_clip_id: str | None = None
     source_segment_id: str | None = None
     reason: str | None = None
+    effects: list[TimelineEffect] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_ranges(self) -> "TimelineClip":
@@ -94,6 +107,7 @@ class TimelineDocument(BaseModel):
         track_ids = {track.id for track in self.tracks}
         if len(track_ids) != len(self.tracks):
             raise ValueError("track IDs must be unique")
+        track_by_id = {track.id: track for track in self.tracks}
 
         clip_ids = {clip.id for clip in self.clips}
         if len(clip_ids) != len(self.clips):
@@ -104,6 +118,12 @@ class TimelineDocument(BaseModel):
                 raise ValueError(f"clip references unknown track: {clip.track_id}")
             if clip.linked_clip_id is not None and clip.linked_clip_id not in clip_ids:
                 raise ValueError(f"clip references unknown linked clip: {clip.linked_clip_id}")
+            if clip.effects:
+                if track_by_id[clip.track_id].type != "audio":
+                    raise ValueError(f"clip {clip.id} has effects but is not on an audio track")
+                kinds = [effect.kind for effect in clip.effects]
+                if len(kinds) != len(set(kinds)):
+                    raise ValueError(f"clip {clip.id} has duplicate effect kinds: {sorted(kinds)}")
 
         marker_ids = {marker.id for marker in self.markers}
         if len(marker_ids) != len(self.markers):

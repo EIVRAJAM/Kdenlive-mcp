@@ -320,7 +320,7 @@ TOOLS: dict[str, dict[str, Any]] = {
         "handler": split_timeline_clip,
     },
     "apply_timeline_edits": {
-        "description": "Apply an ordered batch of add/duplicate/remove/trim/move/split/insert_gap/remove_gap operations to an MCP timeline as one validated copy-on-write transaction.",
+        "description": "Apply an ordered batch of add/duplicate/remove/trim/move/split/insert_gap/remove_gap/fade_in_audio/fade_out_audio operations to an MCP timeline as one validated copy-on-write transaction.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -332,7 +332,18 @@ TOOLS: dict[str, dict[str, Any]] = {
                         "properties": {
                             "operation": {
                                 "type": "string",
-                                "enum": ["add", "duplicate", "remove", "trim", "move", "split", "insert_gap", "remove_gap"],
+                                "enum": [
+                                    "add",
+                                    "duplicate",
+                                    "remove",
+                                    "trim",
+                                    "move",
+                                    "split",
+                                    "insert_gap",
+                                    "remove_gap",
+                                    "fade_in_audio",
+                                    "fade_out_audio",
+                                ],
                             },
                             "clip_id": {"type": "string"},
                             "new_clip_id": {"type": "string"},
@@ -345,6 +356,7 @@ TOOLS: dict[str, dict[str, Any]] = {
                             "timeline_in": {"type": "number"},
                             "position": {"type": "number"},
                             "duration": {"type": "number"},
+                            "duration_ms": {"type": "integer"},
                             "split_at": {"type": "number"},
                             "media_id": {"type": "string"},
                             "speed": {"type": "number", "default": 1.0},
@@ -445,6 +457,8 @@ TOOLS: dict[str, dict[str, Any]] = {
                                     "split",
                                     "insert_gap",
                                     "remove_gap",
+                                    "fade_in_audio",
+                                    "fade_out_audio",
                                 ],
                             },
                             "clip_id": {"type": "string"},
@@ -453,6 +467,7 @@ TOOLS: dict[str, dict[str, Any]] = {
                             "source_out": {"type": "number"},
                             "position": {"type": "number"},
                             "duration": {"type": "number"},
+                            "duration_ms": {"type": "integer"},
                             "split_at": {"type": "number"},
                             "track_id": {"type": "string"},
                             "track_ids": {"type": "array", "items": {"type": "string"}},

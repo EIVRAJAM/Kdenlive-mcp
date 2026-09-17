@@ -333,6 +333,19 @@ Optional fields:
 linked_clip_id
 source_segment_id
 reason
+effects
+```
+
+`effects` (Clip v1, audio fade MVP only):
+
+```text
+each effect: { id, kind: "fadein" | "fadeout", window_ms }
+window_ms is the MCP-side value; the Kdenlive writer emits it verbatim into the
+filter property "window". The exact semantic unit of Kdenlive's "window" is not
+yet confirmed by a resave.
+effects are only valid on audio-track clips; a clip with effects on a video (or
+unknown) track is rejected. Duplicate kinds on the same clip are rejected. No
+generic effects are supported in v1.
 ```
 
 Example:
@@ -424,7 +437,9 @@ Expected future additions:
 multiple editable tracks
 clip groups
 transitions
-effects
+effects (generic)          <- TimelineClip.effects already exists in v1 for the
+                              audio fade MVP only (fadein/fadeout); generic
+                              effects remain future
 subtitles
 proxy references
 render jobs

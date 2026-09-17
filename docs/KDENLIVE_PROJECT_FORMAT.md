@@ -736,6 +736,17 @@ Round-trip behavior for complex AI-written projects with effect stacks, multiple
 transitions, proxies, subtitles, or advanced metadata
 ```
 
+Audio fade writing (MVP, 2026-09-15): `fade_in_audio` / `fade_out_audio` in
+`apply_timeline_edits` write a clip-level `<filter>` `volume` with
+`kdenlive_id=fadein|fadeout` (`window` receives the MCP `window_ms` value
+verbatim; `gain`/`end` fixed per kind) inside the audio clip's playlist entry,
+matching the confirmed `audio_fade_fixture.kdenlive` pattern. The exact semantic
+unit of Kdenlive's `window` is not yet confirmed by a resave. Volume keyframes
+(`kdenlive_id=volume` with `level=timecode=value;...`) are NOT written yet, and
+`export_kdenlive_timeline` still rejects clip effects on read. A
+`TimelineDocument` with effects on non-audio clips or duplicate effect kinds is
+rejected as invalid.
+
 ## Kdenlive Round-Trip Of An AI-Generated Project
 
 The MCP generates `examples/recon/roundtrip_ai_generated.kdenlive` from the

@@ -1149,10 +1149,25 @@ Input:
 ```
 
 Applies an ordered batch of `add`, `duplicate`, `remove`, `insert_gap`,
-`remove_gap`, `trim`, `move`, and `split` operations to the MCP-owned timeline,
-then validates the final result before writing one derived timeline JSON file.
-This is the preferred tool when an agent wants to execute a small edit plan
-without producing one intermediate file per operation.
+`remove_gap`, `trim`, `move`, `split`, `fade_in_audio`, and `fade_out_audio`
+operations to the MCP-owned timeline, then validates the final result before
+writing one derived timeline JSON file. This is the preferred tool when an agent
+wants to execute a small edit plan without producing one intermediate file per
+operation.
+
+Audio fades (MVP): `fade_in_audio` and `fade_out_audio` take `clip_id` plus
+`duration_ms`. `duration_ms` is the `window_ms` field of the MCP model; it is
+written to the Kdenlive `window` property as-is. The exact semantic unit of
+Kdenlive's `window` is not yet confirmed by a resave; only the pattern
+(property name and value passthrough) is confirmed. The target clip must be on
+an audio track, the window must be positive and not exceed the clip duration,
+and a fade of the same kind cannot be added twice to the same clip
+(`INVALID_ARGUMENT` otherwise). A `TimelineDocument` whose clips carry effects on
+non-audio tracks, or duplicate effect kinds, is rejected as `INVALID_TIMELINE`
+even if the `.timeline.json` is hand-written. On export the fade becomes a
+clip-level `<filter>` `volume` with `kdenlive_id=fadein|fadeout`, `gain`/`end`
+fixed per kind, inside the audio clip's playlist entry. Volume keyframes are not
+written yet and `export_kdenlive_timeline` still rejects clip effects on read.
 
 If one edit has invalid arguments, the tool returns a structured error with
 `failed_step`, `failed_edit`, and the successful `steps` applied before that
