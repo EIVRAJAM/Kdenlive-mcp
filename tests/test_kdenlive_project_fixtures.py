@@ -30,6 +30,8 @@ ADDITIONAL_REFERENCE_PROJECTS = [
 ROUNDTRIP_GENERATED = "roundtrip_ai_generated.kdenlive"
 ROUNDTRIP_RESAVED = "roundtrip_ai_resaved_by_kdenlive.kdenlive"
 COMPOSITE_GENERATED = "composite_edit_ai_generated.kdenlive"
+AUDIO_FADE_GENERATED = "audio_fade_ai_generated.kdenlive"
+AUDIO_FADE_RESAVED = "audio_fade_ai_resaved_by_kdenlive.kdenlive"
 
 # Complex fixtures require manual creation in Kdenlive; tests skip until each
 # file exists. Manual recipes and expected/unknown patterns are documented in
@@ -673,3 +675,68 @@ def test_audio_fade_detector_ignores_plain_volume_without_keyframes() -> None:
     root.append(playlist)
 
     assert _has_audio_fade(root) is False
+
+
+def test_generated_audio_fade_project_has_expected_filters() -> None:
+    root = _parse(AUDIO_FADE_GENERATED)
+
+    fades: list[dict[str, str]] = []
+    for playlist in root.findall("playlist"):
+        if playlist.get("id") == "main_bin":
+            continue
+        for entry in playlist.findall("entry"):
+            for filter_ in entry.findall("filter"):
+                props = _props(filter_)
+                if props.get("kdenlive_id") in ("fadein", "fadeout"):
+                    fades.append(props)
+    assert len(fades) == 2
+    fadein = next(f for f in fades if f["kdenlive_id"] == "fadein")
+    fadeout = next(f for f in fades if f["kdenlive_id"] == "fadeout")
+    assert fadein["mlt_service"] == "volume"
+    assert fadein["window"] == "500"
+    assert fadein["gain"] == "0"
+    assert fadein["end"] == "1"
+    assert fadeout["mlt_service"] == "volume"
+    assert fadeout["window"] == "400"
+    assert fadeout["gain"] == "1"
+    assert fadeout["end"] == "0"
+    assert "level" not in fadein
+    assert "level" not in fadeout
+
+
+@pytest.mark.skipif(not (RECON_DIR / AUDIO_FADE_RESAVED).exists(), reason=f"{AUDIO_FADE_RESAVED} requires opening {AUDIO_FADE_GENERATED} in Kdenlive and saving it under that name; instructions in docs/KDENLIVE_PROJECT_FORMAT.md")
+def test_resaved_audio_fade_project_is_well_formed_with_media() -> None:
+    root = _parse(AUDIO_FADE_RESAVED)
+
+    assert root.tag == "mlt"
+    assert root.attrib["producer"] == "main_bin"
+    profile = root.find("profile")
+    assert profile is not None
+    assert profile.attrib["width"] == "1080"
+    assert profile.attrib["height"] == "1920"
+    for chain in root.findall("chain"):
+        resource = _props(chain).get("resource")
+        if resource and resource != "black":
+            assert (RECON_DIR / resource).exists()
+
+
+@pytest.mark.skipif(not (RECON_DIR / AUDIO_FADE_RESAVED).exists(), reason=f"{AUDIO_FADE_RESAVED} requires opening {AUDIO_FADE_GENERATED} in Kdenlive and saving it under that name; instructions in docs/KDENLIVE_PROJECT_FORMAT.md")
+def test_resaved_audio_fade_project_reverse_converts_fades() -> None:
+    from kdenlive_mcp.adapters.kdenlive_xml import KdenliveProjectAdapter
+
+    document = KdenliveProjectAdapter().extract_timeline_document(RECON_DIR / AUDIO_FADE_RESAVED)
+    faded_clips = [clip for clip in document.clips if clip.effects]
+
+    assert len(faded_clips) == 1
+    effects = {effect.kind: effect.window_ms for effect in faded_clips[0].effects}
+    # Preserve the written window_ms values; if Kdenlive transforms them on
+    # resave, update this assertion with the exact transformed values.
+    assert effects == {"fadein": 500, "fadeout": 400}
+
+
+@pytest.mark.skipif(not (RECON_DIR / AUDIO_FADE_RESAVED).exists(), reason=f"{AUDIO_FADE_RESAVED} requires opening {AUDIO_FADE_GENERATED} in Kdenlive and saving it under that name; instructions in docs/KDENLIVE_PROJECT_FORMAT.md")
+def test_resaved_audio_fade_project_has_no_unexpected_clip_effects() -> None:
+    from kdenlive_mcp.adapters.kdenlive_xml import KdenliveProjectAdapter
+
+    summary = KdenliveProjectAdapter().extract_timeline_summary(RECON_DIR / AUDIO_FADE_RESAVED)
+    assert all(effect.get("supported") for effect in summary["clip_effects"])

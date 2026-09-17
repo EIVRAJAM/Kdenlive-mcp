@@ -3359,3 +3359,63 @@ The fade round-trip is closed: the MCP can write fades, export a .kdenlive, and
 read them back as TimelineEffect, while anything outside the strict fade subset
 is still refused with UNSUPPORTED_TIMELINE_FEATURE.
 ```
+
+## 2026-09-16 Audio fade resave verification prepared
+
+Scope:
+
+```text
+generate a real .kdenlive with simple fades using MCP tools and prepare skipif
+tests + docs for the pending manual Kdenlive resave
+```
+
+Behavior:
+
+```text
+examples/recon/audio_fade_ai_generated.kdenlive generated via
+  export_kdenlive_timeline -> apply_timeline_edits (fade_in_audio 500,
+  fade_out_audio 400 on the audio clip) -> apply_timeline_to_working_project
+validated:
+  xmllint --noout OK
+  validate_project(check_mlt=True) -> valid True, mlt status loaded,
+    missing_media 0
+  XML inspection: filter0 volume/kdenlive_id=fadein window=500 gain=0 end=1,
+    filter1 volume/kdenlive_id=fadeout window=400 gain=1 end=0, no level
+skipif tests added (active once examples/recon/
+  audio_fade_ai_resaved_by_kdenlive.kdenlive exists):
+  test_resaved_audio_fade_project_is_well_formed_with_media
+  test_resaved_audio_fade_project_reverse_converts_fades (window_ms preserved
+    fadein=500, fadeout=400; update assertion if Kdenlive transforms values)
+  test_resaved_audio_fade_project_has_no_unexpected_clip_effects
+docs/KDENLIVE_PROJECT_FORMAT.md documents the manual step:
+  flatpak run org.kde.kdenlive examples/recon/audio_fade_ai_generated.kdenlive
+  -> Save As examples/recon/audio_fade_ai_resaved_by_kdenlive.kdenlive
+```
+
+Status:
+
+```text
+preparation complete; manual resave in Kdenlive is pending (user)
+```
+
+Commands:
+
+```bash
+pytest tests/test_kdenlive_project_adapter.py tests/test_kdenlive_project_fixtures.py -q
+pytest
+scripts/dev_check.sh
+```
+
+Results:
+
+```text
+full suite: 390 passed, 4 skipped (3 new resave skipif + 1 in-place edit skip)
+```
+
+Decision:
+
+```text
+The MCP-generated audio fade project is valid and loads in real MLT. The next
+step is a manual resave in Kdenlive to confirm the window_ms values and filter
+shape survive, before expanding to volume keyframes or advanced effects.
+```
